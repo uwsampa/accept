@@ -183,8 +183,7 @@ namespace {
         );
         CallInst::Create(
           blockCountFunction,
-          args.begin(),
-          args.end(), // this style is only necessary with 2.9; in 3.0, we can just pass the vector
+          args,
           "",
           insertPoint
         );
