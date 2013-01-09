@@ -1,15 +1,28 @@
-cmake_minimum_required(VERSION 2.8)  # I have no idea if this is right.
+# I have no idea if this version is right.
+cmake_minimum_required(VERSION 2.8)
 
+# This was recommended by the LLVM documentation for "out-of-source" pass
+# builds.
 set(LLVM_DIR llvm-build/share/llvm/cmake)
 find_package(LLVM)
-
-# Define add_llvm_* macro's.
 include(AddLLVM)
-
-message(STATUS ${LLVM_INCLUDE_DIRS})
-
 add_definitions(${LLVM_DEFINITIONS})
 include_directories(${LLVM_INCLUDE_DIRS})
 link_directories(${LLVM_LIBRARY_DIRS})
 
+# I made this up to make it slightly easier to write CMake files for Clang
+# plugins.
+macro(add_clang_plugin name)
+    add_library( ${name} SHARED ${ARGN} )
+    target_link_libraries( ${name} clang clangFrontend clangAST )
+    set_target_properties( ${name} PROPERTIES 
+        LINKER_LANGUAGE CXX
+        PREFIX ""
+        # Necessary because LLVM itself has RTTI turned off by default.
+        COMPILE_FLAGS "-fno-rtti"  
+    )
+endmacro(add_clang_plugin)
+
+# Finally, the subprojects we actually intend to build.
 add_subdirectory(enerc-pass)
+add_subdirectory(enerc-checker)
