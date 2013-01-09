@@ -1,0 +1,19 @@
+#!/bin/sh
+
+enercdir=`dirname $0`/..
+incdir=$enercdir/include
+llvmbuilddir=$enercdir/llvm-build
+clang=$llvmbuilddir/bin/clang
+
+if [ `basename $0` = "enerclang++" ]; then
+    clang="$clang++"
+fi
+
+if [ `uname` = "Darwin" ]; then
+    libext=dylib
+else
+    libext=so
+fi
+enerclib=$enercdir/enerc-checker/EnerCTypeChecker.$libext
+
+exec $clang -Xclang -load -Xclang $enerclib -Xclang -add-plugin -Xclang enerc-type-checker -I $incdir $@
