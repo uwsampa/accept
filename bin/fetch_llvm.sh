@@ -7,7 +7,7 @@ mv llvm-3.2.src llvm
 
 # Get (hacked) Clang.
 cd llvm/tools
-git clone git@github.com:bholt/clang-annos.git clang  # May relocate this.
+git clone git@bitbucket.org:sampa/clang-qual.git clang
  
 # Compiler pass.
 cd ../lib/Transforms
