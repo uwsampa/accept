@@ -28,5 +28,5 @@ macro(add_clang_plugin name)
 endmacro(add_clang_plugin)
 
 # Finally, the subprojects we actually intend to build.
-add_subdirectory(enerc-pass)
-add_subdirectory(enerc-checker)
+add_subdirectory(pass)
+add_subdirectory(checker)
