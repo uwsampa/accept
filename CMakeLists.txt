@@ -1,10 +1,15 @@
 # I have no idea if this version is right.
 cmake_minimum_required(VERSION 2.8)
 
+# First, include LLVM and Clang.
+add_subdirectory(llvm)
+
 # This was recommended by the LLVM documentation for "out-of-source" pass
 # builds.
-set(LLVM_DIR llvm-build/share/llvm/cmake)
+set(LLVM_DIR llvm/cmake/modules)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/llvm/cmake/modules)
 find_package(LLVM)
+include(HandleLLVMOptions)  # Set LLVM_ON_UNIX, etc.
 include(AddLLVM)
 add_definitions(${LLVM_DEFINITIONS})
 include_directories(${LLVM_INCLUDE_DIRS})
@@ -14,7 +19,7 @@ link_directories(${LLVM_LIBRARY_DIRS})
 # plugins.
 macro(add_clang_plugin name)
     add_library( ${name} SHARED ${ARGN} )
-    target_link_libraries( ${name} clang clangFrontend clangAST )
+    target_link_libraries( ${name} clangFrontend clangAST )
     set_target_properties( ${name} PROPERTIES 
         LINKER_LANGUAGE CXX
         PREFIX ""

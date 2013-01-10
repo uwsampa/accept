@@ -17,21 +17,21 @@ to this directory and then run:
 
 That downloads LLVM 3.2 into a directory called `llvm`. Then it checks
 out our modified Clang from git and places it in the LLVM source tree.
-To build both LLVM and Clang, run:
+To build LLVM, Clang, and everything for the EnerC extensions, run:
 
     $ ./bin/build_llvm.sh
 
-This uses CMake to build everything and install it under `build/built/`.
-You now have a fully-functional Clang compiler at
-`build/built/bin/clang`. Next, we need to build the EnerC extensions to
-LLVM and Clang. Run:
+This uses CMake to generate a makefile and then runs make. (I have `-j9`
+passed to `make` in that script; you may want to change this depending
+on your hardware.) LLVM and Clang are installed to the directory
+`build/built/`, so you now have a fully-functional Clang compiler at
+`build/built/bin/clang`. For EnerC, that also builds three other things:
+a frontend (Clang) plugin for checking types, a backend (LLVM) pass for
+analysis and transformation, and a runtime library. For subsequent
+rebuilds, you can just type `make` in the `build/` directory.
 
-    $ ./bin/build_enerc.sh
-
-Again using CMake, that builds three things: a frontend (Clang) plugin
-for checking types, a backend (LLVM) pass for analysis and
-transformation, and a runtime library. Now you can use `bin/enerclang`
-and `bin/enerclang++` to compile EnerC programs.
+Now you can use `bin/enerclang` and `bin/enerclang++` to compile EnerC
+programs.
 
 
 What's Here
