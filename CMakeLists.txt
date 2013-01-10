@@ -30,3 +30,4 @@ endmacro(add_clang_plugin)
 # Finally, the subprojects we actually intend to build.
 add_subdirectory(pass)
 add_subdirectory(checker)
+add_subdirectory(rt)
