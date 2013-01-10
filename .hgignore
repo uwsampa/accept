@@ -1,6 +1,4 @@
 ^llvm/
-^llvm-build/
-CMakeFiles/
-CMakeCache\.txt
-Makefile
-cmake_install\.cmake
+^build-llvm/
+^build-enerc/
+^built/

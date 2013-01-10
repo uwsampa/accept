@@ -21,6 +21,10 @@ macro(add_clang_plugin name)
         # Necessary because LLVM itself has RTTI turned off by default.
         COMPILE_FLAGS "-fno-rtti"  
     )
+    install(TARGETS ${name}
+        LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX}
+        ARCHIVE DESTINATION lib${LLVM_LIBDIR_SUFFIX}
+    )
 endmacro(add_clang_plugin)
 
 # Finally, the subprojects we actually intend to build.
