@@ -1,7 +1,7 @@
 #!/bin/sh
 
 enercdir=`dirname $0`/..
-builtdir=$enercdir/built
+builtdir=$enercdir/build/built
 incdir=$enercdir/include
 clang=$builtdir/bin/clang
 
