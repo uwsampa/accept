@@ -7,5 +7,5 @@ builddir=build/enerc
 mkdir -p $builddir
 cd $builddir
 cmake -DCMAKE_BUILD_TYPE:STRING=Debug -DCMAKE_INSTALL_PREFIX:PATH=$destdir ../..
-make -j9
+make
 make install
