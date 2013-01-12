@@ -1,9 +1,10 @@
 set(SOURCES
   EnerCTypeChecker.cpp
-  NodeTyper.h
-  TyperConsumer.cpp
-  TyperConsumer.h
-  TyperVisitor.h
 )
 
 add_clang_plugin(EnerCTypeChecker ${SOURCES})
+
+# Link to checkerlib.
+include_directories(${CHECKERLIB_SOURCE_DIR})
+target_link_libraries(EnerCTypeChecker checkerlib)
+
