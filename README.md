@@ -44,6 +44,9 @@ This repository includes lots of stuff:
   executables.
 * `checker/`: The Clang plugin that checks the EnerC type system and
   emits annotated LLVM bitcode.
+* `checkerlib/`: This is a subrepository (hosted as a separate git repo
+  on BitBucket) that supports the writing of modular type checkers for
+  Clang like the one above.
 * `pass/`: The LLVM compiler pass that analyzes annotated bitcode and
   performs instrumentation/transformation.
 * `include/`: A header file that EnerC programs should use (via
