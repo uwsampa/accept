@@ -8,6 +8,5 @@ mkdir -p $destdir
 builddir=build/llvm
 mkdir -p $builddir
 cd $builddir
-cmake -DCMAKE_BUILD_TYPE:STRING=Debug -DCMAKE_INSTALL_PREFIX:PATH=$destdir ../../llvm
-make -j9
-make install
+cmake -G Ninja -DCMAKE_BUILD_TYPE:STRING=Debug -DCMAKE_INSTALL_PREFIX:PATH=$destdir ../../llvm
+ninja install

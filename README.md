@@ -8,6 +8,13 @@ EnerC approximate compiler project.
 Quick Start
 -----------
 
+The build scripts included use [CMake][] and [Ninja][]. If you don't
+have these tools, install them or edit the scripts to use make or
+whatever your preferred tool is.
+
+[Ninja]: http://martine.github.com/ninja/
+[CMake]: http://www.cmake.org/
+
 To get all set up, you will need to download and compile LLVM and a
 modified version of Clang that supports type qualifiers. This repository
 contains a couple of scripts that help with this. To get started, `cd`
@@ -21,10 +28,10 @@ To build both LLVM and Clang, run:
 
     $ ./bin/build_llvm.sh
 
-This uses CMake to build everything and install it under `build/built/`.
-You now have a fully-functional Clang compiler at
-`build/built/bin/clang`. Next, we need to build the EnerC extensions to
-LLVM and Clang. Run:
+This uses CMake and Ninja to build everything and install it under
+`build/built/`. You now have a fully-functional Clang compiler at
+`build/built/bin/clang`. Next, we need to build the EnerC extensions to LLVM
+and Clang. Run:
 
     $ ./bin/build_enerc.sh
 

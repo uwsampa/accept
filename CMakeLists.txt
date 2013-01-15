@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 
 # This was recommended by the LLVM documentation for "out-of-source" pass
 # builds.
-set(LLVM_DIR llvm-build/share/llvm/cmake)
+set(LLVM_DIR build/built/share/llvm/cmake)
 find_package(LLVM)
 include(AddLLVM)
 add_definitions(${LLVM_DEFINITIONS})
