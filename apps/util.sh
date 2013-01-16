@@ -1,13 +1,11 @@
 #!/bin/sh
 here=`dirname $0`
-enercdir=$here/../llvm/tools/clang/enerc
-llvmbin=$here/../llvm/Debug/bin
-llvmlib=$here/../llvm/Debug/lib
+enercdir=$here/..
+builtdir=$enercdir/build/built
 cxx=$enercdir/bin/enerclang++
 cc=$enercdir/bin/enerclang
-rtdir=$here/../llvm/lib/Transforms/enerc/rt
-analyzepy=$here/../llvm/lib/Transforms/enerc/analysis.py
-profile=$rtdir/profile.sh
+analyzepy=$enercdir/bin/analysis.py
+profile=$enercdir/bin/profile.sh
 cflags=-g
 
 if [ `uname` = "Darwin" ]; then
@@ -15,7 +13,7 @@ if [ `uname` = "Darwin" ]; then
 else
     libext=so
 fi
-enerclib=$llvmlib/enerc.$libext
+enerclib=$builtdir/lib/enerc.$libext
 
 usage () {
     echo "usage: $0 ACTION [--cxx] [--runargs ARGS] NAME SRCFILES..." >&2
@@ -54,9 +52,9 @@ srcfiles=$@
 if [ "$action" = "build" ] ; then
     rm -f $name.bc $name.ll
     $compile $cflags -c $srcfiles -emit-llvm -o $name.bc
-    $llvmbin/llvm-dis $name.bc
+    $builtdir/bin/llvm-dis $name.bc
 elif [ "$action" = "analyze" ] ; then
-    $llvmbin/opt -load=$enerclib -enerc -stats $name.bc -o $name.opt.bc
+    $builtdir/bin/opt -load=$enerclib -enerc -stats $name.bc -o $name.opt.bc
 elif [ "$action" = "profile" ] ; then
     $profile $name.opt.bc $runargs
 elif [ "$action" = "danalyze" ] ; then
