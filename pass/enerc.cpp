@@ -24,8 +24,8 @@
 
 using namespace llvm;
 
-STATISTIC(ecElidableBlocks, "basic blocks elidable with approximation");
-STATISTIC(ecTotalBlocks, "total basic blocks considered for elision");
+STATISTIC(ecElidableInst, "elidable instructions");
+STATISTIC(ecTotalInst, "total instructions");
 
 namespace {
   // Look at the qualifier metadata on the instruction and determine whether it
@@ -81,26 +81,6 @@ namespace {
     return elidable_helper(instr, seen);
   }
 
-  // Is every instruction in a block elidable?
-  bool elidableBlock(BasicBlock *block) {
-    for (BasicBlock::iterator ii = block->begin(); ii != block->end();
-          ++ii) {
-      DEBUG(errs() << "?");
-      if ((Instruction*)ii == block->getTerminator()) {
-        // Terminator instruction is not checked.
-        continue;
-      }
-
-      if (!elidable(ii)) {
-        DEBUG(errs() << "!\n");
-        return false;
-      }
-    }
-
-    DEBUG(errs() << ".\n");
-    return true;
-  }
-
   struct EnerC : public FunctionPass {
       static char ID;
       EnerC() : FunctionPass(ID) {
@@ -112,36 +92,21 @@ namespace {
       FILE *blockInfoFile;
 
       virtual bool runOnFunction(Function &F) {
-        // DEBUG(errs() << "Analyzing func " << F.getName() << "\n");
         for (Function::iterator bbi = F.begin(); bbi != F.end(); ++bbi) {
-          // Generate a "human-readable" name for the block (for debugging).
-          int line = -1;
-          Instruction *firstInst = bbi->getFirstNonPHI();
-          if (firstInst) {
-            DebugLoc dl = firstInst->getDebugLoc();
-            line = dl.getLine();
+          for (BasicBlock::iterator ii = bbi->begin(); ii != bbi->end();
+                ++ii) {
+            if ((Instruction*)ii == bbi->getTerminator()) {
+              // Terminator instruction is not checked.
+              continue;
+            }
+
+            ++ecTotalInst;
+            if (elidable(ii)) {
+              ++ecElidableInst;
+            }
           }
-          std::stringstream ss;
-          ss << std::string(F.getName()) << ":" << line;
-          std::string blockname = ss.str();
-
-          DEBUG(errs() << "block " << curBlockId << " " << blockname << "\n");
-
-          bool elidable = elidableBlock(bbi);
-          if (elidable) {
-            DEBUG(llvm::errs() << "elidable block\n");
-            ++ecElidableBlocks;
-          }
-          ++ecTotalBlocks;
-
-          fprintf(blockInfoFile, "%i %i %s\n",
-                  curBlockId, elidable, blockname.c_str());
-
-          // Instrument the block.
-          instrumentBlock(F, bbi->getTerminator(), curBlockId);
-
-          curBlockId++;
         }
+
         return false;
       }
 

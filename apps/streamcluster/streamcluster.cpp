@@ -23,7 +23,8 @@
 
 // EnerC: Trickery to enable compilation without barriers (we just want a
 // sequential version).
-// typedef int pthread_barrier_t;
+#define pthread_barrier_t int
+
 
 // EnerC language constructs.
 #include <enerc.h>
