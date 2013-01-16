@@ -13,8 +13,7 @@ link_directories(${LLVM_LIBRARY_DIRS})
 # I made this up to make it slightly easier to write CMake files for Clang
 # plugins.
 macro(add_clang_plugin name)
-    add_library( ${name} SHARED ${ARGN} )
-    target_link_libraries( ${name} clang clangFrontend clangAST )
+    add_llvm_loadable_module( ${name} ${ARGN} )
     set_target_properties( ${name} PROPERTIES 
         LINKER_LANGUAGE CXX
         PREFIX ""
