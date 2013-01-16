@@ -292,9 +292,10 @@ EnerCQualifier EnerCTyper::typeForExpr(clang::Expr *expr) {
 
     // Special cases for libc allocation functions (i.e., permissive
     // "annotations" for the standard library).
-    llvm::StringRef funcName = callee->getName();
-    if (funcName == "free" || funcName == "memcpy") {
-      return ecPrecise;
+    if (callee->getDeclName().isIdentifier()) {
+      if (funcName == "free" || funcName == "memcpy") {
+        return ecPrecise;
+      }
     }
 
     // Check parameters.
