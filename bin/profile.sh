@@ -1,11 +1,9 @@
 #!/bin/sh
 here=`dirname $0`
 
-llvmdir=$here/../../../..
-builddir=$llvmdir/Debug
-bin=$builddir/bin
-
-proflib=$here/profileinst.bc
+enercdir=$here/..
+bin=$enercdir/build/built/bin
+proflib=$enercdir/build/enerc/rt/enercrt.bc
 
 bcfile=$1
 shift
