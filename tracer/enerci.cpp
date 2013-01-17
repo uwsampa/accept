@@ -2,31 +2,21 @@
 #include "llvm/LLVMContext.h"
 #include "llvm/Module.h"
 #include "llvm/Type.h"
-#include "llvm/ADT/Triple.h"
 #include "llvm/Bitcode/ReaderWriter.h"
-#include "llvm/CodeGen/LinkAllCodegenComponents.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
-#include "llvm/ExecutionEngine/Interpreter.h"
-#include "llvm/ExecutionEngine/JIT.h"
-#include "llvm/ExecutionEngine/JITEventListener.h"
-#include "llvm/ExecutionEngine/JITMemoryManager.h"
-#include "llvm/ExecutionEngine/MCJIT.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/IRReader.h"
-#include "llvm/Support/ManagedStatic.h"
-#include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/PluginLoader.h"
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/Process.h"
 #include "llvm/Support/Signals.h"
-#include "llvm/Support/TargetSelect.h"
 #include "llvm/Support/Debug.h"
-#include "llvm/Support/DynamicLibrary.h"
-#include "llvm/Support/Memory.h"
-#include "llvm/Support/MathExtras.h"
 #include <cerrno>
+
+// Hacky! This is not included in the LLVM installed headers. I should probably
+// change the build files to make this explicit path unnecessary.
+#include "../llvm/lib/ExecutionEngine/Interpreter/Interpreter.h"
 
 using namespace llvm;
 
@@ -38,8 +28,6 @@ namespace {
   InputArgv(cl::ConsumeAfter, cl::desc("<program arguments>..."));
 }
 
-static ExecutionEngine *EE = 0;
-
 //===----------------------------------------------------------------------===//
 // main Driver function
 //
@@ -48,12 +36,6 @@ int main(int argc, char **argv, char * const *envp) {
   PrettyStackTraceProgram X(argc, argv);
 
   LLVMContext &Context = getGlobalContext();
-
-  // If we have a native target, initialize it to ensure it is linked in and
-  // usable by the JIT.
-  InitializeNativeTarget();
-  InitializeNativeTargetAsmPrinter();
-  InitializeNativeTargetAsmParser();
 
   cl::ParseCommandLineOptions(argc, argv,
                               "EnerC execution tracer\n");
@@ -74,41 +56,10 @@ int main(int argc, char **argv, char * const *envp) {
     exit(1);
   }
 
-  EngineBuilder builder(Mod);
-  /*
-  builder.setMArch(MArch);
-  builder.setMCPU(MCPU);
-  builder.setMAttrs(MAttrs);
-  builder.setRelocationModel(RelocModel);
-  builder.setCodeModel(CMModel);
-  */
-  builder.setErrorStr(&ErrorMsg);
-  builder.setEngineKind(EngineKind::Interpreter);
-
-  /*
-  TargetOptions Options;
-  Options.UseSoftFloat = GenerateSoftFloatCalls;
-  if (FloatABIForCalls != FloatABI::Default)
-    Options.FloatABIType = FloatABIForCalls;
-  if (GenerateSoftFloatCalls)
-    FloatABIForCalls = FloatABI::Soft;
-
-  // Remote target execution doesn't handle EH or debug registration.
-  if (!RemoteMCJIT) {
-    Options.JITExceptionHandling = EnableJITExceptionHandling;
-    Options.JITEmitDebugInfo = EmitJitDebugInfo;
-    Options.JITEmitDebugInfoToDisk = EmitJitDebugInfoToDisk;
-  }
-
-  builder.setTargetOptions(Options);
-  */
-
-  EE = builder.create();
-  if (!EE) {
-    if (!ErrorMsg.empty())
-      errs() << argv[0] << ": error creating EE: " << ErrorMsg << "\n";
-    else
-      errs() << argv[0] << ": unknown error creating EE!\n";
+  ExecutionEngine *EE = 0;
+  EE = Interpreter::create(Mod, &ErrorMsg);
+  if (!ErrorMsg.empty()) {
+    errs() << argv[0] << ": error creating EE: " << ErrorMsg << "\n";
     exit(1);
   }
 
@@ -139,12 +90,6 @@ int main(int argc, char **argv, char * const *envp) {
 
   // Reset errno to zero on entry to main.
   errno = 0;
-
-  for (Module::iterator I = Mod->begin(), E = Mod->end(); I != E; ++I) {
-    Function *Fn = &*I;
-    if (Fn != EntryFn && !Fn->isDeclaration())
-      EE->getPointerToFunction(Fn);
-  }
 
   int Result;
   // Trigger compilation separately so code regions that need to be 
