@@ -7,3 +7,8 @@ add_llvm_tool(enerci
 set_target_properties(enerci PROPERTIES 
     COMPILE_FLAGS "-fno-rtti"  
 )
+
+# This allows our interpreter to include:
+# ExecutionEngine/Interpreter/Interpreter.h
+# which is not part of the installed headers.
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../llvm/lib)

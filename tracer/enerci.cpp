@@ -14,9 +14,7 @@
 #include "llvm/Support/Debug.h"
 #include <cerrno>
 
-// Hacky! This is not included in the LLVM installed headers. I should probably
-// change the build files to make this explicit path unnecessary.
-#include "../llvm/lib/ExecutionEngine/Interpreter/Interpreter.h"
+#include "ExecutionEngine/Interpreter/Interpreter.h"
 
 using namespace llvm;
 
