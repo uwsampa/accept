@@ -17,6 +17,12 @@ namespace {
   InputArgv(cl::ConsumeAfter, cl::desc("<program arguments>..."));
 }
 
+class TracerInterp : public Interpreter {
+public:
+  TracerInterp(Module *M) : Interpreter(M) {
+  }
+};
+
 int main(int argc, char **argv, char * const *envp) {
   sys::PrintStackTraceOnErrorSignal();
   PrettyStackTraceProgram X(argc, argv);
@@ -34,7 +40,7 @@ int main(int argc, char **argv, char * const *envp) {
     return 1;
   }
 
-  // Load the whole bitcode file eagerly.
+  // Load the whole bitcode file eagerly to check for errors.
   std::string ErrorMsg;
   if (Mod->MaterializeAllPermanently(&ErrorMsg)) {
     errs() << argv[0] << ": bitcode didn't read correctly.\n";
@@ -43,11 +49,7 @@ int main(int argc, char **argv, char * const *envp) {
   }
 
   // Create the interpreter.
-  ExecutionEngine *EE = Interpreter::create(Mod, &ErrorMsg);
-  if (!ErrorMsg.empty()) {
-    errs() << argv[0] << ": error creating EE: " << ErrorMsg << "\n";
-    exit(1);
-  }
+  ExecutionEngine *EE = new TracerInterp(Mod);
 
   // Remove ".bc" suffix from input bitcode name and use it as argv[0].
   if (StringRef(InputFile).endswith(".bc"))
