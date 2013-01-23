@@ -5,7 +5,13 @@
 #include "llvm/Support/InstVisitor.h"
 #include "ExecutionEngine/Interpreter/Interpreter.h"
 
-// GIANT HACK
+// This is a GIANT HACK that should NOT BE TRUSTED. I need access to the
+// private fields of Interpreter, so here I'm redefining a similar-looking
+// class and hoping that the compiler lays it out the same as Interpreter. Then
+// I cast an Interpreter* to a PublicInterpreter* to access its
+// otherwise-inaccessible fields.
+//
+// This will almost certainly break at some point.
 class PublicInterpreter : public llvm::ExecutionEngine {
 public:
   llvm::GenericValue ExitValue;
@@ -16,36 +22,36 @@ public:
 };
 
 
+// ExtensibleInterpreter is a facade around Interpreter that allows subclasses
+// to override one important method, execute(). This method is responsible for
+// interpreting a single instruction. Subclasses can override it to do whatever
+// they like, including calling the superclass' version of execute() to make
+// interpretation continue as usual.
 class ExtensibleInterpreter : public llvm::ExecutionEngine,
                               public llvm::InstVisitor<ExtensibleInterpreter> {
 public:
   llvm::Interpreter *interp;
-  PublicInterpreter *pubInterp;
+  PublicInterpreter *pubInterp;  // GIANT HACK
 
   explicit ExtensibleInterpreter(llvm::Module *M);
   virtual ~ExtensibleInterpreter();
 
-  // ExecutionEngine interface.
-  virtual llvm::GenericValue runFunction(
+  // Interpreter execution loop.
+  virtual void run();
+  virtual void execute(llvm::Instruction &I);
+
+  // Satisfy the ExecutionEngine interface.
+  llvm::GenericValue runFunction(
       llvm::Function *F,
       const std::vector<llvm::GenericValue> &ArgValues
   );
-  virtual void *getPointerToNamedFunction(const std::string &Name,
-                                          bool AbortOnFailure = true) {
-    return 0;
-  }
-  virtual void *recompileAndRelinkFunction(llvm::Function *F) {
-    return getPointerToFunction(F);
-  }
-  virtual void freeMachineCodeForFunction(llvm::Function *F) { }
-  virtual void *getPointerToFunction(llvm::Function *F) { return (void*)F; }
-  virtual void *getPointerToBasicBlock(llvm::BasicBlock *BB) { return (void*)BB; }
+  void *getPointerToNamedFunction(const std::string &Name,
+                                  bool AbortOnFailure = true);
+  void *recompileAndRelinkFunction(llvm::Function *F);
+  void freeMachineCodeForFunction(llvm::Function *F);
+  void *getPointerToFunction(llvm::Function *F);
+  void *getPointerToBasicBlock(llvm::BasicBlock *BB);
 
-  // Visitation entrance.
-  virtual void run();
-
-  // Instruction execution.
-  virtual void execute(llvm::Instruction &I);
 };
 
 #endif
