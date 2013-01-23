@@ -17,6 +17,15 @@ namespace {
   InputArgv(cl::ConsumeAfter, cl::desc("<program arguments>..."));
 }
 
+class MyInterpreter : public ExtensibleInterpreter {
+public:
+  MyInterpreter(Module *M) : ExtensibleInterpreter(M) {};
+  virtual void visitBinaryOperator(llvm::BinaryOperator &I) {
+    errs() << "yo\n";
+    ExtensibleInterpreter::visitBinaryOperator(I);
+  }
+};
+
 int main(int argc, char **argv, char * const *envp) {
   sys::PrintStackTraceOnErrorSignal();
   PrettyStackTraceProgram X(argc, argv);
@@ -43,7 +52,7 @@ int main(int argc, char **argv, char * const *envp) {
   }
 
   // Create the interpreter.
-  ExecutionEngine *EE = new ExtensibleInterpreter(Mod);
+  ExecutionEngine *EE = new MyInterpreter(Mod);
 
   // Remove ".bc" suffix from input bitcode name and use it as argv[0].
   if (StringRef(InputFile).endswith(".bc"))
