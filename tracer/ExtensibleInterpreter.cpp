@@ -1,9 +1,11 @@
 #include "ExtensibleInterpreter.h"
+#include <cerrno>
 
 using namespace llvm;
 
 ExtensibleInterpreter::ExtensibleInterpreter(Module *M) :
-      ExecutionEngine(M)
+      ExecutionEngine(M),
+      module(M)
 {
   interp = new Interpreter(M);
   pubInterp = (PublicInterpreter *)interp;  // GIANT HACK
@@ -29,6 +31,25 @@ void ExtensibleInterpreter::run() {
 
 void ExtensibleInterpreter::execute(Instruction &I) {
   interp->visit(I);
+}
+
+
+// Convenient entry point.
+
+int ExtensibleInterpreter::runMain(std::vector<std::string> args,
+                                   char * const *envp) {
+  // Get the main function from the module.
+  Function *EntryFn = module->getFunction("main");
+  if (!EntryFn) {
+    errs() << '\'' << "main" << "\' function not found in module.\n";
+    return -1;
+  }
+
+  // Reset errno to zero on entry to main.
+  errno = 0;
+
+  // Run main.
+  return runFunctionAsMain(EntryFn, args, envp);
 }
 
 
