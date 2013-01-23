@@ -17,8 +17,9 @@ macro(add_clang_plugin name)
     set_target_properties( ${name} PROPERTIES 
         LINKER_LANGUAGE CXX
         PREFIX ""
-        # Necessary because LLVM itself has RTTI turned off by default.
-        COMPILE_FLAGS "-fno-rtti"  
+        # Match the flags of LLVM itself. RTTI is turned off by default and
+        # inlines are invisible.
+        COMPILE_FLAGS "-fno-rtti -fvisibility-inlines-hidden"
     )
     install(TARGETS ${name}
         LIBRARY DESTINATION lib${LLVM_LIBDIR_SUFFIX}

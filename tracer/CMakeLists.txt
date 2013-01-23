@@ -6,7 +6,7 @@ add_llvm_tool(enerci
   ExtensibleInterpreter.cpp
 )
 set_target_properties(enerci PROPERTIES 
-    COMPILE_FLAGS "-fno-rtti"  
+    COMPILE_FLAGS "-fno-rtti -fvisibility-inlines-hidden"
 )
 
 # This allows our interpreter to include:
