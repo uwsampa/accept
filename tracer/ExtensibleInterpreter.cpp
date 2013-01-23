@@ -7,6 +7,9 @@ ExtensibleInterpreter::ExtensibleInterpreter(Module *M) :
 {
   interp = new Interpreter(M);
   pubInterp = (PublicInterpreter *)interp;  // GIANT HACK
+
+  // Data layout is used by ExecutionEngine::runFunctionAsMain().
+  setDataLayout(interp->getDataLayout());
 }
 
 ExtensibleInterpreter::~ExtensibleInterpreter() {
