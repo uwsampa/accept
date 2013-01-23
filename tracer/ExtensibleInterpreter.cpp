@@ -12,6 +12,10 @@ ExtensibleInterpreter::ExtensibleInterpreter(Module *M) :
 
   // Data layout is used by ExecutionEngine::runFunctionAsMain().
   setDataLayout(interp->getDataLayout());
+
+  // This is hacky: remove M from the ExecutionEngine's module list to avoid a
+  // double-delete when both it and the Interpreter are destructed.
+  Modules.clear();
 }
 
 ExtensibleInterpreter::~ExtensibleInterpreter() {
