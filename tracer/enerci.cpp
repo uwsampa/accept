@@ -5,7 +5,7 @@
 #include "llvm/Support/PrettyStackTrace.h"
 #include "llvm/Support/Signals.h"
 #include <cerrno>
-#include "ExecutionEngine/Interpreter/Interpreter.h"
+#include "ExtensibleInterpreter.h"
 
 using namespace llvm;
 
@@ -16,12 +16,6 @@ namespace {
   cl::list<std::string>
   InputArgv(cl::ConsumeAfter, cl::desc("<program arguments>..."));
 }
-
-class TracerInterp : public Interpreter {
-public:
-  TracerInterp(Module *M) : Interpreter(M) {
-  }
-};
 
 int main(int argc, char **argv, char * const *envp) {
   sys::PrintStackTraceOnErrorSignal();
@@ -49,7 +43,7 @@ int main(int argc, char **argv, char * const *envp) {
   }
 
   // Create the interpreter.
-  ExecutionEngine *EE = new TracerInterp(Mod);
+  ExecutionEngine *EE = new ExtensibleInterpreter(Mod);
 
   // Remove ".bc" suffix from input bitcode name and use it as argv[0].
   if (StringRef(InputFile).endswith(".bc"))
