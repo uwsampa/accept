@@ -20,9 +20,9 @@ namespace {
 class MyInterpreter : public ExtensibleInterpreter {
 public:
   MyInterpreter(Module *M) : ExtensibleInterpreter(M) {};
-  virtual void visitBinaryOperator(llvm::BinaryOperator &I) {
-    errs() << "yo\n";
-    ExtensibleInterpreter::visitBinaryOperator(I);
+  virtual void execute(llvm::Instruction &I) {
+    I.dump();
+    ExtensibleInterpreter::execute(I);
   }
 };
 
