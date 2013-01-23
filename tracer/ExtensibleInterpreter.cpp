@@ -73,5 +73,5 @@ visit_meth(visitVAArgInst, VAArgInst)
 visit_meth(visitInstruction, Instruction)
 
 void ExtensibleInterpreter::visitCallSite(CallSite CS) {
-  ((Interpreter *)this)->visitCallSite(CS);
+  interp->Interpreter::visitCallSite(CS);
 }
