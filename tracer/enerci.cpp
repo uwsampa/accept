@@ -7,10 +7,10 @@ using namespace llvm;
 
 namespace {
   cl::opt<std::string>
-  InputFile(cl::desc("<input bitcode>"), cl::Positional, cl::init("-"));
+  bitcodeFile(cl::desc("<input bitcode>"), cl::Positional, cl::init("-"));
 
   cl::list<std::string>
-  InputArgv(cl::ConsumeAfter, cl::desc("<program arguments>..."));
+  commandArgs(cl::ConsumeAfter, cl::desc("<program arguments>..."));
 }
 
 class MyInterpreter : public ExtensibleInterpreter {
@@ -28,6 +28,5 @@ int main(int argc, char **argv, char * const *envp) {
 
   cl::ParseCommandLineOptions(argc, argv,
                               "EnerC execution tracer\n");
-
-  return interpret<MyInterpreter>(InputFile, InputArgv, envp);
+  return interpret<MyInterpreter>(bitcodeFile, commandArgs, envp);
 }
