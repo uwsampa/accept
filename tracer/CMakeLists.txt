@@ -3,11 +3,12 @@ set(LLVM_LINK_COMPONENTS mcjit jit interpreter nativecodegen bitreader asmparser
 set(LLVM_BUILD_TOOLS true)
 add_llvm_tool(enerci
   enerci.cpp
-  ExtensibleInterpreter.cpp
+  ../llvm-ei/ExtensibleInterpreter.cpp
 )
 set_target_properties(enerci PROPERTIES 
     COMPILE_FLAGS "-fno-rtti -fvisibility-inlines-hidden"
 )
+include_directories(../llvm-ei)
 
 # This allows our interpreter to include:
 # ExecutionEngine/Interpreter/Interpreter.h
