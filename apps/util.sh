@@ -6,7 +6,7 @@ cxx=$enercdir/bin/enerclang++
 cc=$enercdir/bin/enerclang
 analyzepy=$enercdir/bin/analysis.py
 profile=$enercdir/bin/profile.sh
-cflags=-g
+cflags="-g -fno-use-cxa-atexit"
 
 if [ `uname` = "Darwin" ]; then
     libext=dylib
