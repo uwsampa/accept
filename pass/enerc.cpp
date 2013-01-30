@@ -15,6 +15,8 @@
 #define ECQ_PRECISE 0
 #define ECQ_APPROX 1
 
+#define FUNC_BLOCK_COUNT "enerc_block_count"
+
 // I'm not sure why, but I can't seem to enable debug output in the usual way
 // (with command line flags). Here's a hack.
 #undef DEBUG
@@ -111,6 +113,14 @@ namespace {
       virtual bool doInitialization(Module &M) {
         errs() << "initializing\n";
 
+        // Add instrumentation function.
+        blockCountFunction = M.getOrInsertFunction(
+          FUNC_BLOCK_COUNT,
+          Type::getVoidTy(M.getContext()), // return type
+          Type::getInt32Ty(M.getContext()), // block ID
+          NULL
+        );
+
         // Open block info file.
         // TODO: don't clobber between modules
         if (blockInfoFile == NULL) {
@@ -127,6 +137,21 @@ namespace {
           fclose(blockInfoFile);
           blockInfoFile = NULL;
         }
+      }
+
+    protected:
+      void instrumentBlock(Function &F, Instruction* insertPoint,
+                           unsigned int blockid) {
+        std::vector<Value *> args;
+        args.push_back(
+            ConstantInt::get(Type::getInt32Ty(F.getContext()), blockid)
+        );
+        CallInst::Create(
+          blockCountFunction,
+          args,
+          "",
+          insertPoint
+        );
       }
   };
   char EnerC::ID = 0;

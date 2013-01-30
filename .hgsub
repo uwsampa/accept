@@ -1,2 +1,1 @@
 checkerlib=[git]git@bitbucket.org:sampa/checkerlib.git
-llvm-ei=[git]https://github.com/sampsyo/llvm-ei.git
