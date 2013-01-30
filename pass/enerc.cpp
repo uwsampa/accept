@@ -15,7 +15,7 @@
 #define ECQ_PRECISE 0
 #define ECQ_APPROX 1
 
-#define FUNC_BLOCK_COUNT "enerc_block_count"
+#define FUNC_TRACE "enerc_trace"
 
 // I'm not sure why, but I can't seem to enable debug output in the usual way
 // (with command line flags). Here's a hack.
@@ -24,6 +24,7 @@
 
 using namespace llvm;
 
+STATISTIC(ecApproxInst, "approximate instructions");
 STATISTIC(ecElidableInst, "elidable instructions");
 STATISTIC(ecTotalInst, "total instructions");
 
@@ -84,12 +85,12 @@ namespace {
   struct EnerC : public FunctionPass {
       static char ID;
       EnerC() : FunctionPass(ID) {
-        blockInfoFile = NULL;
+        infoFile = NULL;
       }
 
       Constant *blockCountFunction;
-      static unsigned int curBlockId;
-      FILE *blockInfoFile;
+      static unsigned int curInstId;
+      FILE *infoFile;
 
       virtual bool runOnFunction(Function &F) {
         for (Function::iterator bbi = F.begin(); bbi != F.end(); ++bbi) {
@@ -100,10 +101,20 @@ namespace {
               continue;
             }
 
+            // Record information about this instruction.
+            bool iApprox = isApprox(ii);
+            bool iElidable = elidable(ii);
             ++ecTotalInst;
-            if (elidable(ii)) {
+            if (iApprox)
+              ++ecApproxInst;
+            if (iElidable)
               ++ecElidableInst;
-            }
+            
+            // Instrument the instruction and record information about it.
+            // TODO: Only perform instrumentation if requested.
+            insertTraceCall(F, ii, curInstId);
+            recordInstInfo(curInstId, iApprox, iElidable);
+            curInstId++;
           }
         }
 
@@ -115,17 +126,17 @@ namespace {
 
         // Add instrumentation function.
         blockCountFunction = M.getOrInsertFunction(
-          FUNC_BLOCK_COUNT,
+          FUNC_TRACE,
           Type::getVoidTy(M.getContext()), // return type
           Type::getInt32Ty(M.getContext()), // block ID
           NULL
         );
 
-        // Open block info file.
+        // Open program info file.
         // TODO: don't clobber between modules
-        if (blockInfoFile == NULL) {
+        if (infoFile == NULL) {
           llvm::errs() << "opening\n";
-          blockInfoFile = fopen("enerc_block_info.txt", "w");
+          infoFile = fopen("enerc_info.txt", "w");
         }
 
         return false;
@@ -133,28 +144,36 @@ namespace {
 
       ~EnerC() {
         llvm::errs() << "closing\n";
-        if (blockInfoFile != NULL) {
-          fclose(blockInfoFile);
-          blockInfoFile = NULL;
+        if (infoFile != NULL) {
+          fclose(infoFile);
+          infoFile = NULL;
         }
       }
 
     protected:
-      void instrumentBlock(Function &F, Instruction* insertPoint,
-                           unsigned int blockid) {
+      void insertTraceCall(Function &F, Instruction* inst,
+                           unsigned int instId) {
         std::vector<Value *> args;
         args.push_back(
-            ConstantInt::get(Type::getInt32Ty(F.getContext()), blockid)
+            ConstantInt::get(Type::getInt32Ty(F.getContext()), instId)
         );
         CallInst::Create(
           blockCountFunction,
           args,
           "",
-          insertPoint
+          inst
         );
+      }
+
+      void recordInstInfo(unsigned int instId, bool approx, bool elidable) {
+        if (infoFile == NULL) {
+          llvm::errs() << "couldn't write to info file\n";
+          return;
+        }
+        fprintf(infoFile, "%u %u %u\n", instId, approx, elidable);
       }
   };
   char EnerC::ID = 0;
   static RegisterPass<EnerC> X("enerc", "EnerC pass", false, false);
-  unsigned int EnerC::curBlockId = 0;
+  unsigned int EnerC::curInstId = 0;
 }

@@ -1,30 +1,35 @@
 from __future__ import division
 import json
 import sys
+from collections import namedtuple, Counter
 
-def analyze(info_fn="enerc_block_info.txt",
+InstructionInfo = namedtuple('InstructionInfo', ['approx', 'elidable'])
+
+def analyze(info_fn="enerc_info.txt",
             trace_fn="enerc_trace.txt"):
-    block_elidable = {}
+    inst_info = {}
     with open(info_fn) as f:
         for line in f:
             line = line.strip()
             if line:
-                num, elidable = line.split()[:2]
-                block_elidable[int(num)] = bool(int(elidable))
+                num, approx, elidable = line.split()
+                approx, elidable = (bool(int(v)) for v in (approx, elidable))
+                inst_info[int(num)] = InstructionInfo(approx, elidable)
     
-    counts = {
-        "elidable": 0,
-        "total": 0,
-    }
+    counts = Counter(['approx', 'elidable', 'total'])
     with open(trace_fn) as f:
         for line in f:
             line = line.strip()
             if line:
                 num = int(line)
-                counts["total"] += 1
-                if block_elidable[num]:
+
+                if inst_info[num].elidable:
                     counts["elidable"] += 1
+                if inst_info[num].approx:
+                    counts["approx"] += 1
+                counts["total"] += 1
     
+    counts["proportion approx"] = counts["approx"] / counts["total"]
     counts["proportion elidable"] = counts["elidable"] / counts["total"]
     
     return counts
