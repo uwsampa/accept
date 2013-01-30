@@ -94,6 +94,8 @@ namespace {
 
       virtual bool runOnFunction(Function &F) {
         for (Function::iterator bbi = F.begin(); bbi != F.end(); ++bbi) {
+          std::vector<unsigned int> instIds;
+
           for (BasicBlock::iterator ii = bbi->begin(); ii != bbi->end();
                 ++ii) {
             if ((Instruction*)ii == bbi->getTerminator()) {
@@ -112,9 +114,14 @@ namespace {
             
             // Instrument the instruction and record information about it.
             // TODO: Only perform instrumentation if requested.
-            insertTraceCall(F, ii, curInstId);
             recordInstInfo(curInstId, iApprox, iElidable);
+            instIds.push_back(curInstId);
             curInstId++;
+          }
+
+          for (std::vector<unsigned int>::iterator idi = instIds.begin();
+               idi != instIds.end(); ++idi) {
+            insertTraceCall(F, bbi, *idi);
           }
         }
 
@@ -151,17 +158,19 @@ namespace {
       }
 
     protected:
-      void insertTraceCall(Function &F, Instruction* inst,
+      void insertTraceCall(Function &F, BasicBlock* bb,
                            unsigned int instId) {
         std::vector<Value *> args;
         args.push_back(
             ConstantInt::get(Type::getInt32Ty(F.getContext()), instId)
         );
+
+        // For now, we're inserting calls at the end of basic blocks.
         CallInst::Create(
           blockCountFunction,
           args,
           "",
-          inst
+          bb->getTerminator()
         );
       }
 
