@@ -8,3 +8,4 @@ $testc test_errors.c
 $testc test_noerrors.c
 $testc test_cxx.cpp
 $testc test_cxx2.cpp
+$testc test_pointers.c

@@ -29,6 +29,7 @@ public:
   virtual EnerCQualifier typeForExpr(clang::Expr *expr);
   virtual uint32_t flattenType(EnerCQualifier type, clang::QualType ctype);
   virtual void checkStmt(clang::Stmt *stmt);
+  virtual QualType withQuals(QualType oldT, EnerCQualifier type);
 
   EnerCTyper(TyperConsumer *_controller) :
     NodeTyper<EnerCQualifier>(_controller) {}
@@ -343,6 +344,23 @@ uint32_t EnerCTyper::flattenType(EnerCQualifier type, clang::QualType ctype) {
   }
   // Approx or precise data.
   return (unsigned int)type;
+}
+
+// Apply EnerC types to the Clang type structures.
+QualType EnerCTyper::withQuals(QualType oldT, EnerCQualifier type) {
+  if (oldT.isNull())
+    return oldT;
+
+  const PointerType *ptrT = dyn_cast<PointerType>(oldT.getTypePtr());
+  if (ptrT) {
+    // For pointers, apply to the pointed-to type (recursively).
+    return controller->ci.getASTContext().getPointerType(
+        withQuals(ptrT->getPointeeType(), type)
+    );
+  } else {
+    // For non-pointers, apply to this type.
+    return NodeTyper<EnerCQualifier>::withQuals(oldT, type);
+  }
 }
 
 void EnerCTyper::checkCondition(clang::Expr *cond) {
