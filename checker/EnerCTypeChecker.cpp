@@ -27,7 +27,7 @@ public:
   virtual EnerCQualifier typeForQualString(llvm::StringRef s);
   virtual EnerCQualifier defaultType(clang::Decl *decl);
   virtual EnerCQualifier typeForExpr(clang::Expr *expr);
-  virtual uint32_t flattenType(EnerCQualifier type);
+  virtual uint32_t flattenType(EnerCQualifier type, clang::QualType ctype);
   virtual void checkStmt(clang::Stmt *stmt);
 
   EnerCTyper(TyperConsumer *_controller) :
@@ -336,7 +336,12 @@ EnerCQualifier EnerCTyper::typeForExpr(clang::Expr *expr) {
 }
 
 // Flat representation of types.
-uint32_t EnerCTyper::flattenType(EnerCQualifier type) {
+uint32_t EnerCTyper::flattenType(EnerCQualifier type, clang::QualType ctype) {
+  if (type == ecApprox && (ctype->isAnyPointerType() ||
+                           ctype->isArrayType())) {
+    return 2;  // Approximate reference.
+  }
+  // Approx or precise data.
   return (unsigned int)type;
 }
 
