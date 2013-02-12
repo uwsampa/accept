@@ -16,28 +16,25 @@ using namespace clang;
 namespace {
 
 // The types in the EnerC type system.
-typedef enum {
-  ecPrecise,
-  ecApprox
-} EnerCQualifier;
+const uint32_t ecPrecise = 0;
+const uint32_t ecApprox = 1;
 
 // The typer: assign types to AST nodes.
-class EnerCTyper : public NodeTyper<EnerCQualifier> {
+class EnerCTyper : public NodeTyper {
 public:
-  virtual EnerCQualifier typeForQualString(llvm::StringRef s);
-  virtual EnerCQualifier defaultType(clang::Decl *decl);
-  virtual EnerCQualifier typeForExpr(clang::Expr *expr);
-  virtual uint32_t flattenType(EnerCQualifier type);
+  virtual uint32_t typeForQualString(llvm::StringRef s);
+  virtual uint32_t defaultType(clang::Decl *decl);
+  virtual uint32_t typeForExpr(clang::Expr *expr);
   virtual void checkStmt(clang::Stmt *stmt);
-  virtual QualType withQuals(QualType oldT, EnerCQualifier type);
+  virtual QualType withQuals(QualType oldT, uint32_t type);
 
   EnerCTyper(TyperConsumer *_controller) :
-    NodeTyper<EnerCQualifier>(_controller) {}
+    NodeTyper(_controller) {}
 
 private:
   void checkCondition(clang::Expr *cond);
-  EnerCQualifier checkAssignment(EnerCQualifier ltype,
-                                 clang::Expr *expr);
+  uint32_t checkAssignment(uint32_t ltype,
+                           clang::Expr *expr);
 };
 
 // Plugin hooks for Clang driver.
@@ -46,7 +43,7 @@ protected:
   ASTConsumer *CreateASTConsumer( CompilerInstance &CI, llvm::StringRef ) {
     // Pass the type-checking visitor back to Clang so we get called to
     // traverse all ASTs.
-    return new TyperVisitor<EnerCQualifier, EnerCTyper>( CI );
+    return new TyperVisitor<EnerCTyper>( CI );
   }
 
   bool ParseArgs( const CompilerInstance &CI,
@@ -71,7 +68,7 @@ static FrontendPluginRegistry::Add<EnerCTypeCheckerAction> X(
 
 
 // Assign qualifiers to declarations based on type annotations.
-EnerCQualifier EnerCTyper::typeForQualString(llvm::StringRef s) {
+uint32_t EnerCTyper::typeForQualString(llvm::StringRef s) {
   if (s.equals("approx")) {
     return ecApprox;
   } else if (s.equals("precise")) {
@@ -83,12 +80,12 @@ EnerCQualifier EnerCTyper::typeForQualString(llvm::StringRef s) {
 }
 
 // Default type for unannotated declarations.
-EnerCQualifier EnerCTyper::defaultType(clang::Decl *decl) {
+uint32_t EnerCTyper::defaultType(clang::Decl *decl) {
   return ecPrecise;
 }
 
-EnerCQualifier EnerCTyper::checkAssignment(EnerCQualifier ltype,
-                                           clang::Expr *expr) {
+uint32_t EnerCTyper::checkAssignment(uint32_t ltype,
+                                     clang::Expr *expr) {
   if (ltype == ecPrecise) {
     if (typeOf(expr) == ecPrecise)
       return ecPrecise;
@@ -101,7 +98,7 @@ EnerCQualifier EnerCTyper::checkAssignment(EnerCQualifier ltype,
 }
 
 // Give types to expressions.
-EnerCQualifier EnerCTyper::typeForExpr(clang::Expr *expr) {
+uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
   // Tolerate null.
   if (!expr)
     return ecPrecise;
@@ -171,8 +168,8 @@ EnerCQualifier EnerCTyper::typeForExpr(clang::Expr *expr) {
     DEBUG(llvm::errs() << "binary operator " << bop->getOpcode() << "\n");
     DEBUG(bop->getLHS()->dump());
     DEBUG(bop->getRHS()->dump());
-    EnerCQualifier ltype = typeOf(bop->getLHS());
-    EnerCQualifier rtype = typeOf(bop->getRHS());
+    uint32_t ltype = typeOf(bop->getLHS());
+    uint32_t rtype = typeOf(bop->getRHS());
 
     DEBUG(llvm::errs() << "left " << ltype << " right " << rtype << "\n");
 
@@ -242,7 +239,7 @@ EnerCQualifier EnerCTyper::typeForExpr(clang::Expr *expr) {
   // UNARY OPERATORS
   case clang::Stmt::UnaryOperatorClass: {
     clang::UnaryOperator *uop = llvm::cast<UnaryOperator>(expr);
-    EnerCQualifier argt = typeOf(uop->getSubExpr());
+    uint32_t argt = typeOf(uop->getSubExpr());
     switch (uop->getOpcode()) {
       case UO_PostInc:
       case UO_PostDec:
@@ -296,8 +293,8 @@ EnerCQualifier EnerCTyper::typeForExpr(clang::Expr *expr) {
     clang::FunctionDecl::param_iterator pi = callee->param_begin();
     clang::CallExpr::arg_iterator ai = call->arg_begin();
     for (; pi != callee->param_end() && ai != call->arg_end(); ++pi, ++ai) {
-      EnerCQualifier paramType = typeOf(*pi);
-      EnerCQualifier argType = typeOf(*ai);
+      uint32_t paramType = typeOf(*pi);
+      uint32_t argType = typeOf(*ai);
       if (paramType == ecPrecise && argType == ecApprox) {
         typeError(call, "precision flow violation");
       }
@@ -327,13 +324,9 @@ EnerCQualifier EnerCTyper::typeForExpr(clang::Expr *expr) {
   }
 }
 
-// Flat representation of types.
-uint32_t EnerCTyper::flattenType(EnerCQualifier type) {
-  return (unsigned int)type;
-}
 
 // Apply EnerC types to the Clang type structures.
-QualType EnerCTyper::withQuals(QualType oldT, EnerCQualifier type) {
+QualType EnerCTyper::withQuals(QualType oldT, uint32_t type) {
   if (oldT.isNull())
     return oldT;
 
@@ -356,7 +349,7 @@ QualType EnerCTyper::withQuals(QualType oldT, EnerCQualifier type) {
     return out;
   } else {
     // For non-pointers, apply to this type.
-    return NodeTyper<EnerCQualifier>::withQuals(oldT, type);
+    return NodeTyper::withQuals(oldT, type);
   }
 }
 
