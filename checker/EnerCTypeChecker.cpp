@@ -291,15 +291,6 @@ EnerCQualifier EnerCTyper::typeForExpr(clang::Expr *expr) {
       return ecPrecise;
     }
 
-    // Special cases for libc allocation functions (i.e., permissive
-    // "annotations" for the standard library).
-    if (callee->getDeclName().isIdentifier()) {
-      llvm::StringRef funcName = callee->getName();
-      if (funcName == "free" || funcName == "memcpy") {
-        return ecPrecise;
-      }
-    }
-
     // Check parameters.
     // XXX variadic, default args: when param/arg list lengths are not equal
     clang::FunctionDecl::param_iterator pi = callee->param_begin();
@@ -349,9 +340,20 @@ QualType EnerCTyper::withQuals(QualType oldT, EnerCQualifier type) {
   const PointerType *ptrT = dyn_cast<PointerType>(oldT.getTypePtr());
   if (ptrT) {
     // For pointers, apply to the pointed-to type (recursively).
-    return controller->ci.getASTContext().getPointerType(
-        withQuals(ptrT->getPointeeType(), type)
-    );
+    ASTContext &ctx = controller->ci.getASTContext();
+    QualType innerType = withQuals(ptrT->getPointeeType(), type);
+    innerType = ctx.getCanonicalType(innerType);
+    QualType out = ctx.getPointerType(innerType);
+    out =  ctx.getCanonicalType(ctx.getQualifiedType(
+        out.getTypePtr(), oldT.getQualifiers()
+    ));
+
+    if (innerType->isVoidType() && type) {
+      llvm::errs() << "approx void\n";
+      out.dump();
+    }
+
+    return out;
   } else {
     // For non-pointers, apply to this type.
     return NodeTyper<EnerCQualifier>::withQuals(oldT, type);

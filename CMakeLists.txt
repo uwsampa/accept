@@ -1,6 +1,14 @@
 # I have no idea if this version is right.
 cmake_minimum_required(VERSION 2.8)
 
+# Incantation to get Ninja to give us color output.
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    set(CMAKE_CXX_FLAGS "-fcolor-diagnostics")
+endif()
+if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
+    set(CMAKE_C_FLAGS "-fcolor-diagnostics")
+endif()
+
 # This was recommended by the LLVM documentation for "out-of-source" pass
 # builds.
 set(LLVM_DIR build/built/share/llvm/cmake)

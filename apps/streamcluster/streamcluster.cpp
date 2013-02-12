@@ -610,7 +610,7 @@ int selectfeasible_fast(Points *points, int **feasible, int kmin, int pid, pthre
     (*feasible)[i]=r;
   }
 
-  free(accumweight); 
+  free(ENDORSE(accumweight)); 
 
   return numfeasible;
 }
@@ -808,7 +808,7 @@ void copycenters(Points *points, Points* centers, long* centerIDs, long offset)
   /* count how many  */
   for ( i = 0; i < points->num; i++ ) {
     if ( is_a_median[i] ) {
-      memcpy( centers->p[k].coord, points->p[i].coord, points->dim * sizeof(float));
+      memcpy( ENDORSE(centers->p[k].coord), ENDORSE(points->p[i].coord), points->dim * sizeof(float));
       centers->p[k].weight = points->p[i].weight;
       centerIDs[k] = i + offset;
       k++;
@@ -878,7 +878,7 @@ void localSearch( Points* points, long kmin, long kmax, long* kfinal ) {
 
 class PStream {
 public:
-  virtual size_t read( float* dest, int dim, int num ) = 0;
+  virtual size_t read( APPROX float* dest, int dim, int num ) = 0;
   virtual int ferror() = 0;
   virtual int feof() = 0;
   virtual ~PStream() {
@@ -891,7 +891,7 @@ public:
   SimStream(long n_ ) {
     n = n_;
   }
-  size_t read( float* dest, int dim, int num ) {
+  size_t read( APPROX float* dest, int dim, int num ) {
     size_t count = 0;
     for( int i = 0; i < num && n > 0; i++ ) {
       for( int k = 0; k < dim; k++ ) {
@@ -923,8 +923,8 @@ public:
       exit(1);
     }
   }
-  size_t read( float* dest, int dim, int num ) {
-    return std::fread(dest, sizeof(float)*dim, num, fp); 
+  size_t read( APPROX float* dest, int dim, int num ) {
+    return std::fread(ENDORSE(dest), sizeof(float)*dim, num, fp); 
   }
   int ferror() {
     return std::ferror(fp);
@@ -969,8 +969,8 @@ void streamCluster( PStream* stream,
 		    long chunksize, long centersize, char* outfile )
 {
 
-  float* block = (float*)malloc( chunksize*dim*sizeof(float) );
-  float* centerBlock = (float*)malloc(centersize*dim*sizeof(float) );
+  APPROX float* block = (float*)malloc( chunksize*dim*sizeof(float) );
+  APPROX float* centerBlock = (float*)malloc(centersize*dim*sizeof(float) );
   long* centerIDs = (long*)malloc(centersize*dim*sizeof(long));
 
   if( block == NULL ) { 
