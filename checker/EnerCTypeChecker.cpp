@@ -33,8 +33,10 @@ public:
 
 private:
   void checkCondition(clang::Expr *cond);
-  uint32_t checkAssignment(uint32_t ltype,
-                           clang::Expr *expr);
+
+  bool compatible(uint32_t lhs, uint32_t rhs);
+  bool compatible(clang::QualType lhs, clang::QualType rhs);
+  void assertCompatible(clang::QualType type, clang::Expr *expr);
 };
 
 // Plugin hooks for Clang driver.
@@ -84,17 +86,34 @@ uint32_t EnerCTyper::defaultType(clang::Decl *decl) {
   return ecPrecise;
 }
 
-uint32_t EnerCTyper::checkAssignment(uint32_t ltype,
-                                     clang::Expr *expr) {
-  if (ltype == ecPrecise) {
-    if (typeOf(expr) == ecPrecise)
-      return ecPrecise;
-    else {
-      typeError(expr, "precision flow violation");
-      return ecPrecise;
-    }
-  } else
-    return ecApprox;
+bool EnerCTyper::compatible(uint32_t lhs, uint32_t rhs) {
+  if (lhs == ecPrecise) {
+    if (rhs == ecPrecise)
+      return true;
+    else
+      return false;
+  } else {
+    return true;
+  }
+}
+bool EnerCTyper::compatible(clang::QualType lhs, clang::QualType rhs) {
+  // Current type level.
+  if (!compatible(lhs.getQualifiers().getCustomQuals(),
+                  rhs.getQualifiers().getCustomQuals())) {
+    return false;
+  }
+
+  // Possibly recuse into referent types.
+  if (controller->ci.getASTContext().UnwrapSimilarPointerTypes(lhs, rhs)) {
+    return compatible(lhs, rhs);
+  } else {
+    return true;
+  }
+}
+void EnerCTyper::assertCompatible(clang::QualType type, clang::Expr *expr) {
+  if (!compatible(type, expr->getType())) {
+    typeError(expr, "precision flow violation");
+  }
 }
 
 // Give types to expressions.
@@ -128,24 +147,14 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
 //    clang::BlockDeclRefExpr* tex = cast<clang::BlockDeclRefExpr>(expr);
 //    return typeOf(tex->getDecl());
 //  }
-  case clang::Stmt::DeclRefExprClass: {
-    clang::DeclRefExpr* tex = cast<clang::DeclRefExpr>(expr);
-    DEBUG(llvm::errs() << "variable reference");
-    DEBUG(tex->getDecl()->dump());
-    DEBUG(llvm::errs() << " -- " << typeOf(tex->getDecl()) << "\n");
-    return typeOf(tex->getDecl());
-  }
+  case clang::Stmt::DeclRefExprClass:
+    return CL_LEAVE_UNCHANGED;
   case clang::Stmt::DependentScopeDeclRefExprClass: {
     DEBUG(llvm::errs() << "UNSOUND: template argument untypable\n");
     return ecPrecise;
   }
-  case clang::Stmt::MemberExprClass: {
-    clang::MemberExpr* mex = cast<clang::MemberExpr>(expr);
-    DEBUG(mex->getMemberDecl()->dump());
-    DEBUG(llvm::errs() << ": member is " <<
-          typeOf(mex->getMemberDecl()) << "\n");
-    return typeOf(mex->getMemberDecl());
-  }
+  case clang::Stmt::MemberExprClass:
+    return CL_LEAVE_UNCHANGED;
 
   // CASTS
   // In all cases, we just propagate the qualifier of the casted expression.
@@ -210,7 +219,8 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
       case BO_XorAssign:
       case BO_OrAssign:
         DEBUG(llvm::errs() << "assignment\n");
-        return checkAssignment(ltype, bop->getRHS());
+        assertCompatible(bop->getRHS()->getType(), bop->getRHS());
+        return ltype;
 
       case BO_Comma:
         {
@@ -254,8 +264,7 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
 
       case UO_AddrOf:
       case UO_Deref:
-        // pointer: propagate precision (for now, at least)
-        return argt;
+        return CL_LEAVE_UNCHANGED;
 
       case UO_Real:
       case UO_Imag:
@@ -400,7 +409,7 @@ void EnerCTyper::checkStmt(clang::Stmt *stmt) {
              i != dstmt->decl_end(); ++i) {
           clang::VarDecl *vdecl = dyn_cast<clang::VarDecl>(*i);
           if (vdecl && vdecl->hasInit()) {
-            checkAssignment(typeOf(vdecl), vdecl->getInit());
+            assertCompatible(vdecl->getType(), vdecl->getInit());
           }
         }
       }
