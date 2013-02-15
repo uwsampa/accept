@@ -162,6 +162,8 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
   // might eventually want to allow qualifiers -- but that should probably only
   // be done with endorsements.
   case clang::Stmt::ImplicitCastExprClass:
+    return CL_LEAVE_UNCHANGED;
+
   case clang::Stmt::CStyleCastExprClass:
   case clang::Stmt::CXXFunctionalCastExprClass:
   case clang::Stmt::CXXConstCastExprClass:
