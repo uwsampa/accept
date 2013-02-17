@@ -221,7 +221,7 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
       case BO_XorAssign:
       case BO_OrAssign:
         DEBUG(llvm::errs() << "assignment\n");
-        assertCompatible(bop->getRHS()->getType(), bop->getRHS());
+        assertCompatible(bop->getLHS()->getType(), bop->getRHS());
         return ltype;
 
       case BO_Comma:
