@@ -27,16 +27,13 @@ public:
   virtual uint32_t typeForExpr(clang::Expr *expr);
   virtual void checkStmt(clang::Stmt *stmt);
   virtual QualType withQuals(QualType oldT, uint32_t type);
+  bool compatible(uint32_t lhs, uint32_t rhs);
 
   EnerCTyper(TyperConsumer *_controller) :
     NodeTyper(_controller) {}
 
 private:
   void checkCondition(clang::Expr *cond);
-
-  bool compatible(uint32_t lhs, uint32_t rhs);
-  bool compatible(clang::QualType lhs, clang::QualType rhs);
-  void assertCompatible(clang::QualType type, clang::Expr *expr);
 };
 
 // Plugin hooks for Clang driver.
@@ -86,6 +83,7 @@ uint32_t EnerCTyper::defaultType(clang::Decl *decl) {
   return ecPrecise;
 }
 
+// Type compatibility: the information flow rule.
 bool EnerCTyper::compatible(uint32_t lhs, uint32_t rhs) {
   if (lhs == ecPrecise) {
     if (rhs == ecPrecise)
@@ -94,25 +92,6 @@ bool EnerCTyper::compatible(uint32_t lhs, uint32_t rhs) {
       return false;
   } else {
     return true;
-  }
-}
-bool EnerCTyper::compatible(clang::QualType lhs, clang::QualType rhs) {
-  // Current type level.
-  if (!compatible(lhs.getQualifiers().getCustomQuals(),
-                  rhs.getQualifiers().getCustomQuals())) {
-    return false;
-  }
-
-  // Possibly recuse into referent types.
-  if (controller->ci.getASTContext().UnwrapSimilarPointerTypes(lhs, rhs)) {
-    return compatible(lhs, rhs);
-  } else {
-    return true;
-  }
-}
-void EnerCTyper::assertCompatible(clang::QualType type, clang::Expr *expr) {
-  if (!compatible(type, expr->getType())) {
-    typeError(expr, "precision flow violation");
   }
 }
 
@@ -221,7 +200,8 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
       case BO_XorAssign:
       case BO_OrAssign:
         DEBUG(llvm::errs() << "assignment\n");
-        assertCompatible(bop->getLHS()->getType(), bop->getRHS());
+        assertCompatible(bop->getLHS()->getType(), bop->getRHS(),
+                         "precision flow violation");
         return ltype;
 
       case BO_Comma:
@@ -411,7 +391,8 @@ void EnerCTyper::checkStmt(clang::Stmt *stmt) {
              i != dstmt->decl_end(); ++i) {
           clang::VarDecl *vdecl = dyn_cast<clang::VarDecl>(*i);
           if (vdecl && vdecl->hasInit()) {
-            assertCompatible(vdecl->getType(), vdecl->getInit());
+            assertCompatible(vdecl->getType(), vdecl->getInit(),
+                             "precision flow violation");
           }
         }
       }
