@@ -12,6 +12,10 @@ APPROX int aafunc(APPROX int arg) {
     return 2;
 }
 
+int ppfunc(int *arg) {
+    return 2;
+}
+
 int pretfunc() {
     APPROX int v = 5;
     return v; // error
@@ -58,6 +62,7 @@ int main() {
     pfunc(x); // error
     y = aafunc(x); // error
     x = aafunc(x); // OK
+    ppfunc(xp); // error
 
     // Variable initialization.
     int pinit = x; // error

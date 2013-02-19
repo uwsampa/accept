@@ -281,11 +281,7 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
     clang::FunctionDecl::param_iterator pi = callee->param_begin();
     clang::CallExpr::arg_iterator ai = call->arg_begin();
     for (; pi != callee->param_end() && ai != call->arg_end(); ++pi, ++ai) {
-      uint32_t paramType = typeOf(*pi);
-      uint32_t argType = typeOf(*ai);
-      if (paramType == ecPrecise && argType == ecApprox) {
-        typeError(call, "precision flow violation");
-      }
+      assertCompatible((*pi)->getType(), *ai, "precision flow violation");
     }
 
     DEBUG(llvm::errs() << "callee: ");
