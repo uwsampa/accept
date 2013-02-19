@@ -258,11 +258,8 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
 
 
   // ARRAYS
-  case clang::Stmt::ArraySubscriptExprClass: {
-    // Array member has same precision as the array.
-    ArraySubscriptExpr* texp = cast<ArraySubscriptExpr>( expr );
-    return typeOf(texp->getBase());
-  }
+  case clang::Stmt::ArraySubscriptExprClass:
+    return CL_LEAVE_UNCHANGED;
 
 
   // FUNCTION CALLS

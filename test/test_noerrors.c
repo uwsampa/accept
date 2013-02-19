@@ -31,5 +31,7 @@ int main() {
     ay[0] = 3;
     ax[1] = ay[2];
 
+    xp[0] = x;
+
     return 0;
 }
