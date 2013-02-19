@@ -1,5 +1,10 @@
 #include <enerc.h>
 
+APPROX int func() {
+    APPROX int x = 2;
+    return x; // OK
+}
+
 int main() {
     APPROX int x;
     x = 5;

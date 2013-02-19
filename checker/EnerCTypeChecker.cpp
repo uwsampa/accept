@@ -376,9 +376,8 @@ void EnerCTyper::checkStmt(clang::Stmt *stmt) {
       {
         clang::Expr *expr = cast<clang::ReturnStmt>(stmt)->getRetValue();
         if (expr && curFunction) {
-          if (typeOf(expr) == ecApprox && typeOf(curFunction) == ecPrecise) {
-            typeError(expr, "precision flow violation");
-          }
+          assertCompatible(curFunction->getResultType(), expr,
+                           "precision flow violation");
         }
       }
       break;
