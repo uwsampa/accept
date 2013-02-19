@@ -33,5 +33,8 @@ int main() {
 
     xp[0] = x;
 
+    y = ENDORSE(x);
+    yp = ENDORSE(xp);
+
     return 0;
 }

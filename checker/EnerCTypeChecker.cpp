@@ -211,12 +211,10 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
               dyn_cast<clang::IntegerLiteral>(bop->getLHS());
           if (literal && literal->getValue() == TAG_ENDORSEMENT) {
             // This is an endorsement of the right-hand expression.
-            DEBUG(llvm::errs() << "endorsement\n");
             return ecPrecise;
           } else {
             // An ordinary comma expression.
-            DEBUG(llvm::errs() << "normal comma " << ltype << " " << rtype << "\n");
-            return rtype;
+            return CL_LEAVE_UNCHANGED;
           }
         }
 
@@ -321,9 +319,7 @@ QualType EnerCTyper::withQuals(QualType oldT, uint32_t type) {
     QualType innerType = withQuals(ptrT->getPointeeType(), type);
     innerType = ctx.getCanonicalType(innerType);
     QualType out = ctx.getPointerType(innerType);
-    out =  ctx.getCanonicalType(ctx.getQualifiedType(
-        out.getTypePtr(), oldT.getQualifiers()
-    ));
+    out = replaceQuals(out, oldT.getQualifiers());
 
     if (innerType->isVoidType() && type) {
       llvm::errs() << "approx void\n";
