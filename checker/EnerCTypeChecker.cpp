@@ -277,6 +277,7 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
     }
 
     // Check parameters.
+    // XXX this should be moved to the framework
     // XXX variadic, default args: when param/arg list lengths are not equal
     clang::FunctionDecl::param_iterator pi = callee->param_begin();
     clang::CallExpr::arg_iterator ai = call->arg_begin();
@@ -288,8 +289,7 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
     DEBUG(callee->dump());
     DEBUG(llvm::errs() << " type: " << typeOf(callee) << "\n");
 
-    // Set return type qualifier.
-    return typeOf(callee);
+    return CL_LEAVE_UNCHANGED;
   }
 
 
