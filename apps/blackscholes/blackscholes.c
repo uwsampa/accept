@@ -423,7 +423,7 @@ int main (int argc, char **argv)
     printf("Num Errors: %d\n", numError);
 #endif
     free(data);
-    free(prices);
+    free(ENDORSE(prices));
 
 #ifdef ENABLE_PARSEC_HOOKS
     __parsec_bench_end();
