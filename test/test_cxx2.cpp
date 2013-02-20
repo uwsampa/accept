@@ -3,9 +3,19 @@
 struct mystruct {
     APPROX int field;
 };
+
 class myclass {
 public:
   int meth(APPROX int *x);
+};
+
+class superclass {
+public:
+  virtual void meth(APPROX int* x) = 0;
+};
+class subclass : public superclass {
+public:
+  void meth(APPROX int* x) {}
 };
 
 int main() {
@@ -17,4 +27,6 @@ int main() {
 
     myclass obj;
     obj.meth(&x);
+
+    new subclass();
 }
