@@ -11,6 +11,7 @@
 
 #include <sstream>
 #include <set>
+#include <cstdio>
 
 #define ECQ_PRECISE 0
 #define ECQ_APPROX 1
