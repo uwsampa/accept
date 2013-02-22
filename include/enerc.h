@@ -8,5 +8,11 @@
                     _Pragma("clang diagnostic pop") \
                     , (e) \
                    )
+#define DEDORSE(e) (_Pragma("clang diagnostic push") \
+                    _Pragma("clang diagnostic ignored \"-Wunused-value\"") \
+                    9946037276206 \
+                    _Pragma("clang diagnostic pop") \
+                    , (e) \
+                   )
 
 #endif

@@ -10,6 +10,7 @@
 
 // Random numbers unlikely to come up in source programs...
 #define TAG_ENDORSEMENT 9946037276205
+#define TAG_DEDORSEMENT 9946037276206
 
 using namespace clang;
 
@@ -263,6 +264,11 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
           if (literal && literal->getValue() == TAG_ENDORSEMENT) {
             // This is an endorsement of the right-hand expression.
             return ecPrecise;
+          } else if (literal && literal->getValue() == TAG_DEDORSEMENT) {
+            // This is a "dedorsement" of the right-hand expression ---
+            // converting to approximate for the purposes of pointer
+            // assignment.
+            return ecApprox;
           } else {
             // An ordinary comma expression.
             return CL_LEAVE_UNCHANGED;

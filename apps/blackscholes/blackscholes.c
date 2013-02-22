@@ -333,7 +333,7 @@ int main (int argc, char **argv)
 #define LINESIZE 64
 
     buffer = (fptype *) malloc(5 * numOptions * sizeof(fptype) + PAD);
-    sptprice = (fptype *) (((unsigned long long)buffer + PAD) & ~(LINESIZE - 1));
+    sptprice = DEDORSE((fptype *) (((unsigned long long)buffer + PAD) & ~(LINESIZE - 1)));
     strike = sptprice + numOptions;
     rate = strike + numOptions;
     volatility = rate + numOptions;
