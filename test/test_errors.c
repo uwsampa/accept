@@ -44,7 +44,7 @@ int main() {
     int* yp;
     xp = &x; // OK
     yp = &x; // error
-    xp = &y; // OK
+    xp = &y; // error
     yp = &y; // OK
     if (*yp) {} // OK
     if (*xp) {} // error

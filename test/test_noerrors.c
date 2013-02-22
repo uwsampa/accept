@@ -20,7 +20,6 @@ int main() {
     int* yp;
     xp = &x; // OK
     xp = &y; // OK
-    yp = &y; // OK
     if (*yp) {} // OK
     APPROX int ax[] = {3, 4, 5};
     int ay[] = {3, 4, 5};
