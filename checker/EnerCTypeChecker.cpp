@@ -144,6 +144,10 @@ void EnerCTyper::assertFlow(clang::QualType type, clang::Expr *expr) {
       if (fdecl->getNameAsString() == "malloc")
         return;
 
+  // Special-case literals (APPROX int* p = 0;).
+  if (llvm::isa<clang::IntegerLiteral>(innerExpr))
+    return;
+
   // Other cases.
   assertCompatible(type, expr, "precision flow violation");
 }
