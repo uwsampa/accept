@@ -11,10 +11,17 @@ void func(APPROX int *xp) {
 }
 
 int main() {
+    // malloc+free
     APPROX int *xp;
     int *yp;
     yp = (int*)malloc(2);
     xp = (int*)malloc(2);
     free(yp);
     free(ENDORSE(xp));
+
+    // propagation through arithmetic/casts
+    xp = xp;
+    xp = (int*)xp;
+    xp = xp + 2;
+    xp = (int*)(xp + 2);
 }

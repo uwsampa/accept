@@ -194,20 +194,14 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
     return CL_LEAVE_UNCHANGED;
 
   // CASTS
-  // In all cases, we just propagate the qualifier of the casted expression.
-  // This is especially important for implicit casts, but for explicit casts we
-  // might eventually want to allow qualifiers -- but that should probably only
-  // be done with endorsements.
   case clang::Stmt::ImplicitCastExprClass:
-    return CL_LEAVE_UNCHANGED;
-
   case clang::Stmt::CStyleCastExprClass:
   case clang::Stmt::CXXFunctionalCastExprClass:
   case clang::Stmt::CXXConstCastExprClass:
   case clang::Stmt::CXXDynamicCastExprClass:
   case clang::Stmt::CXXReinterpretCastExprClass:
   case clang::Stmt::CXXStaticCastExprClass:
-    return typeOf(cast<clang::CastExpr>(expr)->getSubExpr());
+    return CL_LEAVE_UNCHANGED;
 
 
   // BINARY OPERATORS
@@ -244,7 +238,7 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
         if (ltype == ecApprox || rtype == ecApprox)
           return ecApprox;
         else
-          return ecPrecise;
+          return CL_LEAVE_UNCHANGED;
 
       case BO_Assign:
       case BO_MulAssign:
@@ -349,17 +343,11 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
 
 
   // MISC
-  case clang::Stmt::ParenExprClass: {
-    clang::ParenExpr* paren = cast<ParenExpr>(expr);
-    return typeOf(paren->getSubExpr());
-  }
-
+  case clang::Stmt::ParenExprClass:
+    return CL_LEAVE_UNCHANGED;
                                            
   default:
-    DEBUG(llvm::errs() << "UNSOUND: unhandled expression kind "
-                       << expr->getStmtClass() << "\n");
-    // change to getStmtClassName() for name lookup (crashes for some kinds)
-    return ecPrecise;
+    return CL_LEAVE_UNCHANGED;
   }
 }
 
