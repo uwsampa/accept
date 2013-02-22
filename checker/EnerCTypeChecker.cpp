@@ -8,7 +8,7 @@
 #include "llvm/Support/Debug.h"
 #include <iostream>
 
-// A random number that's unlikely to come up in source programs...
+// Random numbers unlikely to come up in source programs...
 #define TAG_ENDORSEMENT 9946037276205
 
 using namespace clang;
@@ -30,6 +30,7 @@ public:
   bool compatible(uint32_t lhs, uint32_t rhs);
   bool compatible(clang::QualType lhs, clang::QualType rhs);
   bool qualsEqual(clang::QualType lhs, clang::QualType rhs);
+  void assertFlow(clang::QualType type, clang::Expr *expr);
 
   EnerCTyper(TyperConsumer *_controller) :
     NodeTyper(_controller) {}
@@ -129,6 +130,22 @@ bool EnerCTyper::qualsEqual(clang::QualType lhs, clang::QualType rhs) {
   } else {
     return true;
   }
+}
+
+void EnerCTyper::assertFlow(clang::QualType type, clang::Expr *expr) {
+  // Special-case malloc on the RHS.
+  clang::Expr *innerExpr = expr->IgnoreImplicit();
+  if (clang::CastExpr *castExpr = llvm::dyn_cast<clang::CastExpr>(innerExpr)) {
+    innerExpr = castExpr->getSubExpr();
+    innerExpr = innerExpr->IgnoreImplicit();
+  }
+  if (clang::CallExpr *callExpr = llvm::dyn_cast<clang::CallExpr>(innerExpr))
+    if (clang::FunctionDecl *fdecl = callExpr->getDirectCallee())
+      if (fdecl->getNameAsString() == "malloc")
+        return;
+
+  // Other cases.
+  assertCompatible(type, expr, "precision flow violation");
 }
 
 
@@ -237,8 +254,7 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
       case BO_XorAssign:
       case BO_OrAssign:
         DEBUG(llvm::errs() << "assignment\n");
-        assertCompatible(bop->getLHS()->getType(), bop->getRHS(),
-                         "precision flow violation");
+        assertFlow(bop->getLHS()->getType(), bop->getRHS());
         return ltype;
 
       case BO_Comma:
@@ -317,7 +333,7 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
     clang::FunctionDecl::param_iterator pi = callee->param_begin();
     clang::CallExpr::arg_iterator ai = call->arg_begin();
     for (; pi != callee->param_end() && ai != call->arg_end(); ++pi, ++ai) {
-      assertCompatible((*pi)->getType(), *ai, "precision flow violation");
+      assertFlow((*pi)->getType(), *ai);
     }
 
     DEBUG(llvm::errs() << "callee: ");
@@ -402,8 +418,7 @@ void EnerCTyper::checkStmt(clang::Stmt *stmt) {
       {
         clang::Expr *expr = cast<clang::ReturnStmt>(stmt)->getRetValue();
         if (expr && curFunction) {
-          assertCompatible(curFunction->getResultType(), expr,
-                           "precision flow violation");
+          assertFlow(curFunction->getResultType(), expr);
         }
       }
       break;
@@ -416,8 +431,7 @@ void EnerCTyper::checkStmt(clang::Stmt *stmt) {
              i != dstmt->decl_end(); ++i) {
           clang::VarDecl *vdecl = dyn_cast<clang::VarDecl>(*i);
           if (vdecl && vdecl->hasInit()) {
-            assertCompatible(vdecl->getType(), vdecl->getInit(),
-                             "precision flow violation");
+            assertFlow(vdecl->getType(), vdecl->getInit());
           }
         }
       }

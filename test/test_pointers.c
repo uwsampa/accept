@@ -1,5 +1,6 @@
 #include <string.h>
 #include <enerc.h>
+#include <stdlib.h>
 
 void func(APPROX int *xp) {
     *(xp + 1) = 3;
@@ -10,4 +11,10 @@ void func(APPROX int *xp) {
 }
 
 int main() {
+    APPROX int *xp;
+    int *yp;
+    yp = (int*)malloc(2);
+    xp = (int*)malloc(2);
+    free(yp);
+    free(ENDORSE(xp));
 }
