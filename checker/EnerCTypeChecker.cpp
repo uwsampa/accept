@@ -28,6 +28,8 @@ public:
   virtual void checkStmt(clang::Stmt *stmt);
   virtual QualType withQuals(QualType oldT, uint32_t type);
   bool compatible(uint32_t lhs, uint32_t rhs);
+  bool compatible(clang::QualType lhs, clang::QualType rhs);
+  bool qualsEqual(clang::QualType lhs, clang::QualType rhs);
 
   EnerCTyper(TyperConsumer *_controller) :
     NodeTyper(_controller) {}
@@ -94,6 +96,41 @@ bool EnerCTyper::compatible(uint32_t lhs, uint32_t rhs) {
     return true;
   }
 }
+
+bool EnerCTyper::compatible(clang::QualType lhs, clang::QualType rhs) {
+  if (lhs.isNull() || rhs.isNull())
+    return true;
+
+  // Current type level.
+  if (!compatible(lhs.getQualifiers().getCustomQuals(),
+                  rhs.getQualifiers().getCustomQuals())) {
+    return false;
+  }
+
+  // Possibly recuse into referent types. After the first level, all
+  // qualifiers must be *equal*. This incompatibility prevents unsoundness
+  // that arises when different types alias.
+  if (controller->ci.getASTContext().UnwrapSimilarPointerTypes(lhs, rhs)) {
+    return qualsEqual(lhs, rhs);
+  } else {
+    return true;
+  }
+}
+
+bool EnerCTyper::qualsEqual(clang::QualType lhs, clang::QualType rhs) {
+  if (lhs.isNull() || rhs.isNull())
+    return true;
+  if (lhs.getQualifiers().getCustomQuals() !=
+      rhs.getQualifiers().getCustomQuals()) {
+    return false;
+  }
+  if (controller->ci.getASTContext().UnwrapSimilarPointerTypes(lhs, rhs)) {
+    return qualsEqual(lhs, rhs);
+  } else {
+    return true;
+  }
+}
+
 
 // Give types to expressions.
 uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {

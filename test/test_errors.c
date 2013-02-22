@@ -53,6 +53,12 @@ int main() {
     if (ax[0]) {} // error
     if (ay[0]) {} // OK
 
+    // Pointer types are incompatible.
+    xp = xp; // OK
+    yp = yp; // OK
+    xp = yp; // error
+    yp = xp; // error
+
     // Function calls.
     afunc(2); // OK
     pfunc(2); // OK
