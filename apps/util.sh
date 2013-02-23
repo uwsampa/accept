@@ -5,7 +5,7 @@ builtdir=$enercdir/build/built
 cxx=$enercdir/bin/enerclang++
 cc=$enercdir/bin/enerclang
 analyzepy=$enercdir/bin/analysis.py
-profile=$enercdir/bin/profile.sh
+proflink=$enercdir/bin/proflink.sh
 cflags="-g -fno-use-cxa-atexit"
 
 if [ `uname` = "Darwin" ]; then
@@ -31,8 +31,10 @@ action=$1 ; shift
 if [ "$1" = "--cxx" ] ; then
     shift
     compile=$cxx
+    link=c++
 else
     compile=$cc
+    link=cc
 fi
 if [ "$1" = "--runargs" ] ; then
     shift
@@ -56,7 +58,9 @@ if [ "$action" = "build" ] ; then
 elif [ "$action" = "analyze" ] ; then
     $builtdir/bin/opt -load=$enerclib -enerc -stats $name.bc -o $name.opt.bc
 elif [ "$action" = "profile" ] ; then
-    $profile $name.opt.bc $runargs
+    $proflink $name.opt.bc > $name.o
+    $link $name.o -o $name
+    ./$name $runargs
 elif [ "$action" = "danalyze" ] ; then
     python $analyzepy
 else
