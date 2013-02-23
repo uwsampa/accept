@@ -1,6 +1,6 @@
 #!/bin/sh
 here=`dirname $0`
-args="--cxx --runargs '3 10 3 16 16 10 none output.txt 1' streamcluster streamcluster.cpp"
+args="--cxx --runargs '10 20 64 8192 8192 1000 none output.txt 1' streamcluster streamcluster.cpp"
 . $here/../build.sh
 
 # PARSEC sizes:
