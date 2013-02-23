@@ -7,7 +7,10 @@ unsigned long enerc_elidable = 0;
 unsigned long enerc_total = 0;
 
 void enerc_done() {
-  printf("%lu %lu %lu\n", enerc_approx, enerc_elidable, enerc_total);
+  FILE *results_file = fopen("enerc_dynamic.txt", "w");
+  fprintf(results_file,
+          "%lu %lu %lu\n", enerc_approx, enerc_elidable, enerc_total);
+  fclose(results_file);
 }
 
 void enerc_trace(int approx, int elidable, int total) {

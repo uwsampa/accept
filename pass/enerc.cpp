@@ -25,10 +25,6 @@
 
 using namespace llvm;
 
-STATISTIC(ecApproxInst, "approximate instructions");
-STATISTIC(ecElidableInst, "elidable instructions");
-STATISTIC(ecTotalInst, "total instructions");
-
 namespace {
   // Look at the qualifier metadata on the instruction and determine whether it
   // has approximate semantics.
@@ -86,10 +82,15 @@ namespace {
   struct EnerC : public FunctionPass {
       static char ID;
       EnerC() : FunctionPass(ID) {
+        gApproxInsts = 0;
+        gElidableInsts = 0;
+        gTotalInsts = 0;
       }
 
       Constant *blockCountFunction;
-      static unsigned int curInstId;
+      unsigned long gApproxInsts;
+      unsigned long gElidableInsts;
+      unsigned long gTotalInsts;
 
       virtual bool runOnFunction(Function &F) {
         for (Function::iterator bbi = F.begin(); bbi != F.end(); ++bbi) {
@@ -107,18 +108,16 @@ namespace {
             // Record information about this instruction.
             bool iApprox = isApprox(ii);
             bool iElidable = elidable(ii);
-            ++ecTotalInst;
+            ++gTotalInsts;
+            ++totalInsts;
             if (iApprox) {
-              ++ecApproxInst;
-              approxInsts++;
+              ++gApproxInsts;
+              ++approxInsts;
             }
             if (iElidable) {
-              ++ecElidableInst;
-              elidableInsts++;
+              ++gElidableInsts;
+              ++elidableInsts;
             }
-            totalInsts++;
-
-            curInstId++;
           }
 
           // Call the runtime profiling library for this block.
@@ -141,6 +140,14 @@ namespace {
           NULL
         );
 
+        return false;
+      }
+
+      virtual bool doFinalization(Module &M) {
+        FILE *results_file = fopen("enerc_static.txt", "w+");
+        fprintf(results_file,
+                "%lu %lu %lu\n", gApproxInsts, gElidableInsts, gTotalInsts);
+        fclose(results_file);
         return false;
       }
 
@@ -171,5 +178,4 @@ namespace {
   };
   char EnerC::ID = 0;
   static RegisterPass<EnerC> X("enerc", "EnerC pass", false, false);
-  unsigned int EnerC::curInstId = 0;
 }

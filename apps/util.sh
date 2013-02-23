@@ -55,6 +55,7 @@ if [ "$action" = "build" ] ; then
     $compile $cflags -c $srcfiles -emit-llvm -o $name.bc
     $builtdir/bin/llvm-dis $name.bc
 elif [ "$action" = "analyze" ] ; then
+    rm -f enerc_static.txt  # Empty out static numbers to build them up again.
     $builtdir/bin/opt -load=$enerclib -enerc -stats $name.bc -o $name.opt.bc
 elif [ "$action" = "profile" ] ; then
     $proflink $name.opt.bc > $name.o
