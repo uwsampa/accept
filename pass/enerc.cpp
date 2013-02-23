@@ -86,16 +86,16 @@ namespace {
   struct EnerC : public FunctionPass {
       static char ID;
       EnerC() : FunctionPass(ID) {
-        infoFile = NULL;
       }
 
       Constant *blockCountFunction;
       static unsigned int curInstId;
-      FILE *infoFile;
 
       virtual bool runOnFunction(Function &F) {
         for (Function::iterator bbi = F.begin(); bbi != F.end(); ++bbi) {
-          std::vector<unsigned int> instIds;
+          unsigned int approxInsts = 0;
+          unsigned int elidableInsts = 0;
+          unsigned int totalInsts = 0;
 
           for (BasicBlock::iterator ii = bbi->begin(); ii != bbi->end();
                 ++ii) {
@@ -108,22 +108,21 @@ namespace {
             bool iApprox = isApprox(ii);
             bool iElidable = elidable(ii);
             ++ecTotalInst;
-            if (iApprox)
+            if (iApprox) {
               ++ecApproxInst;
-            if (iElidable)
+              approxInsts++;
+            }
+            if (iElidable) {
               ++ecElidableInst;
-            
-            // Instrument the instruction and record information about it.
-            // TODO: Only perform instrumentation if requested.
-            recordInstInfo(curInstId, iApprox, iElidable);
-            instIds.push_back(curInstId);
+              elidableInsts++;
+            }
+            totalInsts++;
+
             curInstId++;
           }
 
-          for (std::vector<unsigned int>::iterator idi = instIds.begin();
-               idi != instIds.end(); ++idi) {
-            insertTraceCall(F, bbi, *idi);
-          }
+          // Call the runtime profiling library for this block.
+          insertTraceCall(F, bbi, approxInsts, elidableInsts, totalInsts);
         }
 
         return false;
@@ -136,34 +135,29 @@ namespace {
         blockCountFunction = M.getOrInsertFunction(
           FUNC_TRACE,
           Type::getVoidTy(M.getContext()), // return type
-          Type::getInt32Ty(M.getContext()), // block ID
+          Type::getInt32Ty(M.getContext()), // approx
+          Type::getInt32Ty(M.getContext()), // elidable
+          Type::getInt32Ty(M.getContext()), // total
           NULL
         );
-
-        // Open program info file.
-        // TODO: don't clobber between modules
-        if (infoFile == NULL) {
-          llvm::errs() << "opening\n";
-          infoFile = fopen("enerc_info.txt", "w");
-        }
 
         return false;
       }
 
-      ~EnerC() {
-        llvm::errs() << "closing\n";
-        if (infoFile != NULL) {
-          fclose(infoFile);
-          infoFile = NULL;
-        }
-      }
-
     protected:
       void insertTraceCall(Function &F, BasicBlock* bb,
-                           unsigned int instId) {
+                           unsigned int approx,
+                           unsigned int elidable,
+                           unsigned int total) {
         std::vector<Value *> args;
         args.push_back(
-            ConstantInt::get(Type::getInt32Ty(F.getContext()), instId)
+            ConstantInt::get(Type::getInt32Ty(F.getContext()), approx)
+        );
+        args.push_back(
+            ConstantInt::get(Type::getInt32Ty(F.getContext()), elidable)
+        );
+        args.push_back(
+            ConstantInt::get(Type::getInt32Ty(F.getContext()), total)
         );
 
         // For now, we're inserting calls at the end of basic blocks.
@@ -173,14 +167,6 @@ namespace {
           "",
           bb->getTerminator()
         );
-      }
-
-      void recordInstInfo(unsigned int instId, bool approx, bool elidable) {
-        if (infoFile == NULL) {
-          llvm::errs() << "couldn't write to info file\n";
-          return;
-        }
-        fprintf(infoFile, "%u %u %u\n", instId, approx, elidable);
       }
   };
   char EnerC::ID = 0;

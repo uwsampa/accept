@@ -4,7 +4,6 @@ enercdir=$here/..
 builtdir=$enercdir/build/built
 cxx=$enercdir/bin/enerclang++
 cc=$enercdir/bin/enerclang
-analyzepy=$enercdir/bin/analysis.py
 proflink=$enercdir/bin/proflink.sh
 cflags="-g -fno-use-cxa-atexit"
 
@@ -61,8 +60,6 @@ elif [ "$action" = "profile" ] ; then
     $proflink $name.opt.bc > $name.o
     $link $name.o -o $name
     ./$name $runargs
-elif [ "$action" = "danalyze" ] ; then
-    python $analyzepy
 else
     usage
 fi
