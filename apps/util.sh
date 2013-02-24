@@ -52,7 +52,12 @@ srcfiles=$@
 
 if [ "$action" = "build" ] ; then
     rm -f $name.bc $name.ll
-    $compile $cflags -c $srcfiles -emit-llvm -o $name.bc
+    for srcfile in $srcfiles
+    do
+        $compile $cflags -c $srcfile -emit-llvm -o $srcfile.bc
+        bcfiles="$bcfiles $srcfile.bc"
+    done
+    $builtdir/bin/llvm-link $bcfiles > $name.bc
     $builtdir/bin/llvm-dis $name.bc
 elif [ "$action" = "analyze" ] ; then
     rm -f enerc_static.txt  # Empty out static numbers to build them up again.
