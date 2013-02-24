@@ -40,7 +40,7 @@ UINT8* encodeImage(
 	initQuantizationTables(qualityFactor);
 
 	/* Writing Marker Data */
-	outputBuffer = writeMarkers(outputBuffer, imageFormat, srcImage->w, srcImage->h);
+	writeMarkers(outputBuffer, imageFormat, srcImage->w, srcImage->h);
 
 	for (i = 0; i < srcImage->h; i += 8) {
 		for (j = 0; j < srcImage->w; j += 8) {

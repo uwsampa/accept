@@ -8,7 +8,7 @@ UINT16 dspDivision(UINT32, UINT32);
 
 void initQuantizationTables(UINT32);
 
-UINT8* writeMarkers(UINT8 *, UINT32, UINT32, UINT32);
+void writeMarkers(UINT8 *, UINT32, UINT32, UINT32);
 UINT8* closeBitstream(UINT8 *);
 
 UINT8* encodeImage(RgbImage*, UINT8 *, UINT32, UINT32);
