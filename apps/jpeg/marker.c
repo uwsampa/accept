@@ -4,7 +4,7 @@
 
 // Header for JPEG Encoder
 
-void writeMarkers(
+UINT8* writeMarkers(
 	UINT8 *outoutBuffer, UINT32 imageFormat, UINT32 width, UINT32 height
 ) {
 	UINT16 i, headerLength;
@@ -125,4 +125,6 @@ void writeMarkers(
 	*outoutBuffer++ = 0x00;
 	*outoutBuffer++ = 0x3F;
 	*outoutBuffer++ = 0x00;
+
+    return outoutBuffer;
 }
