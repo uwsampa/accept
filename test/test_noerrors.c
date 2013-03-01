@@ -1,3 +1,6 @@
+// RUN: clang -fsyntax-only -Xclang -verify %s
+// expected-no-diagnostics
+
 #include <enerc.h>
 
 APPROX int func() {

@@ -1,3 +1,5 @@
+// RUN: clang -fsyntax-only -Xclang -verify %s
+
 #include <enerc.h>
 
 int main() {
@@ -6,11 +8,11 @@ int main() {
 
     int y;
     y = ENDORSE(x); // OK
-    y = x; // error
-    y = (9946037276206, x); // error
+    y = x; // expected-error {{precision flow violation}}
+    y = (9946037276206, x); // expected-error {{precision flow violation}}
 
     if (ENDORSE(x == 1)) {} // OK
-    if (x == 1) {} // error
+    if (x == 1) {} // expected-error {{approximate condition}}
 
     return 0;
 }

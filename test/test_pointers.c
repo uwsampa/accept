@@ -1,3 +1,6 @@
+// RUN: clang -fsyntax-only -Xclang -verify %s
+// expected-no-diagnostics
+
 #include <string.h>
 #include <enerc.h>
 #include <stdlib.h>
