@@ -9,7 +9,7 @@ int main() {
     int y;
     y = ENDORSE(x); // OK
     y = x; // expected-error {{precision flow violation}}
-    y = (9946037276206, x); // expected-error {{precision flow violation}}
+    y = (9946037276299, x); // expected-error {{precision flow violation}} expected-warning {{expression result unused}}
 
     if (ENDORSE(x == 1)) {} // OK
     if (x == 1) {} // expected-error {{approximate condition}}
