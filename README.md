@@ -63,5 +63,8 @@ This repository includes lots of stuff:
 * `rt/`: A runtime library that is linked into EnerC programs for
   dynamic analysis.
 * `test/`: Some tests for the frontend (type errors and bitcode
-  emission). Go here and do `./runtests.sh`.
+  emission). This uses LLVM's [LIT][] testing infrastructure. To run the
+  tests, just type `./bin/runtests.sh`.
 * `apps/`: Benchmarks annotated for use with EnerC.
+
+[LIT]: http://llvm.org/docs/CommandGuide/lit.html
