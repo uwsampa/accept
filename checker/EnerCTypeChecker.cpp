@@ -363,10 +363,11 @@ QualType EnerCTyper::withQuals(QualType oldT, uint32_t type) {
   if (oldT.isNull())
     return oldT;
 
-  const PointerType *ptrT = dyn_cast<PointerType>(oldT.getTypePtr());
-  if (ptrT) {
+  ASTContext &ctx = controller->ci.getASTContext();
+
+  if (const PointerType *ptrT = dyn_cast<PointerType>(oldT.getTypePtr())) {
+
     // For pointers, apply to the pointed-to type (recursively).
-    ASTContext &ctx = controller->ci.getASTContext();
     QualType innerType = withQuals(ptrT->getPointeeType(), type);
     innerType = ctx.getCanonicalType(innerType);
     QualType out = ctx.getPointerType(innerType);
@@ -378,6 +379,39 @@ QualType EnerCTyper::withQuals(QualType oldT, uint32_t type) {
     }
 
     return out;
+
+  } else if (const ArrayType *arrT = dyn_cast<ArrayType>(oldT.getTypePtr())) {
+
+    // Array types. We have four different kinds.
+    QualType innerType = withQuals(arrT->getElementType(), type);
+    QualType out;
+    if (const ConstantArrayType *at = dyn_cast<ConstantArrayType>(arrT)) {
+      out = ctx.getConstantArrayType(innerType, at->getSize(),
+                                     at->getSizeModifier(),
+                                     at->getIndexTypeCVRQualifiers());
+    } else if (const DependentSizedArrayType *at =
+               dyn_cast<DependentSizedArrayType>(arrT)) {
+      out = ctx.getDependentSizedArrayType(innerType, at->getSizeExpr(),
+                                           at->getSizeModifier(),
+                                           at->getIndexTypeCVRQualifiers(),
+                                           at->getBracketsRange());
+    } else if (const IncompleteArrayType *at =
+               dyn_cast<IncompleteArrayType>(arrT)) {
+      out = ctx.getIncompleteArrayType(innerType,
+                                       at->getSizeModifier(),
+                                       at->getIndexTypeCVRQualifiers());
+    } else if (const VariableArrayType *at =
+               dyn_cast<VariableArrayType>(arrT)) {
+      out = ctx.getVariableArrayType(innerType, at->getSizeExpr(),
+                                     at->getSizeModifier(),
+                                     at->getIndexTypeCVRQualifiers(),
+                                     at->getBracketsRange());
+    } else {
+      llvm::errs() << "UNKNOWN ARRAY TYPE KIND\n";
+    }
+    out = replaceQuals(out, oldT.getQualifiers());
+    return out;
+
   } else {
     // For non-pointers, apply to this type.
     return NodeTyper::withQuals(oldT, type);
