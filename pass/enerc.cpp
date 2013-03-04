@@ -8,6 +8,9 @@
 #include "llvm/Instructions.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/PassManager.h"
+#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 
 #include <sstream>
 #include <set>
@@ -26,6 +29,9 @@
 using namespace llvm;
 
 namespace {
+  cl::opt<bool> optInstrument ("accept-inst",
+      cl::desc("ACCEPT: enable profiling instrumentation"));
+
   // Look at the qualifier metadata on the instruction and determine whether it
   // has approximate semantics.
   bool isApprox(Instruction *instr) {
@@ -121,7 +127,8 @@ namespace {
           }
 
           // Call the runtime profiling library for this block.
-          insertTraceCall(F, bbi, approxInsts, elidableInsts, totalInsts);
+          if (optInstrument)
+            insertTraceCall(F, bbi, approxInsts, elidableInsts, totalInsts);
         }
 
         return false;
@@ -131,14 +138,15 @@ namespace {
         errs() << "initializing\n";
 
         // Add instrumentation function.
-        blockCountFunction = M.getOrInsertFunction(
-          FUNC_TRACE,
-          Type::getVoidTy(M.getContext()), // return type
-          Type::getInt32Ty(M.getContext()), // approx
-          Type::getInt32Ty(M.getContext()), // elidable
-          Type::getInt32Ty(M.getContext()), // total
-          NULL
-        );
+        if (optInstrument)
+          blockCountFunction = M.getOrInsertFunction(
+            FUNC_TRACE,
+            Type::getVoidTy(M.getContext()), // return type
+            Type::getInt32Ty(M.getContext()), // approx
+            Type::getInt32Ty(M.getContext()), // elidable
+            Type::getInt32Ty(M.getContext()), // total
+            NULL
+          );
 
         return false;
       }
@@ -177,5 +185,14 @@ namespace {
       }
   };
   char EnerC::ID = 0;
-  static RegisterPass<EnerC> X("enerc", "EnerC pass", false, false);
+
+  // Register EnerC as a "standard pass". This allows the pass to run without
+  // running opt explicitly (e.g., as part of running `clang`).
+  static void registerACCEPTPass(const PassManagerBuilder &,
+                                 PassManagerBase &PM) {
+    PM.add(new EnerC());
+  }
+  static RegisterStandardPasses
+      RegisterACCEPT(PassManagerBuilder::EP_EarlyAsPossible,
+                     registerACCEPTPass);
 }

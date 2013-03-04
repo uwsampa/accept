@@ -16,7 +16,7 @@ enerclib=$builtdir/lib/enerc.$libext
 
 usage () {
     echo "usage: $0 ACTION [--cxx] [--runargs ARGS] NAME SRCFILES..." >&2
-    echo "actions: build analyze profile danalyze" >&2
+    echo "actions: build profile" >&2
     exit 1
 }
 
@@ -51,7 +51,7 @@ name=$1 ; shift
 srcfiles=$@
 
 if [ "$action" = "build" ] ; then
-    rm -f $name.bc $name.ll
+    rm -f enerc_static.txt  # Empty out static numbers to build them up again.
     for srcfile in $srcfiles
     do
         $compile $cflags -c $srcfile -emit-llvm -o $srcfile.bc
@@ -59,9 +59,6 @@ if [ "$action" = "build" ] ; then
     done
     $builtdir/bin/llvm-link $bcfiles > $name.bc
     $builtdir/bin/llvm-dis $name.bc
-elif [ "$action" = "analyze" ] ; then
-    rm -f enerc_static.txt  # Empty out static numbers to build them up again.
-    $builtdir/bin/opt -load=$enerclib -enerc -stats $name.bc -o $name.opt.bc
 elif [ "$action" = "profile" ] ; then
     $proflink $name.opt.bc > $name.o
     $link $name.o -o $name

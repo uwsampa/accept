@@ -15,5 +15,16 @@ else
     libext=so
 fi
 enerclib=$builtdir/lib/EnerCTypeChecker.$libext
+passlib=$builtdir/lib/enerc.$libext
 
-exec $clang -Xclang -load -Xclang $enerclib -Xclang -add-plugin -Xclang enerc-type-checker -I $incdir $@
+# Handle flags.
+clangargs=""
+for arg
+do
+    case "$arg" in
+        -accept-*) clangargs="$clangargs -mllvm $arg" ;;
+        *) clangargs="$clangargs $arg" ;;
+    esac
+done
+
+exec $clang -Xclang -load -Xclang $enerclib -Xclang -add-plugin -Xclang enerc-type-checker -Xclang -load -Xclang $passlib -I $incdir $clangargs
