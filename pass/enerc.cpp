@@ -11,6 +11,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/PassManager.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
+#include "llvm/Analysis/LoopPass.h"
 
 #include <sstream>
 #include <set>
@@ -85,9 +86,9 @@ namespace {
     return elidable_helper(instr, seen);
   }
 
-  struct EnerC : public FunctionPass {
+  struct ACCEPTPass : public FunctionPass {
       static char ID;
-      EnerC() : FunctionPass(ID) {
+      ACCEPTPass() : FunctionPass(ID) {
         gApproxInsts = 0;
         gElidableInsts = 0;
         gTotalInsts = 0;
@@ -184,13 +185,13 @@ namespace {
         );
       }
   };
-  char EnerC::ID = 0;
+  char ACCEPTPass::ID = 0;
 
-  // Register EnerC as a "standard pass". This allows the pass to run without
+  // Register ACCEPT as a "standard pass". This allows the pass to run without
   // running opt explicitly (e.g., as part of running `clang`).
   static void registerACCEPTPass(const PassManagerBuilder &,
                                  PassManagerBase &PM) {
-    PM.add(new EnerC());
+    PM.add(new ACCEPTPass());
   }
   static RegisterStandardPasses
       RegisterACCEPT(PassManagerBuilder::EP_EarlyAsPossible,
