@@ -286,7 +286,7 @@ float pspeedy(Points *points, float z, long *kcenter, int pid, pthread_barrier_t
 
 
 
-double pgain(long x, Points *points, double z, long int *numcenters, int pid, pthread_barrier_t* barrier)
+APPROX double pgain(long x, Points *points, APPROX double z, long int *numcenters, int pid, pthread_barrier_t* barrier)
 {
   //  printf("pgain pthread %d begin\n",pid);
 #ifdef ENABLE_THREADS
@@ -302,8 +302,8 @@ double pgain(long x, Points *points, double z, long int *numcenters, int pid, pt
   int i;
   int number_of_centers_to_close = 0;
 
-  static double *work_mem;
-  static double gl_cost_of_opening_x;
+  APPROX static double *work_mem;
+  APPROX static double gl_cost_of_opening_x;
   static int gl_number_of_centers_to_close;
 
   //each thread takes a block of working_mem.
@@ -346,9 +346,9 @@ double pgain(long x, Points *points, double z, long int *numcenters, int pid, pt
 #endif
 
   if( pid == 0 ) {
-    int accum = 0;
+    APPROX int accum = 0;
     for( int p = 0; p < nproc; p++ ) {
-      int tmp = (int)work_mem[p*stride];
+      APPROX int tmp = (int)work_mem[p*stride];
       work_mem[p*stride] = accum;
       accum += tmp;
     }
@@ -366,17 +366,17 @@ double pgain(long x, Points *points, double z, long int *numcenters, int pid, pt
 
   //now we finish building the table. clear the working memory.
   memset(switch_membership + k1, 0, (k2-k1)*sizeof(bool));
-  memset(work_mem+pid*stride, 0, stride*sizeof(double));
-  if( pid== 0 ) memset(work_mem+nproc*stride,0,stride*sizeof(double));
+  memset(ENDORSE(work_mem+pid*stride), 0, stride*sizeof(double));
+  if( pid== 0 ) memset(ENDORSE(work_mem+nproc*stride),0,stride*sizeof(double));
 
 #ifdef ENABLE_THREADS
   pthread_barrier_wait(barrier);
 #endif
   
   //my *lower* fields
-  double* lower = &work_mem[pid*stride];
+  APPROX double* lower = &work_mem[pid*stride];
   //global *lower* fields
-  double* gl_lower = &work_mem[nproc*stride];
+  APPROX double* gl_lower = &work_mem[nproc*stride];
 
   for ( i = k1; i < k2; i++ ) {
     APPROX float x_cost = dist(points->p[i], points->p[x], points->dim) 
@@ -415,13 +415,13 @@ double pgain(long x, Points *points, double z, long int *numcenters, int pid, pt
 
   for ( int i = k1; i < k2; i++ ) {
     if( is_center[i] ) {
-      double low = z;
+      APPROX double low = z;
       //aggregate from all threads
       for( int p = 0; p < nproc; p++ ) {
 	low += work_mem[center_table[i]+p*stride];
       }
       gl_lower[center_table[i]] = low;
-      if ( low > 0 ) {
+      if ( ENDORSE(low > 0) ) {
 	// i is a median, and
 	// if we were to open x (which we still may not) we'd close i
 
@@ -454,10 +454,10 @@ double pgain(long x, Points *points, double z, long int *numcenters, int pid, pt
   // Now, check whether opening x would save cost; if so, do it, and
   // otherwise do nothing
 
-  if ( gl_cost_of_opening_x < 0 ) {
+  if ( ENDORSE(gl_cost_of_opening_x < 0) ) {
     //  we'd save money by opening x; we'll do it
     for ( int i = k1; i < k2; i++ ) {
-      bool close_center = gl_lower[center_table[points->p[i].assign]] > 0 ;
+      bool close_center = ENDORSE(gl_lower[center_table[points->p[i].assign]] > 0) ;
       if ( switch_membership[i] || close_center ) {
 	// Either i's median (which may be i itself) is closing,
 	// or i is closer to x than to its current median
@@ -467,7 +467,7 @@ double pgain(long x, Points *points, double z, long int *numcenters, int pid, pt
       }
     }
     for( int i = k1; i < k2; i++ ) {
-      if( is_center[i] && gl_lower[center_table[i]] > 0 ) {
+      if( is_center[i] && ENDORSE(gl_lower[center_table[i]] > 0) ) {
 	is_center[i] = false;
       }
     }
@@ -487,7 +487,7 @@ double pgain(long x, Points *points, double z, long int *numcenters, int pid, pt
   pthread_barrier_wait(barrier);
 #endif
   if( pid == 0 ) {
-    free(work_mem);
+    free(ENDORSE(work_mem));
     //    free(is_center);
     //    free(switch_membership);
     //    free(proc_cost_of_opening_x);
@@ -507,8 +507,8 @@ double pgain(long x, Points *points, double z, long int *numcenters, int pid, pt
 /* halt if there is < e improvement after iter calls to gain */
 /* feasible is an array of numfeasible points which may be centers */
 
- float pFL(Points *points, int *feasible, int numfeasible,
-	  float z, long *k, double cost, long iter, float e, 
+ APPROX float pFL(Points *points, int *feasible, int numfeasible,
+	  APPROX float z, long *k, APPROX double cost, long iter, APPROX float e, 
 	  int pid, pthread_barrier_t* barrier)
 {
 #ifdef ENABLE_THREADS
@@ -516,13 +516,14 @@ double pgain(long x, Points *points, double z, long int *numcenters, int pid, pt
 #endif
   long i;
   long x;
-  double change;
+  APPROX double change;
   long numberOfPoints;
 
   change = cost;
   /* continue until we run iter iterations without improvement */
   /* stop instead if improvement is less than e */
-  while (change/cost > 1.0*e) {
+  // EnerC: A convergence loop.
+  while (ENDORSE(change/cost > 1.0*e)) {
     change = 0.0;
     numberOfPoints = points->num;
     /* randomize order in which centers are considered */
@@ -533,10 +534,14 @@ double pgain(long x, Points *points, double z, long int *numcenters, int pid, pt
 #ifdef ENABLE_THREADS
     pthread_barrier_wait(barrier);
 #endif
+
+    // EnerC: This is the inner loop perforated by Rinard.
+    // http://code-perforation.blogspot.com/2009/11/streamcluster-perforated-loops.html
     for (i=0;i<iter;i++) {
       x = i%numfeasible;
       change += pgain(feasible[x], points, z, k, pid, barrier);
     }
+
     cost -= change;
 #ifdef ENABLE_THREADS
     pthread_barrier_wait(barrier);
@@ -619,12 +624,12 @@ int selectfeasible_fast(Points *points, int **feasible, int kmin, int pid, pthre
 
 
 /* compute approximate kmedian on the points */
-float pkmedian(Points *points, long kmin, long kmax, long* kfinal,
+APPROX float pkmedian(Points *points, long kmin, long kmax, long* kfinal,
 	       int pid, pthread_barrier_t* barrier )
 {
   int i;
-  double cost;
-  double lastcost;
+  APPROX double cost;
+  APPROX double lastcost;
   double hiz, loz, z;
 
   static long k;
