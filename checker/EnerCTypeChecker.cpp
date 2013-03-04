@@ -331,6 +331,26 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
       return ecPrecise;
     }
 
+    // Special cases for certain pointer-related library functions.
+    // The funny-looking names below are functions hidden in macro expansions
+    // of the standard names.
+    std::string name = callee->getNameAsString();
+    if (name == "free" || name == "memcpy" || name == "memset" ||
+        name == "__builtin_object_size" || name == "__builtin___memcpy_chk" ||
+        name == "__inline_memcpy_chk" || name == "__builtin___memset_chk" ||
+        name == "__inline_memset_chk") {
+
+      // We want to leave the arguments unchecked, but we have to change each
+      // argument expression's type to avoid assertion failures later in the
+      // Clang pipeline.
+      for (clang::CallExpr::arg_iterator ai = call->arg_begin();
+           ai != call->arg_end(); ++ai) {
+        (*ai)->setType(withQuals((*ai)->getType(), ecPrecise));
+      }
+
+      return CL_LEAVE_UNCHANGED;
+    }
+
     // Check parameters.
     // XXX this should be moved to the framework
     // XXX variadic, default args: when param/arg list lengths are not equal

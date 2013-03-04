@@ -366,8 +366,8 @@ APPROX double pgain(long x, Points *points, APPROX double z, long int *numcenter
 
   //now we finish building the table. clear the working memory.
   memset(switch_membership + k1, 0, (k2-k1)*sizeof(bool));
-  memset(ENDORSE(work_mem+pid*stride), 0, stride*sizeof(double));
-  if( pid== 0 ) memset(ENDORSE(work_mem+nproc*stride),0,stride*sizeof(double));
+  memset(work_mem+pid*stride, 0, stride*sizeof(double));
+  if( pid== 0 ) memset(work_mem+nproc*stride,0,stride*sizeof(double));
 
 #ifdef ENABLE_THREADS
   pthread_barrier_wait(barrier);
@@ -487,7 +487,7 @@ APPROX double pgain(long x, Points *points, APPROX double z, long int *numcenter
   pthread_barrier_wait(barrier);
 #endif
   if( pid == 0 ) {
-    free(ENDORSE(work_mem));
+    free(work_mem);
     //    free(is_center);
     //    free(switch_membership);
     //    free(proc_cost_of_opening_x);
@@ -615,7 +615,7 @@ int selectfeasible_fast(Points *points, int **feasible, int kmin, int pid, pthre
     (*feasible)[i]=r;
   }
 
-  free(ENDORSE(accumweight)); 
+  free(accumweight); 
 
   return numfeasible;
 }
@@ -813,7 +813,7 @@ void copycenters(Points *points, Points* centers, long* centerIDs, long offset)
   /* count how many  */
   for ( i = 0; i < points->num; i++ ) {
     if ( is_a_median[i] ) {
-      memcpy( ENDORSE(centers->p[k].coord), ENDORSE(points->p[i].coord), points->dim * sizeof(float));
+      memcpy( centers->p[k].coord, points->p[i].coord, points->dim * sizeof(float));
       centers->p[k].weight = points->p[i].weight;
       centerIDs[k] = i + offset;
       k++;
