@@ -229,7 +229,9 @@ struct ACCEPTPass : public FunctionPass {
       if (cElidable == cTotal && cTotal > 0) {
         errs() << "can perforate "
                << srcPosDesc(*module, bbi->begin()->getDebugLoc())
-               << "\n";
+               << "\n"
+               << bbi->getName() << "\n"
+               << bbi->size() << " instructions\n";
       }
 
     }
