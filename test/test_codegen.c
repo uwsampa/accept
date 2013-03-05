@@ -25,6 +25,12 @@ int main() {
     // CHECK: store i32 %2, i32* %i, align 4, !quals !1
     i = x;
 
+    // CHECK: %3 = load i32* %x, align 4, !quals !0
+    // CHECK: %4 = load i32* %y, align 4, !quals !1
+    // CHECK: %add = add nsw i32 %4, %3, !quals !1
+    // CHECK: store i32 %add, i32* %y, align 4, !quals !1
+    y += x;
+
     return x;
 }
 
