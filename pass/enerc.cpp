@@ -90,6 +90,16 @@ bool elidable(Instruction *instr) {
   return elidable_helper(instr, seen);
 }
 
+// Format a source position.
+std::string srcPosDesc(const Module &mod, const DebugLoc &dl) {
+  std::stringstream ss;
+  ss << mod.getModuleIdentifier() << ":";
+  ss << dl.getLine();
+  if (dl.getCol())
+    ss << "," << dl.getCol();
+  return ss.str();
+}
+
 
 /**** THE MAIN LLVM PASS ****/
 
@@ -99,15 +109,18 @@ struct ACCEPTPass : public FunctionPass {
     gApproxInsts = 0;
     gElidableInsts = 0;
     gTotalInsts = 0;
+    module = 0;
   }
 
   Constant *blockCountFunction;
   unsigned long gApproxInsts;
   unsigned long gElidableInsts;
   unsigned long gTotalInsts;
+  Module *module;
 
   virtual bool runOnFunction(Function &F) {
     countAndInstrument(F);
+    findElidableBlocks(F);
     return false;
   }
 
@@ -149,6 +162,8 @@ struct ACCEPTPass : public FunctionPass {
   }
 
   virtual bool doInitialization(Module &M) {
+    module = &M;
+
     // Add instrumentation function.
     if (optInstrument)
       blockCountFunction = M.getOrInsertFunction(
@@ -193,6 +208,31 @@ struct ACCEPTPass : public FunctionPass {
       "",
       bb->getTerminator()
     );
+  }
+
+
+  /**** EXPERIMENT ****/
+
+  void findElidableBlocks(Function &F) {
+    for (Function::iterator bbi = F.begin(); bbi != F.end(); ++bbi) {
+
+      int cTotal = 0;
+      int cElidable = 0;
+      for (BasicBlock::iterator ii = bbi->begin(); ii != bbi->end(); ++ii) {
+        if ((Instruction*)ii == bbi->getTerminator())
+          continue;
+        if (elidable(ii))
+          ++cElidable;
+        ++cTotal;
+      }
+
+      if (cElidable == cTotal && cTotal > 0) {
+        errs() << "can perforate "
+               << srcPosDesc(*module, bbi->begin()->getDebugLoc())
+               << "\n";
+      }
+
+    }
   }
 };
 char ACCEPTPass::ID = 0;
