@@ -118,6 +118,10 @@ struct ACCEPTPass : public FunctionPass {
   unsigned long gTotalInsts;
   Module *module;
 
+  virtual void getAnalysisUsage(AnalysisUsage &Info) const {
+    Info.addRequired<LoopInfo>();
+  }
+
   virtual bool runOnFunction(Function &F) {
     countAndInstrument(F);
     findElidableBlocks(F);
@@ -214,25 +218,33 @@ struct ACCEPTPass : public FunctionPass {
   /**** EXPERIMENT ****/
 
   void findElidableBlocks(Function &F) {
-    for (Function::iterator bbi = F.begin(); bbi != F.end(); ++bbi) {
+    LoopInfo &loopInfo = getAnalysis<LoopInfo>();
+    loopInfo.runOnFunction(F);
 
+    for (LoopInfo::iterator li = loopInfo.begin();
+         li != loopInfo.end(); ++li) {
+      Loop *loop = *li;
+
+      // Count elidable instructions in the loop.
       int cTotal = 0;
       int cElidable = 0;
-      for (BasicBlock::iterator ii = bbi->begin(); ii != bbi->end(); ++ii) {
-        if ((Instruction*)ii == bbi->getTerminator())
-          continue;
-        if (elidable(ii))
-          ++cElidable;
-        ++cTotal;
+      for (Loop::block_iterator bi = loop->block_begin();
+           bi != loop->block_end(); ++bi) {
+        BasicBlock *block = *bi;
+        for (BasicBlock::iterator ii = block->begin();
+             ii != block->end(); ++ii) {
+          if ((Instruction*)ii == block->getTerminator())
+            continue;
+          if (elidable(ii))
+            ++cElidable;
+          ++cTotal;
+        }
       }
 
-      if (cElidable == cTotal && cTotal > 0) {
-        errs() << "can perforate "
-               << srcPosDesc(*module, bbi->begin()->getDebugLoc())
-               << "\n"
-               << bbi->getName() << "\n"
-               << bbi->size() << " instructions\n";
-      }
+      // How elidable is the loop body as a whole?
+      errs() << "loop at "
+             << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc())
+             << " - " << cElidable << "/" << cTotal << "\n";
 
     }
   }
@@ -246,6 +258,7 @@ char ACCEPTPass::ID = 0;
 // running opt explicitly (e.g., as part of running `clang`).
 static void registerACCEPTPass(const PassManagerBuilder &,
                                PassManagerBase &PM) {
+  PM.add(new LoopInfo());
   PM.add(new ACCEPTPass());
 }
 static RegisterStandardPasses
