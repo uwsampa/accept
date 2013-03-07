@@ -25,6 +25,13 @@ def summ(fn):
 
 if __name__ == '__main__':
     print('Static:')
-    summ('enerc_static.txt')
+    try:
+        summ('enerc_static.txt')
+    except EnvironmentError as err:
+        print('Warning: Unable to open file: {}'.format(err))
+
     print('Dynamic:')
-    summ('enerc_dynamic.txt')
+    try:
+        summ('enerc_dynamic.txt')
+    except EnvironmentError as err:
+        print('Warning: Unable to open file: {}'.format(err))
