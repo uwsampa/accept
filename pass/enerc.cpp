@@ -34,6 +34,8 @@ namespace {
 // Command-line flags.
 cl::opt<bool> optInstrument ("accept-inst",
     cl::desc("ACCEPT: enable profiling instrumentation"));
+cl::opt<bool> optRelax ("accept-relax",
+    cl::desc("ACCEPT: enable relaxations"));
 
 
 /**** HELPERS ****/
@@ -125,7 +127,7 @@ struct ACCEPTPass : public FunctionPass {
 
   virtual bool runOnFunction(Function &F) {
     countAndInstrument(F);
-    return findElidableBlocks(F);
+    return perforateLoops(F);
   }
 
 
@@ -217,7 +219,8 @@ struct ACCEPTPass : public FunctionPass {
 
   /**** EXPERIMENT ****/
 
-  bool findElidableBlocks(Function &F) {
+  bool perforateLoops(Function &F) {
+    int perforatedLoops = 0;
     LoopInfo &loopInfo = getAnalysis<LoopInfo>();
 
     for (LoopInfo::iterator li = loopInfo.begin();
@@ -280,11 +283,14 @@ struct ACCEPTPass : public FunctionPass {
 
       if (cElidable == cTotal) {
         errs() << "can perforate.\n";
-        perforateLoop(loop);
+        if (optRelax) {
+          perforateLoop(loop);
+          ++perforatedLoops;
+        }
       }
     }
 
-    return true; // FIXME only if we actually perforated anything
+    return perforatedLoops > 0;
   }
 
   void perforateLoop(Loop *loop) {
