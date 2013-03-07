@@ -219,11 +219,18 @@ struct ACCEPTPass : public FunctionPass {
 
   void findElidableBlocks(Function &F) {
     LoopInfo &loopInfo = getAnalysis<LoopInfo>();
-    loopInfo.runOnFunction(F);
 
     for (LoopInfo::iterator li = loopInfo.begin();
          li != loopInfo.end(); ++li) {
       Loop *loop = *li;
+
+      // We only consider loops for which there is a header (condition), a
+      // latch (increment, in "for"), and a preheader (initialization).
+      BasicBlock *lHeader = loop->getHeader();
+      BasicBlock *lLatch = loop->getLoopLatch();
+      BasicBlock *lPreheader = loop->getLoopPreheader();
+      if (!lHeader || !lLatch || !lPreheader)
+        continue;
 
       // Count elidable instructions in the loop.
       int cTotal = 0;
@@ -231,6 +238,11 @@ struct ACCEPTPass : public FunctionPass {
       for (Loop::block_iterator bi = loop->block_begin();
            bi != loop->block_end(); ++bi) {
         BasicBlock *block = *bi;
+
+        // Don't count the loop control.
+        if (block == lHeader || block == lLatch)
+          continue;
+
         for (BasicBlock::iterator ii = block->begin();
              ii != block->end(); ++ii) {
           if ((Instruction*)ii == block->getTerminator())
@@ -245,6 +257,32 @@ struct ACCEPTPass : public FunctionPass {
       errs() << "loop at "
              << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc())
              << " - " << cElidable << "/" << cTotal << "\n";
+
+      /*
+      #define DUMPNN(e) if (e) (e)->dump(); else errs() << "null\n";
+      errs() << "header: ";
+      DUMPNN(loop->getHeader())
+      errs() << "preheader: ";
+      DUMPNN(loop->getLoopPreheader())
+      errs() << "predecessor: ";
+      DUMPNN(loop->getLoopPredecessor())
+      errs() << "latch: ";
+      DUMPNN(loop->getLoopLatch())
+      errs() << "exit: ";
+      DUMPNN(loop->getExitBlock())
+      errs() << "exiting: ";
+      DUMPNN(loop->getExitingBlock())
+      errs() << "all contained blocks: ";
+      for (Loop::block_iterator bi = loop->block_begin();
+           bi != loop->block_end(); ++bi) {
+        BasicBlock *block = *bi;
+        block->dump();
+      }
+      */
+
+      if (cElidable == cTotal) {
+        errs() << "can perforate.\n";
+      }
 
     }
   }
