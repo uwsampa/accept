@@ -1,31 +1,10 @@
-# Makefile for streamcluster
+TARGET := streamcluster
+RUNARGS := 10 20 64 8192 8192 1000 none output.txt 1
+LDFLAGS := -lpthread
+
+include ../app.mk
 
 PREFIX=${PARSECDIR}/pkgs/kernels/streamcluster/inst/${PARSECPLAT}
-
-TARGET=streamcluster
-OBJS=streamcluster.o
-
-# Neither threads nor TBB.
-# ifdef version
-#   ifeq "$(version)" "pthreads"
-#     CXXFLAGS :=	$(CXXFLAGS) -DENABLE_THREADS -pthread
-#     OBJS += parsec_barrier.o
-#   endif
-#   ifeq "$(version)" "tbb"
-#     CXXFLAGS := $(CXXFLAGS) -DTBB_VERSION
-#   endif
-# endif
-
-all: $(OBJS)
-	$(CXX) $(CXXFLAGS) $(LDFLAGS) $(OBJS) $(LIBS) -o $(TARGET)
-
-%.o : %.cpp
-	$(CXX) $(CXXFLAGS) -c $<
-
-clean:
-	rm -f *.o $(TARGET)
-
 install:
 	mkdir -p $(PREFIX)/bin
 	cp -f $(TARGET) $(PREFIX)/bin/$(TARGET)
-
