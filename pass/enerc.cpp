@@ -12,6 +12,7 @@
 #include "llvm/PassManager.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Analysis/LoopPass.h"
+#include "llvm/IRBuilder.h"
 
 #include <sstream>
 #include <set>
@@ -124,8 +125,7 @@ struct ACCEPTPass : public FunctionPass {
 
   virtual bool runOnFunction(Function &F) {
     countAndInstrument(F);
-    findElidableBlocks(F);
-    return false;
+    return findElidableBlocks(F);
   }
 
 
@@ -217,7 +217,7 @@ struct ACCEPTPass : public FunctionPass {
 
   /**** EXPERIMENT ****/
 
-  void findElidableBlocks(Function &F) {
+  bool findElidableBlocks(Function &F) {
     LoopInfo &loopInfo = getAnalysis<LoopInfo>();
 
     for (LoopInfo::iterator li = loopInfo.begin();
@@ -226,10 +226,8 @@ struct ACCEPTPass : public FunctionPass {
 
       // We only consider loops for which there is a header (condition), a
       // latch (increment, in "for"), and a preheader (initialization).
-      BasicBlock *lHeader = loop->getHeader();
-      BasicBlock *lLatch = loop->getLoopLatch();
-      BasicBlock *lPreheader = loop->getLoopPreheader();
-      if (!lHeader || !lLatch || !lPreheader)
+      if (!loop->getHeader() || !loop->getLoopLatch()
+          || !loop->getLoopPreheader())
         continue;
 
       // Count elidable instructions in the loop.
@@ -240,7 +238,7 @@ struct ACCEPTPass : public FunctionPass {
         BasicBlock *block = *bi;
 
         // Don't count the loop control.
-        if (block == lHeader || block == lLatch)
+        if (block == loop->getHeader() || block == loop->getLoopLatch())
           continue;
 
         for (BasicBlock::iterator ii = block->begin();
@@ -282,10 +280,83 @@ struct ACCEPTPass : public FunctionPass {
 
       if (cElidable == cTotal) {
         errs() << "can perforate.\n";
+        perforateLoop(loop);
       }
-
     }
+
+    return true; // FIXME only if we actually perforated anything
   }
+
+  void perforateLoop(Loop *loop) {
+    IRBuilder<> builder(module->getContext());
+    Value *result;
+
+    // Add our own counter to the preheader.
+    builder.SetInsertPoint(loop->getLoopPreheader()->getTerminator());
+    AllocaInst *counterAlloca = builder.CreateAlloca(
+        builder.getInt32Ty(),
+        0,
+        "accept_counter"
+    );
+    builder.CreateStore(
+        builder.getInt32(0),
+        counterAlloca
+    );
+
+    // Increment the counter in the latch.
+    builder.SetInsertPoint(loop->getLoopLatch()->getTerminator());
+    result = builder.CreateLoad(
+        counterAlloca,
+        "something"
+    );
+    result = builder.CreateAdd(
+        result,
+        builder.getInt32(1),
+        "anotherthing"
+    );
+    builder.CreateStore(
+        result,
+        counterAlloca
+    );
+
+    // Get the first body block.
+    BranchInst *condBranch = cast<BranchInst>(
+        loop->getHeader()->getTerminator()
+    );
+    BasicBlock *firstBodyBlock = condBranch->getSuccessor(0);
+
+    // Check the counter before the loop's body.
+    BasicBlock *checkBlock = BasicBlock::Create(
+        module->getContext(),
+        "perforate",
+        firstBodyBlock->getParent(),
+        firstBodyBlock
+    );
+    builder.SetInsertPoint(checkBlock);
+    result = builder.CreateLoad(
+        counterAlloca,
+        "thectr"
+    );
+    result = builder.CreateAnd(
+        result,
+        builder.getInt32(1),
+        "ctrlowbit"
+    );
+    result = builder.CreateIsNull(
+        result,
+        "ctrtest"
+    );
+    result = builder.CreateCondBr(
+        result,
+        firstBodyBlock,
+        loop->getLoopLatch()
+    );
+
+    // Change the latch (condition block) to point to our new condition
+    // instead of the body.
+    condBranch->setSuccessor(0, checkBlock);
+  }
+
 };
 char ACCEPTPass::ID = 0;
 
