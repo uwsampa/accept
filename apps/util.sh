@@ -60,7 +60,7 @@ if [ "$action" = "build" ] ; then
     $builtdir/bin/llvm-link $bcfiles > $name.bc
     $builtdir/bin/llvm-dis $name.bc
 elif [ "$action" = "profile" ] ; then
-    $proflink $name.opt.bc > $name.o
+    $proflink $name.bc > $name.o
     $link $name.o -o $name
     ./$name $runargs
 else
