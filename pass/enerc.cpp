@@ -288,6 +288,32 @@ struct ACCEPTPass : public FunctionPass {
   }
 
   void perforateLoop(Loop *loop) {
+    // Check whether this loop is perforatable.
+    // First, check for required blocks.
+    if (!loop->getHeader() || !loop->getLoopLatch()
+        || !loop->getLoopPreheader() || !loop->getExitBlock()) {
+      llvm::errs() << "malformed loop\n";
+      return;
+    }
+    // Next, make sure the header (condition block) ends with a body/exit
+    // conditional branch.
+    BranchInst *condBranch = dyn_cast<BranchInst>(
+        loop->getHeader()->getTerminator()
+    );
+    if (!condBranch || condBranch->getNumSuccessors() != 2) {
+      llvm::errs() << "malformed loop condition\n";
+      return;
+    }
+    BasicBlock *bodyBlock;
+    if (condBranch->getSuccessor(0) == loop->getExitBlock()) {
+      bodyBlock = condBranch->getSuccessor(1);
+    } else if (condBranch->getSuccessor(1) == loop->getExitBlock()) {
+      bodyBlock = condBranch->getSuccessor(0);
+    } else {
+      llvm::errs() << "loop condition does not exit\n";
+      return;
+    }
+
     IRBuilder<> builder(module->getContext());
     Value *result;
 
@@ -320,17 +346,13 @@ struct ACCEPTPass : public FunctionPass {
     );
 
     // Get the first body block.
-    BranchInst *condBranch = cast<BranchInst>(
-        loop->getHeader()->getTerminator()
-    );
-    BasicBlock *firstBodyBlock = condBranch->getSuccessor(0);
 
     // Check the counter before the loop's body.
     BasicBlock *checkBlock = BasicBlock::Create(
         module->getContext(),
         "perforate",
-        firstBodyBlock->getParent(),
-        firstBodyBlock
+        bodyBlock->getParent(),
+        bodyBlock
     );
     builder.SetInsertPoint(checkBlock);
     result = builder.CreateLoad(
@@ -348,7 +370,7 @@ struct ACCEPTPass : public FunctionPass {
     );
     result = builder.CreateCondBr(
         result,
-        firstBodyBlock,
+        bodyBlock,
         loop->getLoopLatch()
     );
 
