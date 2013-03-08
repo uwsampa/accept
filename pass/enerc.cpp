@@ -293,7 +293,7 @@ struct ACCEPTPass : public FunctionPass {
     return perforatedLoops > 0;
   }
 
-  void perforateLoop(Loop *loop) {
+  void perforateLoop(Loop *loop, int mask=1) {
     // Check whether this loop is perforatable.
     // First, check for required blocks.
     if (!loop->getHeader() || !loop->getLoopLatch()
@@ -339,12 +339,12 @@ struct ACCEPTPass : public FunctionPass {
     builder.SetInsertPoint(loop->getLoopLatch()->getTerminator());
     result = builder.CreateLoad(
         counterAlloca,
-        "something"
+        "accept_tmp"
     );
     result = builder.CreateAdd(
         result,
         builder.getInt32(1),
-        "anotherthing"
+        "accept_inc"
     );
     builder.CreateStore(
         result,
@@ -356,23 +356,23 @@ struct ACCEPTPass : public FunctionPass {
     // Check the counter before the loop's body.
     BasicBlock *checkBlock = BasicBlock::Create(
         module->getContext(),
-        "perforate",
+        "accept_cond",
         bodyBlock->getParent(),
         bodyBlock
     );
     builder.SetInsertPoint(checkBlock);
     result = builder.CreateLoad(
         counterAlloca,
-        "thectr"
+        "accept_tmp"
     );
     result = builder.CreateAnd(
         result,
-        builder.getInt32(1),
-        "ctrlowbit"
+        builder.getInt32(mask),
+        "accept_and"
     );
     result = builder.CreateIsNull(
         result,
-        "ctrtest"
+        "accept_cmp"
     );
     result = builder.CreateCondBr(
         result,
