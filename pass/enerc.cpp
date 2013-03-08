@@ -17,6 +17,7 @@
 #include <sstream>
 #include <set>
 #include <cstdio>
+#include <fstream>
 
 #define ECQ_PRECISE 0
 #define ECQ_APPROX 1
@@ -108,18 +109,20 @@ std::string srcPosDesc(const Module &mod, const DebugLoc &dl) {
 
 struct ACCEPTPass : public FunctionPass {
   static char ID;
-  ACCEPTPass() : FunctionPass(ID) {
-    gApproxInsts = 0;
-    gElidableInsts = 0;
-    gTotalInsts = 0;
-    module = 0;
-  }
 
   Constant *blockCountFunction;
   unsigned long gApproxInsts;
   unsigned long gElidableInsts;
   unsigned long gTotalInsts;
   Module *module;
+  std::map<std::pair<int, int>, int> relaxConfig;  // kind, num -> param
+
+  ACCEPTPass() : FunctionPass(ID) {
+    gApproxInsts = 0;
+    gElidableInsts = 0;
+    gTotalInsts = 0;
+    module = 0;
+  }
 
   virtual void getAnalysisUsage(AnalysisUsage &Info) const {
     Info.addRequired<LoopInfo>();
@@ -136,11 +139,16 @@ struct ACCEPTPass : public FunctionPass {
     if (optInstrument)
       setUpInstrumentation();
 
+    if (optRelax)
+      loadRelaxConfig();
+
     return false;
   }
 
   virtual bool doFinalization(Module &M) {
     dumpStaticStats();
+    if (!optRelax)
+      dumpRelaxConfig();
     return false;
   }
 
@@ -225,14 +233,51 @@ struct ACCEPTPass : public FunctionPass {
   }
 
 
+  /**** RELAXATION CONFIGURATION ***/
+
+  typedef enum {
+    rkPerforate
+  } relaxKind;
+
+  void dumpRelaxConfig() {
+    std::ofstream configFile("accept_config.txt");;
+    for (std::map<std::pair<int, int>, int>::iterator i = relaxConfig.begin();
+         i != relaxConfig.end(); ++i) {
+      configFile << i->first.first << " "
+                 << i->first.second << " "
+                 << i->second << "\n";
+    }
+    configFile.close();
+  }
+
+  void loadRelaxConfig() {
+    std::ifstream configFile("accept_config.txt");;
+    if (!configFile.good()) {
+      errs() << "no config file; no optimizations will occur\n";
+      return;
+    }
+
+    while (configFile.good()) {
+      int kind;
+      int ident;
+      int param;
+      configFile >> kind >> ident >> param;
+      relaxConfig[std::pair<int, int>(kind, ident)] = param;
+    }
+
+    configFile.close();
+  }
+
+
   /**** EXPERIMENT ****/
 
   bool perforateLoops(Function &F) {
     int perforatedLoops = 0;
     LoopInfo &loopInfo = getAnalysis<LoopInfo>();
 
+    int loopId = 0;
     for (LoopInfo::iterator li = loopInfo.begin();
-         li != loopInfo.end(); ++li) {
+         li != loopInfo.end(); ++li, ++loopId) {
       Loop *loop = *li;
 
       // We only consider loops for which there is a header (condition), a
@@ -292,8 +337,14 @@ struct ACCEPTPass : public FunctionPass {
       if (cElidable == cTotal) {
         errs() << "can perforate.\n";
         if (optRelax) {
-          perforateLoop(loop);
-          ++perforatedLoops;
+          int factor = relaxConfig[std::pair<int, int>(rkPerforate, loopId)];
+          if (factor) {
+            errs() << "perforating with factor " << factor << "\n";
+            perforateLoop(loop);
+            ++perforatedLoops;
+          }
+        } else {
+          relaxConfig[std::pair<int, int>(rkPerforate, loopId)] = 0;
         }
       }
     }
