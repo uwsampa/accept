@@ -130,6 +130,21 @@ struct ACCEPTPass : public FunctionPass {
     return perforateLoops(F);
   }
 
+  virtual bool doInitialization(Module &M) {
+    module = &M;
+
+    if (optInstrument)
+      setUpInstrumentation();
+
+    return false;
+  }
+
+  virtual bool doFinalization(Module &M) {
+    dumpStaticStats();
+    return false;
+  }
+
+
 
   /**** TRACING AND STATISTICS ****/
 
@@ -167,29 +182,15 @@ struct ACCEPTPass : public FunctionPass {
     }
   }
 
-  virtual bool doInitialization(Module &M) {
-    module = &M;
-
-    // Add instrumentation function.
-    if (optInstrument)
-      blockCountFunction = M.getOrInsertFunction(
-        FUNC_TRACE,
-        Type::getVoidTy(M.getContext()), // return type
-        Type::getInt32Ty(M.getContext()), // approx
-        Type::getInt32Ty(M.getContext()), // elidable
-        Type::getInt32Ty(M.getContext()), // total
-        NULL
-      );
-
-    return false;
-  }
-
-  virtual bool doFinalization(Module &M) {
-    FILE *results_file = fopen("enerc_static.txt", "w+");
-    fprintf(results_file,
-            "%lu %lu %lu\n", gApproxInsts, gElidableInsts, gTotalInsts);
-    fclose(results_file);
-    return false;
+  void setUpInstrumentation() {
+    blockCountFunction = module->getOrInsertFunction(
+      FUNC_TRACE,
+      Type::getVoidTy(module->getContext()), // return type
+      Type::getInt32Ty(module->getContext()), // approx
+      Type::getInt32Ty(module->getContext()), // elidable
+      Type::getInt32Ty(module->getContext()), // total
+      NULL
+    );
   }
 
   void insertTraceCall(Function &F, BasicBlock* bb,
@@ -214,6 +215,13 @@ struct ACCEPTPass : public FunctionPass {
       "",
       bb->getTerminator()
     );
+  }
+
+  void dumpStaticStats() {
+    FILE *results_file = fopen("enerc_static.txt", "w+");
+    fprintf(results_file,
+            "%lu %lu %lu\n", gApproxInsts, gElidableInsts, gTotalInsts);
+    fclose(results_file);
   }
 
 
