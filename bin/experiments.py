@@ -59,11 +59,11 @@ def build(approx=False):
     subprocess.check_call(build_cmd)
 
 @memoize
-def build_and_execute(appname, relaxation, loadfunc=None):
-    if relaxation:
+def build_and_execute(appname, relax_config, loadfunc=None):
+    if relax_config:
         with open('accept_config.txt', 'w') as f:
-            f.write(relaxation)
-    build(bool(relaxation))
+            f.write(relax_config)
+    build(bool(relax_config))
     elapsed = execute()
     output = loadfunc()
     return output, elapsed
@@ -74,7 +74,8 @@ def evaluate(appname):
         pout, ptime = build_and_execute(appname, None, loadfunc=mod.load)
         r = '0 0 1\n0 2 0\n0 6 0\n'
         aout, atime = build_and_execute(appname, r, loadfunc=mod.load)
-        mod.score(pout, aout)
+        error = mod.score(pout, aout)
+        print('{:.1%} error'.format(error))
         print('{:.2f} vs. {:.2f}: {:.2f}x'.format(ptime, atime, ptime / atime))
 
 def experiments(appnames):

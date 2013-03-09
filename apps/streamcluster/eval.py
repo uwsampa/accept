@@ -1,3 +1,5 @@
+import munkres
+
 def load(fn='output.txt'):
     centers = []
 
@@ -15,7 +17,27 @@ def load(fn='output.txt'):
 
     return centers
 
+def euclidean_dist(a, b):
+    assert len(a) == len(b)
+    total = 0.0
+    for x, y in zip(a, b):
+        total += (x - y) ** 2.0
+    return total ** 0.5
+
 def score(orig, relaxed):
-    for c, d in zip(orig, relaxed):
-        print c[0], c[1]
-        print d[0], d[1]
+    matrix = []
+    for _, _, a in orig:
+        row = []
+        for _, _, b in relaxed:
+            row.append(euclidean_dist(a, b))
+        matrix.append(row)
+
+    total = 0.0
+    indices = munkres.Munkres().compute(matrix)
+    for i, j in indices:
+        a = orig[i][2]
+        b = relaxed[j][2]
+        dist = euclidean_dist(a, b)
+        dist /= len(a) ** 0.5
+        total += dist
+    return total / len(orig)
