@@ -11,6 +11,7 @@ import subprocess
 APPS = ['streamcluster']
 APPSDIR = 'apps'
 EVALSCRIPT = 'eval.py'
+CONFIGFILE = 'accept_config.txt'
 
 dumptruck.PYTHON_SQLITE_TYPE_MAP[tuple] = u'json text'
 
@@ -70,28 +71,65 @@ def build(approx=False):
         build_cmd.append('CLANGARGS=-mllvm -accept-relax')
     subprocess.check_call(build_cmd)
 
+def parse_relax_config(f):
+    """Parse a relaxation configuration from a file-like object.
+    Generates (kind, ident, param) tuples.
+    """
+    for line in f:
+        line = line.strip()
+        if line:
+            yield map(int, line.split(None, 2))
+
+def dump_relax_config(config, f):
+    """Write a relaxation configuration to a file-like object. The
+    configuration should be a sequence of tuples.
+    """
+    for nums in config:
+        f.write('{} {} {}\n'.format(*nums))
+
 @memoize
 def build_and_execute(appname, relax_config, loadfunc=None):
     """Build an application, run it, and collect its output. Return the
-    parsed output and the duration of the execution.
+    parsed output, the duration of the execution, and the relaxation
+    configuration.
     """
     if relax_config:
-        with open('accept_config.txt', 'w') as f:
-            f.write(relax_config)
+        with open(CONFIGFILE, 'w') as f:
+            dump_relax_config(relax_config, f)
+
     build(bool(relax_config))
     elapsed = execute()
     output = loadfunc()
-    return output, elapsed
+
+    if not relax_config:
+        with open(CONFIGFILE) as f:
+            relax_config = list(parse_relax_config(f))
+
+    return output, elapsed, relax_config
+
+def permute_config(base):
+    """Given a base (null) relaxation configuration, generate new
+    (relaxed) configurations.
+    """
+    for i in range(len(base)):
+        config = list(base)
+        config[i][2] = 1
+        yield config
 
 def evaluate(appname):
     with chdir(os.path.join(APPSDIR, appname)):
         mod = imp.load_source('evalscript', EVALSCRIPT)
-        pout, ptime = build_and_execute(appname, None, loadfunc=mod.load)
-        r = '0 0 1\n0 2 0\n0 6 0\n'
-        aout, atime = build_and_execute(appname, r, loadfunc=mod.load)
-        error = mod.score(pout, aout)
-        print('{:.1%} error'.format(error))
-        print('{:.2f} vs. {:.2f}: {:.2f}x'.format(ptime, atime, ptime / atime))
+        pout, ptime, base_config = build_and_execute(appname, None,
+                                                     loadfunc=mod.load)
+        for config in permute_config(base_config):
+            print(config)
+            aout, atime, _ = build_and_execute(appname, config,
+                                               loadfunc=mod.load)
+            error = mod.score(pout, aout)
+            print('{:.1%} error'.format(error))
+            print('{:.2f} vs. {:.2f}: {:.2f}x'.format(
+                ptime, atime, ptime / atime
+            ))
 
 def experiments(appnames):
     for appname in appnames:
