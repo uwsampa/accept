@@ -7,11 +7,13 @@ import dumptruck
 import functools
 import time
 import subprocess
+import threading
 
 APPS = ['streamcluster']
 APPSDIR = 'apps'
 EVALSCRIPT = 'eval.py'
 CONFIGFILE = 'accept_config.txt'
+TIMEOUT_FACTOR = 3
 
 dumptruck.PYTHON_SQLITE_TYPE_MAP[tuple] = u'json text'
 
@@ -52,14 +54,35 @@ class Memoized(object):
 
 memoize = functools.partial(Memoized, 'memo.db')
 
-def execute():
+class CommandThread(threading.Thread):
+    def __init__(self, command):
+        super(CommandThread, self).__init__()
+        self.proc = subprocess.Popen(command)
+
+    def run(self):
+        self.proc.wait()
+
+def run_cmd(command, timeout=None):
+    """Run a process with an optional timeout. Return a boolean
+    indicating whether the process timed out.
+    """
+    thread = CommandThread(command)
+    thread.start()
+    thread.join(timeout)
+    if thread.is_alive():
+        thread.proc.terminate()
+        return True
+    return False
+
+def execute(timeout):
     """Run the application in the working directory and return the
-    wall-clock duration (in seconds) of the execution.
+    wall-clock duration (in seconds) of the execution. If the command
+    exceeds its timeout, return None instead.
     """
     start_time = time.time()
-    subprocess.check_call(['make', 'run'])
+    timed_out = run_cmd(['make', 'run'], timeout)
     end_time = time.time()
-    return end_time - start_time
+    return None if timed_out else end_time - start_time
 
 def build(approx=False):
     """Compile the application in the working directory. If `approx`,
@@ -88,7 +111,7 @@ def dump_relax_config(config, f):
         f.write('{} {} {}\n'.format(*nums))
 
 @memoize
-def build_and_execute(appname, relax_config, loadfunc=None):
+def build_and_execute(appname, relax_config, timeout=None, loadfunc=None):
     """Build an application, run it, and collect its output. Return the
     parsed output, the duration of the execution, and the relaxation
     configuration.
@@ -98,8 +121,12 @@ def build_and_execute(appname, relax_config, loadfunc=None):
             dump_relax_config(relax_config, f)
 
     build(bool(relax_config))
-    elapsed = execute()
-    output = loadfunc()
+    elapsed = execute(timeout)
+    if elapsed is None:
+        # Timeout.
+        output = None
+    else:
+        output = loadfunc()
 
     if not relax_config:
         with open(CONFIGFILE) as f:
@@ -119,17 +146,24 @@ def permute_config(base):
 def evaluate(appname):
     with chdir(os.path.join(APPSDIR, appname)):
         mod = imp.load_source('evalscript', EVALSCRIPT)
-        pout, ptime, base_config = build_and_execute(appname, None,
-                                                     loadfunc=mod.load)
+        pout, ptime, base_config = build_and_execute(
+            appname, None,
+            timeout=None, loadfunc=mod.load
+        )
         for config in permute_config(base_config):
             print(config)
-            aout, atime, _ = build_and_execute(appname, config,
-                                               loadfunc=mod.load)
-            error = mod.score(pout, aout)
-            print('{:.1%} error'.format(error))
-            print('{:.2f} vs. {:.2f}: {:.2f}x'.format(
-                ptime, atime, ptime / atime
-            ))
+            aout, atime, _ = build_and_execute(
+                appname, config,
+                timeout=ptime * TIMEOUT_FACTOR, loadfunc=mod.load
+            )
+            if atime is None:
+                print('timed out')
+            else:
+                error = mod.score(pout, aout)
+                print('{:.1%} error'.format(error))
+                print('{:.2f} vs. {:.2f}: {:.2f}x'.format(
+                    ptime, atime, ptime / atime
+                ))
 
 def experiments(appnames):
     for appname in appnames:
