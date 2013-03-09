@@ -16,12 +16,18 @@ dumptruck.PYTHON_SQLITE_TYPE_MAP[tuple] = u'json text'
 
 @contextmanager
 def chdir(d):
+    """A context manager that temporary changes the working directory.
+    """
     olddir = os.getcwd()
     os.chdir(d)
     yield
     os.chdir(olddir)
 
 class Memoized(object):
+    """Wrap a function and memoize it in a persistent database. Only
+    positional arguments, not keyword arguments, are used as memo table
+    keys. These (and the return value) must be serializable.
+    """
     def __init__(self, dbname, func):
         self.func = func
         self.dt = dumptruck.DumpTruck(dbname)
@@ -46,12 +52,18 @@ class Memoized(object):
 memoize = functools.partial(Memoized, 'memo.db')
 
 def execute():
+    """Run the application in the working directory and return the
+    wall-clock duration (in seconds) of the execution.
+    """
     start_time = time.time()
     subprocess.check_call(['make', 'run'])
     end_time = time.time()
     return end_time - start_time
 
 def build(approx=False):
+    """Compile the application in the working directory. If `approx`,
+    then it is built with ACCEPT relaxation enabled.
+    """
     subprocess.check_call(['make', 'clean'])
     build_cmd = ['make', 'build']
     if approx:
@@ -60,6 +72,9 @@ def build(approx=False):
 
 @memoize
 def build_and_execute(appname, relax_config, loadfunc=None):
+    """Build an application, run it, and collect its output. Return the
+    parsed output and the duration of the execution.
+    """
     if relax_config:
         with open('accept_config.txt', 'w') as f:
             f.write(relax_config)

@@ -68,3 +68,15 @@ This repository includes lots of stuff:
 * `apps/`: Benchmarks annotated for use with EnerC.
 
 [LIT]: http://llvm.org/docs/CommandGuide/lit.html
+
+
+Running the Experiments
+-----------------------
+
+I'm writing the empirical evaluation now, but here's how it will work when it's finished.
+
+First, it might be a good idea to `./bin/runtests.sh` to make sure the compiler itself is working.
+
+Then, install the necessary Python modules by typing `pip install -r requirements.txt`.
+
+Finally, run the experiments by typing `./bin/experiments.py`. This will record some data in an SQLite database called `memo.db`; clear this out if you need to run things from the beginning again.
