@@ -50,14 +50,16 @@ else
 endif
 
 #################################################################
-.PHONY: all build profile clean
+.PHONY: all build profile clean run
 
 all: build profile
 
 build: $(BCFILES) $(LLFILES)
 
-profile: build $(TARGET)
+run: build $(TARGET)
 	./$(TARGET) $(RUNARGS) || true
+
+profile: run
 	$(SUMMARY)
 #################################################################
 
