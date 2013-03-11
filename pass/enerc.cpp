@@ -144,7 +144,7 @@ struct ACCEPTPass : public FunctionPass {
 
   virtual bool runOnFunction(Function &F) {
     countAndInstrument(F);
-    return perforateLoopsMain(F);
+    return optimizeLoops(F);
   }
 
   virtual bool doInitialization(Module &M) {
@@ -240,7 +240,7 @@ struct ACCEPTPass : public FunctionPass {
   }
 
   void dumpStaticStats() {
-    FILE *results_file = fopen("enerc_static.txt", "w+");
+    FILE *results_file = fopen("enerc_static.txt", "a");
     fprintf(results_file,
             "%lu %lu %lu\n", gApproxInsts, gElidableInsts, gTotalInsts);
     fclose(results_file);
@@ -254,7 +254,7 @@ struct ACCEPTPass : public FunctionPass {
   } relaxKind;
 
   void dumpRelaxConfig() {
-    std::ofstream configFile("accept_config.txt");;
+    std::ofstream configFile("accept_config.txt", std::ios_base::app);;
     for (std::map<std::pair<int, int>, int>::iterator i = relaxConfig.begin();
          i != relaxConfig.end(); ++i) {
       configFile << i->first.first << " "
@@ -284,16 +284,9 @@ struct ACCEPTPass : public FunctionPass {
 
 
   /**** EXPERIMENT ****/
-  void perforateLoopsTop(Loop *loop, int &loopId, int &perforatedLoops) {
-    std::vector<Loop*> subLoops = loop->getSubLoops();
-    for (int i = 0; i < subLoops.size(); ++i)
-      perforateLoopsTop(subLoops[i], loopId, perforatedLoops);
-    if (perforateLoops(loop, loopId))
-      ++perforatedLoops;
-    ++loopId;
-  }
 
-  bool perforateLoopsMain(Function &F) {
+  // Attempt to optimize the loops in a function.
+  bool optimizeLoops(Function &F) {
     int perforatedLoops = 0;
     int loopId = 0;
     LoopInfo &loopInfo = getAnalysis<LoopInfo>();
@@ -301,12 +294,24 @@ struct ACCEPTPass : public FunctionPass {
     for (LoopInfo::iterator li = loopInfo.begin();
          li != loopInfo.end(); ++li, ++loopId) {
       Loop *loop = *li;
-      perforateLoopsTop(loop, loopId, perforatedLoops);
+      optimizeLoopsHelper(loop, loopId, perforatedLoops);
     }
     return perforatedLoops > 0;
   }
+  void optimizeLoopsHelper(Loop *loop, int &loopId, int &perforatedLoops) {
+    std::vector<Loop*> subLoops = loop->getSubLoops();
+    for (int i = 0; i < subLoops.size(); ++i)
+      // Recurse into subloops.
+      optimizeLoopsHelper(subLoops[i], loopId, perforatedLoops);
+    if (tryToOptimizeLoop(loop, loopId))
+      ++perforatedLoops;
+    ++loopId;
+  }
 
-  bool perforateLoops(Loop *loop, int &loopId) {
+  // Assess whether a loop can be optimized and, if so, log some messages and
+  // update the configuration map. If optimization is turned on, the
+  // configuration map will be used to actually transform the loop.
+  bool tryToOptimizeLoop(Loop *loop, int &loopId) {
     int perforatedLoops = 0;
 
     // We only consider loops for which there is a header (condition), a
@@ -340,30 +345,8 @@ struct ACCEPTPass : public FunctionPass {
            << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc())
            << " - " << cElidable << "/" << cTotal << "\n";
 
-    /*
-    #define DUMPNN(e) if (e) (e)->dump(); else errs() << "null\n";
-    errs() << "header: ";
-    DUMPNN(loop->getHeader())
-    errs() << "preheader: ";
-    DUMPNN(loop->getLoopPreheader())
-    errs() << "predecessor: ";
-    DUMPNN(loop->getLoopPredecessor())
-    errs() << "latch: ";
-    DUMPNN(loop->getLoopLatch())
-    errs() << "exit: ";
-    DUMPNN(loop->getExitBlock())
-    errs() << "exiting: ";
-    DUMPNN(loop->getExitingBlock())
-    errs() << "all contained blocks: ";
-    for (Loop::block_iterator bi = loop->block_begin();
-         bi != loop->block_end(); ++bi) {
-      BasicBlock *block = *bi;
-      block->dump();
-    }
-    */
-
     if (cElidable == cTotal) {
-      errs() << "can perforate.\n";
+      errs() << "can perforate loop " << loopId << "\n";
       if (optRelax) {
         int param = relaxConfig[std::pair<int, int>(rkPerforate, loopId)];
         if (param) {
@@ -379,6 +362,9 @@ struct ACCEPTPass : public FunctionPass {
     return perforatedLoops > 0;
   }
 
+  // Transform a loop to skip iterations.
+  // The loop should already be validated as perforatable, but checks will be
+  // performed nonetheless to ensure safety.
   void perforateLoop(Loop *loop, int logfactor=1) {
     // Check whether this loop is perforatable.
     // First, check for required blocks.
