@@ -63,26 +63,27 @@ class CommandThread(threading.Thread):
         self.proc.wait()
 
 def run_cmd(command, timeout=None):
-    """Run a process with an optional timeout. Return a boolean
-    indicating whether the process timed out.
+    """Run a process with an optional timeout. Return the process' exit
+    status or None if the process timed out.
     """
     thread = CommandThread(command)
     thread.start()
     thread.join(timeout)
     if thread.is_alive():
         thread.proc.terminate()
-        return True
-    return False
+        return None
+    else:
+        return thread.proc.returncode
 
 def execute(timeout):
     """Run the application in the working directory and return the
-    wall-clock duration (in seconds) of the execution. If the command
-    exceeds its timeout, return None instead.
+    wall-clock duration (in seconds) of the execution and the exit
+    status (or None if the process timed out).
     """
     start_time = time.time()
-    timed_out = run_cmd(['make', 'run'], timeout)
+    status = run_cmd(['make', 'run'], timeout)
     end_time = time.time()
-    return None if timed_out else end_time - start_time
+    return end_time - start_time, status
 
 def build(approx=False):
     """Compile the application in the working directory. If `approx`,
@@ -114,8 +115,8 @@ def dump_relax_config(config, f):
 @memoize
 def build_and_execute(appname, relax_config, timeout=None, loadfunc=None):
     """Build an application, run it, and collect its output. Return the
-    parsed output, the duration of the execution, and the relaxation
-    configuration.
+    parsed output, the duration of the execution (or None for timeout),
+    the exit status, and the relaxation configuration.
     """
     if relax_config:
         with open(CONFIGFILE, 'w') as f:
@@ -124,9 +125,9 @@ def build_and_execute(appname, relax_config, timeout=None, loadfunc=None):
         os.remove(CONFIGFILE)
 
     build(bool(relax_config))
-    elapsed = execute(timeout)
-    if elapsed is None:
-        # Timeout.
+    elapsed, status = execute(timeout)
+    if elapsed is None or status:
+        # Timeout or error.
         output = None
     else:
         output = loadfunc()
@@ -135,7 +136,7 @@ def build_and_execute(appname, relax_config, timeout=None, loadfunc=None):
         with open(CONFIGFILE) as f:
             relax_config = list(parse_relax_config(f))
 
-    return output, elapsed, relax_config
+    return output, elapsed, status, relax_config
 
 def permute_config(base):
     """Given a base (null) relaxation configuration, generate new
@@ -151,18 +152,23 @@ def permute_config(base):
 def evaluate(appname):
     with chdir(os.path.join(APPSDIR, appname)):
         mod = imp.load_source('evalscript', EVALSCRIPT)
-        pout, ptime, base_config = build_and_execute(
+
+        # Precise (baseline) execution.
+        pout, ptime, _, base_config = build_and_execute(
             appname, None,
             timeout=None, loadfunc=mod.load
         )
+
         for config in permute_config(base_config):
             print(config)
-            aout, atime, _ = build_and_execute(
+            aout, atime, status, _ = build_and_execute(
                 appname, config,
                 timeout=ptime * TIMEOUT_FACTOR, loadfunc=mod.load
             )
-            if atime is None:
+            if status is None:
                 print('timed out')
+            elif status:
+                print('exited with error: {}'.format(status))
             else:
                 error = mod.score(pout, aout)
                 print('{:.1%} error'.format(error))
