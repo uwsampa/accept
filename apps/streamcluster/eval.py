@@ -18,7 +18,10 @@ def load(fn='output.txt'):
     return centers
 
 def euclidean_dist(a, b):
-    assert len(a) == len(b)
+    if len(a) != len(b):
+        # Mismatch in vector length. Maximal error.
+        return len(a) ** 0.5
+
     total = 0.0
     for x, y in zip(a, b):
         total += (x - y) ** 2.0
