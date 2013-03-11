@@ -353,10 +353,10 @@ struct ACCEPTPass : public FunctionPass {
     if (cElidable == cTotal) {
       errs() << "can perforate.\n";
       if (optRelax) {
-        int factor = relaxConfig[std::pair<int, int>(rkPerforate, loopId)];
-        if (factor) {
-          errs() << "perforating with factor " << factor << "\n";
-          perforateLoop(loop);
+        int param = relaxConfig[std::pair<int, int>(rkPerforate, loopId)];
+        if (param) {
+          errs() << "perforating with factor 2^" << param << "\n";
+          perforateLoop(loop, param);
           ++perforatedLoops;
         }
       } else {
@@ -367,7 +367,7 @@ struct ACCEPTPass : public FunctionPass {
     return perforatedLoops > 0;
   }
 
-  void perforateLoop(Loop *loop, int mask=1) {
+  void perforateLoop(Loop *loop, int logfactor=1) {
     // Check whether this loop is perforatable.
     // First, check for required blocks.
     if (!loop->getHeader() || !loop->getLoopLatch()
@@ -439,10 +439,11 @@ struct ACCEPTPass : public FunctionPass {
         counterAlloca,
         "accept_tmp"
     );
-    result = builder.CreateAnd(
+    // Check whether the low n bits of the counter are zero.
+    result = builder.CreateTrunc(
         result,
-        builder.getInt32(mask),
-        "accept_and"
+        Type::getIntNTy(module->getContext(), logfactor),
+        "accept_trunc"
     );
     result = builder.CreateIsNull(
         result,

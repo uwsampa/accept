@@ -50,14 +50,16 @@ else
 endif
 
 #################################################################
-.PHONY: all build profile clean
+.PHONY: all build profile clean run
 
 all: build profile
 
 build: $(BCFILES) $(LLFILES)
 
-profile: build $(TARGET)
+run: build $(TARGET)
 	./$(TARGET) $(RUNARGS) || true
+
+profile: run
 	$(SUMMARY)
 #################################################################
 
@@ -70,12 +72,22 @@ profile: build $(TARGET)
 .bc.ll:
 	$(LLVMDIS) $<
 
-# make the final executable $(TARGET)
-# .INTERMEDIATE: $(TARGET).o # XXX leave this .o file around?
+ifeq ($(ARCH),msp430)
+# llc cannot generate object code for msp430, so emit assembly
+$(TARGET).s: $(BCFILES)
+	$(LLVMLINK) $(PROFLIB) $^ | \
+	$(LLVMOPT) -strip | \
+	$(LLVMLLC) -march=msp430 > $@
+$(TARGET).o: $(TARGET).s
+	msp430-gcc $(MSPGCC_CFLAGS) -c $<
+else
 $(TARGET).o: $(BCFILES)
 	$(LLVMLINK) $(PROFLIB) $^ | \
 		$(LLVMOPT) -strip | \
 		$(LLVMLLC) -filetype=obj > $@
+endif
+
+# make the final executable $(TARGET)
 $(TARGET): $(TARGET).o
 	$(LINKER) $(LDFLAGS) -o $@ $<
 
