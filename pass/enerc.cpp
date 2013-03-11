@@ -13,6 +13,7 @@
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/IRBuilder.h"
+#include "llvm/DebugInfo.h"
 
 #include <sstream>
 #include <set>
@@ -98,8 +99,19 @@ bool elidable(Instruction *instr) {
 
 // Format a source position.
 std::string srcPosDesc(const Module &mod, const DebugLoc &dl) {
+  LLVMContext &ctx = mod.getContext();
   std::stringstream ss;
-  ss << mod.getModuleIdentifier() << ":";
+
+  // Try to get filename from debug location.
+  DIScope scope(dl.getScope(ctx));
+  if (scope.Verify()) {
+    ss << scope.getFilename().data();
+  } else {
+    // Fall back to the compilation unit name.
+    ss << "(" << mod.getModuleIdentifier() << ")";
+  }
+  ss << ":";
+
   ss << dl.getLine();
   if (dl.getCol())
     ss << "," << dl.getCol();
