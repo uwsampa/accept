@@ -151,7 +151,10 @@ def permute_config(base):
 
 def evaluate(appname):
     with chdir(os.path.join(APPSDIR, appname)):
-        mod = imp.load_source('evalscript', EVALSCRIPT)
+        try:
+            mod = imp.load_source('evalscript', EVALSCRIPT)
+        except IOError:
+            assert False, 'no eval.py found in {} directory'.format(appname)
 
         # Precise (baseline) execution.
         pout, ptime, _, base_config = build_and_execute(

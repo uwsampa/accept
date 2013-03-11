@@ -399,13 +399,22 @@ struct ACCEPTPass : public FunctionPass {
     IRBuilder<> builder(module->getContext());
     Value *result;
 
-    // Add our own counter to the preheader.
-    builder.SetInsertPoint(loop->getLoopPreheader()->getTerminator());
+    // Allocate stack space for the counter.
+    // LLVM "alloca" instructions go in the function's entry block. Otherwise,
+    // they have to adjust the frame size dynamically (and, in my experience,
+    // can actually segfault!). And we only want one of these per static loop
+    // anyway.
+    builder.SetInsertPoint(
+        loop->getLoopPreheader()->getParent()->getEntryBlock().begin()
+    );
     AllocaInst *counterAlloca = builder.CreateAlloca(
         builder.getInt32Ty(),
         0,
         "accept_counter"
     );
+
+    // Initialize the counter in the preheader.
+    builder.SetInsertPoint(loop->getLoopPreheader()->getTerminator());
     builder.CreateStore(
         builder.getInt32(0),
         counterAlloca
