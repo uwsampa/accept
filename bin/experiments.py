@@ -101,14 +101,15 @@ def parse_relax_config(f):
     for line in f:
         line = line.strip()
         if line:
-            yield map(int, line.split(None, 2))
+            mod, ident, param = line.split(None, 2)
+            yield mod, int(ident), int(param)
 
 def dump_relax_config(config, f):
     """Write a relaxation configuration to a file-like object. The
     configuration should be a sequence of tuples.
     """
-    for nums in config:
-        f.write('{} {} {}\n'.format(*nums))
+    for site in config:
+        f.write('{} {} {}\n'.format(*site))
 
 @memoize
 def build_and_execute(appname, relax_config, timeout=None, loadfunc=None):
@@ -119,6 +120,8 @@ def build_and_execute(appname, relax_config, timeout=None, loadfunc=None):
     if relax_config:
         with open(CONFIGFILE, 'w') as f:
             dump_relax_config(relax_config, f)
+    elif os.path.exists(CONFIGFILE):
+        os.remove(CONFIGFILE)
 
     build(bool(relax_config))
     elapsed = execute(timeout)
@@ -140,7 +143,9 @@ def permute_config(base):
     """
     for i in range(len(base)):
         config = list(base)
-        config[i][2] = 1
+        site = config[i]
+        site = site[0], site[1], 1
+        config[i] = site
         yield config
 
 def evaluate(appname):

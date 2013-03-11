@@ -129,13 +129,15 @@ struct ACCEPTPass : public FunctionPass {
   unsigned long gElidableInsts;
   unsigned long gTotalInsts;
   Module *module;
-  std::map<std::pair<int, int>, int> relaxConfig;  // kind, num -> param
+  std::map<int, int> relaxConfig;  // kind, num -> param
+  int opportunityId;
 
   ACCEPTPass() : FunctionPass(ID) {
     gApproxInsts = 0;
     gElidableInsts = 0;
     gTotalInsts = 0;
     module = 0;
+    opportunityId = 0;
   }
 
   virtual void getAnalysisUsage(AnalysisUsage &Info) const {
@@ -255,10 +257,10 @@ struct ACCEPTPass : public FunctionPass {
 
   void dumpRelaxConfig() {
     std::ofstream configFile("accept_config.txt", std::ios_base::app);;
-    for (std::map<std::pair<int, int>, int>::iterator i = relaxConfig.begin();
+    for (std::map<int, int>::iterator i = relaxConfig.begin();
          i != relaxConfig.end(); ++i) {
-      configFile << i->first.first << " "
-                 << i->first.second << " "
+      configFile << module->getModuleIdentifier() << " "
+                 << i->first << " "
                  << i->second << "\n";
     }
     configFile.close();
@@ -272,11 +274,12 @@ struct ACCEPTPass : public FunctionPass {
     }
 
     while (configFile.good()) {
-      int kind;
+      std::string modname;
       int ident;
       int param;
-      configFile >> kind >> ident >> param;
-      relaxConfig[std::pair<int, int>(kind, ident)] = param;
+      configFile >> modname >> ident >> param;
+      if (modname == module->getModuleIdentifier())
+        relaxConfig[ident] = param;
     }
 
     configFile.close();
@@ -288,31 +291,32 @@ struct ACCEPTPass : public FunctionPass {
   // Attempt to optimize the loops in a function.
   bool optimizeLoops(Function &F) {
     int perforatedLoops = 0;
-    int loopId = 0;
     LoopInfo &loopInfo = getAnalysis<LoopInfo>();
 
     for (LoopInfo::iterator li = loopInfo.begin();
-         li != loopInfo.end(); ++li, ++loopId) {
+         li != loopInfo.end(); ++li) {
       Loop *loop = *li;
-      optimizeLoopsHelper(loop, loopId, perforatedLoops);
+      optimizeLoopsHelper(loop, perforatedLoops);
     }
     return perforatedLoops > 0;
   }
-  void optimizeLoopsHelper(Loop *loop, int &loopId, int &perforatedLoops) {
+  void optimizeLoopsHelper(Loop *loop, int &perforatedLoops) {
     std::vector<Loop*> subLoops = loop->getSubLoops();
     for (int i = 0; i < subLoops.size(); ++i)
       // Recurse into subloops.
-      optimizeLoopsHelper(subLoops[i], loopId, perforatedLoops);
-    if (tryToOptimizeLoop(loop, loopId))
+      optimizeLoopsHelper(subLoops[i], perforatedLoops);
+    if (tryToOptimizeLoop(loop, opportunityId))
       ++perforatedLoops;
-    ++loopId;
+    ++opportunityId;;
   }
 
   // Assess whether a loop can be optimized and, if so, log some messages and
   // update the configuration map. If optimization is turned on, the
-  // configuration map will be used to actually transform the loop.
-  bool tryToOptimizeLoop(Loop *loop, int &loopId) {
-    int perforatedLoops = 0;
+  // configuration map will be used to actually transform the loop. Returns a
+  // boolean indicating whether the code was changed (i.e., the loop
+  // perforated).
+  bool tryToOptimizeLoop(Loop *loop, int id) {
+    bool transformed = false;
 
     // We only consider loops for which there is a header (condition), a
     // latch (increment, in "for"), and a preheader (initialization).
@@ -346,20 +350,20 @@ struct ACCEPTPass : public FunctionPass {
            << " - " << cElidable << "/" << cTotal << "\n";
 
     if (cElidable == cTotal) {
-      errs() << "can perforate loop " << loopId << "\n";
+      errs() << "can perforate loop " << id << "\n";
       if (optRelax) {
-        int param = relaxConfig[std::pair<int, int>(rkPerforate, loopId)];
+        int param = relaxConfig[id];
         if (param) {
           errs() << "perforating with factor 2^" << param << "\n";
           perforateLoop(loop, param);
-          ++perforatedLoops;
+          transformed = true;
         }
       } else {
-        relaxConfig[std::pair<int, int>(rkPerforate, loopId)] = 0;
+        relaxConfig[id] = 0;
       }
     }
 
-    return perforatedLoops > 0;
+    return transformed;
   }
 
   // Transform a loop to skip iterations.
