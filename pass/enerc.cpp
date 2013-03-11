@@ -18,6 +18,8 @@
 #include <set>
 #include <cstdio>
 #include <fstream>
+#include <iostream>
+#include <string>
 
 #define ECQ_PRECISE 0
 #define ECQ_APPROX 1
@@ -130,7 +132,7 @@ struct ACCEPTPass : public FunctionPass {
 
   virtual bool runOnFunction(Function &F) {
     countAndInstrument(F);
-    return perforateLoops(F);
+    return perforateLoopsMain(F);
   }
 
   virtual bool doInitialization(Module &M) {
@@ -270,82 +272,95 @@ struct ACCEPTPass : public FunctionPass {
 
 
   /**** EXPERIMENT ****/
+  void perforateLoopsTop(Loop *loop, int &loopId, int &perforatedLoops) {
+    std::vector<Loop*> subLoops = loop->getSubLoops();
+    for (int i = 0; i < subLoops.size(); ++i)
+      perforateLoopsTop(subLoops[i], loopId, perforatedLoops);
+    if (perforateLoops(loop, loopId))
+      ++perforatedLoops;
+    ++loopId;
+  }
 
-  bool perforateLoops(Function &F) {
+  bool perforateLoopsMain(Function &F) {
     int perforatedLoops = 0;
+    int loopId = 0;
     LoopInfo &loopInfo = getAnalysis<LoopInfo>();
 
-    int loopId = 0;
     for (LoopInfo::iterator li = loopInfo.begin();
          li != loopInfo.end(); ++li, ++loopId) {
       Loop *loop = *li;
+      perforateLoopsTop(loop, loopId, perforatedLoops);
+    }
+    return perforatedLoops > 0;
+  }
 
-      // We only consider loops for which there is a header (condition), a
-      // latch (increment, in "for"), and a preheader (initialization).
-      if (!loop->getHeader() || !loop->getLoopLatch()
-          || !loop->getLoopPreheader())
+  bool perforateLoops(Loop *loop, int &loopId) {
+    int perforatedLoops = 0;
+
+    // We only consider loops for which there is a header (condition), a
+    // latch (increment, in "for"), and a preheader (initialization).
+    if (!loop->getHeader() || !loop->getLoopLatch()
+        || !loop->getLoopPreheader())
+      return false;
+    // Count elidable instructions in the loop.
+    int cTotal = 0;
+    int cElidable = 0;
+    for (Loop::block_iterator bi = loop->block_begin();
+         bi != loop->block_end(); ++bi) {
+      BasicBlock *block = *bi;
+
+      // Don't count the loop control.
+      if (block == loop->getHeader() || block == loop->getLoopLatch())
         continue;
 
-      // Count elidable instructions in the loop.
-      int cTotal = 0;
-      int cElidable = 0;
-      for (Loop::block_iterator bi = loop->block_begin();
-           bi != loop->block_end(); ++bi) {
-        BasicBlock *block = *bi;
-
-        // Don't count the loop control.
-        if (block == loop->getHeader() || block == loop->getLoopLatch())
+      for (BasicBlock::iterator ii = block->begin();
+           ii != block->end(); ++ii) {
+        if ((Instruction*)ii == block->getTerminator())
           continue;
-
-        for (BasicBlock::iterator ii = block->begin();
-             ii != block->end(); ++ii) {
-          if ((Instruction*)ii == block->getTerminator())
-            continue;
-          if (elidable(ii))
-            ++cElidable;
-          ++cTotal;
-        }
+        if (elidable(ii))
+          ++cElidable;
+        ++cTotal;
       }
+    }
 
-      // How elidable is the loop body as a whole?
-      errs() << "loop at "
-             << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc())
-             << " - " << cElidable << "/" << cTotal << "\n";
+    // How elidable is the loop body as a whole?
+    errs() << "loop at "
+           << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc())
+           << " - " << cElidable << "/" << cTotal << "\n";
 
-      /*
-      #define DUMPNN(e) if (e) (e)->dump(); else errs() << "null\n";
-      errs() << "header: ";
-      DUMPNN(loop->getHeader())
-      errs() << "preheader: ";
-      DUMPNN(loop->getLoopPreheader())
-      errs() << "predecessor: ";
-      DUMPNN(loop->getLoopPredecessor())
-      errs() << "latch: ";
-      DUMPNN(loop->getLoopLatch())
-      errs() << "exit: ";
-      DUMPNN(loop->getExitBlock())
-      errs() << "exiting: ";
-      DUMPNN(loop->getExitingBlock())
-      errs() << "all contained blocks: ";
-      for (Loop::block_iterator bi = loop->block_begin();
-           bi != loop->block_end(); ++bi) {
-        BasicBlock *block = *bi;
-        block->dump();
-      }
-      */
+    /*
+    #define DUMPNN(e) if (e) (e)->dump(); else errs() << "null\n";
+    errs() << "header: ";
+    DUMPNN(loop->getHeader())
+    errs() << "preheader: ";
+    DUMPNN(loop->getLoopPreheader())
+    errs() << "predecessor: ";
+    DUMPNN(loop->getLoopPredecessor())
+    errs() << "latch: ";
+    DUMPNN(loop->getLoopLatch())
+    errs() << "exit: ";
+    DUMPNN(loop->getExitBlock())
+    errs() << "exiting: ";
+    DUMPNN(loop->getExitingBlock())
+    errs() << "all contained blocks: ";
+    for (Loop::block_iterator bi = loop->block_begin();
+         bi != loop->block_end(); ++bi) {
+      BasicBlock *block = *bi;
+      block->dump();
+    }
+    */
 
-      if (cElidable == cTotal) {
-        errs() << "can perforate.\n";
-        if (optRelax) {
-          int factor = relaxConfig[std::pair<int, int>(rkPerforate, loopId)];
-          if (factor) {
-            errs() << "perforating with factor " << factor << "\n";
-            perforateLoop(loop);
-            ++perforatedLoops;
-          }
-        } else {
-          relaxConfig[std::pair<int, int>(rkPerforate, loopId)] = 0;
+    if (cElidable == cTotal) {
+      errs() << "can perforate.\n";
+      if (optRelax) {
+        int factor = relaxConfig[std::pair<int, int>(rkPerforate, loopId)];
+        if (factor) {
+          errs() << "perforating with factor " << factor << "\n";
+          perforateLoop(loop);
+          ++perforatedLoops;
         }
+      } else {
+        relaxConfig[std::pair<int, int>(rkPerforate, loopId)] = 0;
       }
     }
 
