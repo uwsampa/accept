@@ -162,20 +162,27 @@ class Result(object):
         if self.status is None:
             # Timed out.
             self.good = False
+            self.desc = 'timed out'
         elif self.status:
             # Error status.
             self.good = False
+            self.desc = 'exited with status {}'.format(self.status)
         elif self.duration > precise_duration:
             # Slowdown.
             self.good = False
+            self.desc = 'slowdown: {:.2f} vs. {:.2f}'.format(
+                self.duration, precise_duration
+            )
         else:
             self.speedup = precise_duration / self.duration
             self.error = scorefunc(precise_output, self.output)
             if self.error > MAX_ERROR:
                 # Large output error.
                 self.good = False
+                self.desc = 'large error: {:.2%}'.format(self.error)
             else:
                 self.good = True
+                self.desc = 'good'
 
 def triage_results(results):
     good = []
@@ -232,6 +239,11 @@ def evaluate(appname):
             print(res.config)
             print('{:.1%} error'.format(res.error))
             print('{:.2f}x speedup'.format(res.speedup))
+
+        # xxx optional
+        print('bad configs:')
+        for res in bad:
+            print(res.desc)
 
 def experiments(appnames):
     for appname in appnames:
