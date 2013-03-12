@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-import sys
+from __future__ import print_function
+from __future__ import division
 import os
 from contextlib import contextmanager
 import imp
@@ -8,8 +9,9 @@ import functools
 import time
 import subprocess
 import threading
+import argh
 
-APPS = ['streamcluster']
+APPS = ['streamcluster', 'blackscholes']
 APPSDIR = 'apps'
 EVALSCRIPT = 'eval.py'
 CONFIGFILE = 'accept_config.txt'
@@ -208,7 +210,7 @@ def triage_results(results):
     assert len(optimal) + len(suboptimal) + len(bad) == len(results)
     return optimal, suboptimal, bad
 
-def evaluate(appname):
+def evaluate(appname, verbose=False):
     with chdir(os.path.join(APPSDIR, appname)):
         try:
             mod = imp.load_source('evalscript', EVALSCRIPT)
@@ -240,14 +242,17 @@ def evaluate(appname):
             print('{:.1%} error'.format(res.error))
             print('{:.2f}x speedup'.format(res.speedup))
 
-        # xxx optional
-        print('bad configs:')
-        for res in bad:
-            print(res.desc)
+        if verbose:
+            print('bad configs:')
+            for res in bad:
+                print(res.desc)
 
-def experiments(appnames):
+@argh.arg('appnames', metavar='NAME', default=APPS, nargs='*',
+          help='applications', type=unicode)
+def experiments(appnames, verbose=False):
     for appname in appnames:
-        evaluate(appname)
+        print(appname)
+        evaluate(appname, verbose)
 
 if __name__ == '__main__':
-    experiments(sys.argv[1:] or APPS)
+    argh.dispatch_command(experiments)
