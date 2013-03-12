@@ -14,6 +14,7 @@ APPSDIR = 'apps'
 EVALSCRIPT = 'eval.py'
 CONFIGFILE = 'accept_config.txt'
 TIMEOUT_FACTOR = 3
+MAX_ERROR = 0.3
 
 dumptruck.PYTHON_SQLITE_TYPE_MAP[tuple] = u'json text'
 
@@ -149,6 +150,57 @@ def permute_config(base):
         config[i] = site
         yield config
 
+class Result(object):
+    def __init__(self, app, config, duration, status, output):
+        self.app = app
+        self.config = config
+        self.duration = duration
+        self.status = status
+        self.output = output
+
+    def evaluate(self, scorefunc, precise_output, precise_duration):
+        if self.status is None:
+            # Timed out.
+            self.good = False
+        elif self.status:
+            # Error status.
+            self.good = False
+        elif self.duration > precise_duration:
+            # Slowdown.
+            self.good = False
+        else:
+            self.speedup = precise_duration / self.duration
+            self.error = scorefunc(precise_output, self.output)
+            if self.error > MAX_ERROR:
+                # Large output error.
+                self.good = False
+            else:
+                self.good = True
+
+def triage_results(results):
+    good = []
+    bad = []
+    for res in results:
+        (good if res.good else bad).append(res)
+
+    optimal = []
+    suboptimal = []
+    for res in good:
+        for other in good:
+            if res == good:
+                continue
+            if other.error < res.error and other.speedup > res.speedup:
+                # other dominates res, so eliminate res from the optimal
+                # set.
+                suboptimal.append(res)
+                break
+        else:
+            # No other result dominates res.
+            optimal.append(res)
+
+    assert len(optimal) + len(suboptimal) + len(bad) == len(results)
+    return optimal, suboptimal, bad
+
 def evaluate(appname):
     with chdir(os.path.join(APPSDIR, appname)):
         try:
@@ -162,22 +214,24 @@ def evaluate(appname):
             timeout=None, loadfunc=mod.load
         )
 
+        results = []
         for config in permute_config(base_config):
-            print(config)
             aout, atime, status, _ = build_and_execute(
                 appname, config,
                 timeout=ptime * TIMEOUT_FACTOR, loadfunc=mod.load
             )
-            if status is None:
-                print('timed out')
-            elif status:
-                print('exited with error: {}'.format(status))
-            else:
-                error = mod.score(pout, aout)
-                print('{:.1%} error'.format(error))
-                print('{:.2f} vs. {:.2f}: {:.2f}x'.format(
-                    ptime, atime, ptime / atime
-                ))
+            res = Result(appname, config, atime, status, aout)
+            res.evaluate(mod.score, pout, ptime)
+            results.append(res)
+
+        optimal, suboptimal, bad = triage_results(results)
+        print('{} optimal, {} suboptimal, {} bad'.format(
+            len(optimal), len(suboptimal), len(bad)
+        ))
+        for res in optimal:
+            print(res.config)
+            print('{:.1%} error'.format(res.error))
+            print('{:.2f}x speedup'.format(res.speedup))
 
 def experiments(appnames):
     for appname in appnames:
