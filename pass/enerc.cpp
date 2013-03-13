@@ -12,6 +12,7 @@
 #include "llvm/PassManager.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Analysis/LoopPass.h"
+#include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/IRBuilder.h"
 #include "llvm/DebugInfo.h"
 
@@ -97,7 +98,42 @@ bool elidable(Instruction *instr) {
   return elidable_helper(instr, seen);
 }
 
-int preciseEscapeCheckHelper(std::map<Instruction*, bool> &flags) {
+// Conservatively check whether a store instruction can be observed by any
+// load instructions *other* than those in the specified set of instructions.
+bool storeEscapes(StoreInst *store, std::set<Instruction*> insts) {
+  Value *ptr = store->getPointerOperand();
+
+  // Make sure the pointer was created locally. That is, conservatively assume
+  // that pointers coming from arguments or returned from other functions are
+  // aliased somewhere else.
+  if (!isa<AllocaInst>(ptr))
+    return true;
+
+  // Give up if the pointer is copied and leaves the function. This could be
+  // smarter if it only looked *after* the store (flow-wise).
+  if (PointerMayBeCaptured(ptr, true, true))
+    return true;
+
+  // Look for loads to the pointer not present in our exclusion set. Again, it
+  // would be smarter to only look at the *successors* of the block in which
+  // the store appears.
+  Function *func = store->getParent()->getParent();
+  for (Function::iterator bi = func->begin(); bi != func->end(); ++bi) {
+    for (BasicBlock::iterator ii = bi->begin(); ii != bi->end(); ++ii) {
+      if (LoadInst *load = dyn_cast<LoadInst>(ii)) {
+        if (load->getPointerOperand() == ptr && !insts.count(load)) {
+          load->dump();
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+int preciseEscapeCheckHelper(std::map<Instruction*, bool> &flags,
+                             const std::set<Instruction*> &insts) {
   int changes = 0;
   for (std::map<Instruction*, bool>::iterator i = flags.begin();
       i != flags.end(); ++i) {
@@ -106,8 +142,12 @@ int preciseEscapeCheckHelper(std::map<Instruction*, bool> &flags) {
       continue;
     }
 
-    if (isa<StoreInst>(i->first)) {
-      // Precise stores never get tainted.
+    if (StoreInst *store = dyn_cast<StoreInst>(i->first)) {
+      // Precise store: check whether it escapes.
+      if (!storeEscapes(store, insts)) {
+        i->second = true;
+        ++changes;
+      }
       continue;
     }
 
@@ -158,7 +198,7 @@ std::set<Instruction*> preciseEscapeCheck(std::set<Instruction*> insts) {
   }
 
   // Iterate to a fixed point.
-  while (preciseEscapeCheckHelper(flags)) {}
+  while (preciseEscapeCheckHelper(flags, insts)) {}
 
   // Construct a set of untainted instructions.
   std::set<Instruction*> untainted;
@@ -439,6 +479,9 @@ struct ACCEPTPass : public FunctionPass {
     std::set<BasicBlock*> loopBlocks;
     for (Loop::block_iterator bi = loop->block_begin();
          bi != loop->block_end(); ++bi) {
+      if (*bi == loop->getHeader() || *bi == loop->getLoopLatch())
+        // Don't count the loop control.
+        continue;
       loopBlocks.insert(*bi);
     }
     std::set<Instruction*> blockers = preciseEscapeCheck(loopBlocks);
