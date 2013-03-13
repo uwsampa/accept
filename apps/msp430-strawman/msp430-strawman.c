@@ -17,9 +17,15 @@ APPROX int func(APPROX int val) {
     return val;
 }
 
+#ifdef __clang__
+// work around a bug wherein clang doesn't know that main() belongs in section
+// .init9 or that it has to be aligned in a certain way (mspgcc4 introduced
+// these things)
+__attribute__((section(".init9"), aligned(2)))
+#endif
 int main() {
-    int x = 5;
-    APPROX int y = 2;
+    volatile int x = 5;
+    volatile APPROX int y = 2;
     y = y + 1;
     if (x) {
         y = 3;

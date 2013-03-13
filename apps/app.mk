@@ -3,6 +3,7 @@
 ###
 # To provide arguments to the program when profiling, set RUNARGS.
 # To provide extra arguments to clang, set CLANGARGS.
+# To run the executable through something else (e.g., a simulator), set RUNSHIM
 ###
 # Don't use this file directly!  Include it from a Makefile in an app's
 # subdirectory or else the paths to various tools will be wrong.
@@ -24,9 +25,9 @@ ifeq ($(shell uname -s),Darwin)
 else
 	LIBEXT := so
 endif
-ENERCLIB=$(BUILTDIR)/lib/EnerCTypeChecker.$(LIBEXT)
-PASSLIB=$(BUILTDIR)/lib/enerc.$(LIBEXT)
-PROFLIB=$(BUILTDIR)/../enerc/rt/enercrt.bc
+ENERCLIB ?= $(BUILTDIR)/lib/EnerCTypeChecker.$(LIBEXT)
+PASSLIB ?= $(BUILTDIR)/lib/enerc.$(LIBEXT)
+PROFLIB ?= $(BUILTDIR)/../enerc/rt/enercrt.bc
 
 override CFLAGS += -Xclang -load -Xclang $(ENERCLIB) \
 	-Xclang -add-plugin -Xclang enerc-type-checker \
@@ -57,7 +58,7 @@ all: build profile
 build: $(BCFILES) $(LLFILES)
 
 run: build $(TARGET)
-	./$(TARGET) $(RUNARGS) || true
+	$(RUNSHIM) ./$(TARGET) $(RUNARGS) || true
 
 profile: run
 	$(SUMMARY)
@@ -74,6 +75,7 @@ profile: run
 
 ifeq ($(ARCH),msp430)
 # llc cannot generate object code for msp430, so emit assembly
+.INTERMEDIATE: $(TARGET).s
 $(TARGET).s: $(BCFILES)
 	$(LLVMLINK) $(PROFLIB) $^ | \
 	$(LLVMOPT) -strip | \
