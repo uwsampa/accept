@@ -97,6 +97,92 @@ bool elidable(Instruction *instr) {
   return elidable_helper(instr, seen);
 }
 
+int preciseEscapeCheckHelper(std::map<Instruction*, bool> &flags) {
+  int changes = 0;
+  for (std::map<Instruction*, bool>::iterator i = flags.begin();
+      i != flags.end(); ++i) {
+    // Only consider currently-untainted instructions.
+    if (i->second) {
+      continue;
+    }
+
+    if (isa<StoreInst>(i->first)) {
+      // Precise stores never get tainted.
+      continue;
+    }
+
+    bool allUsesTainted = true;
+    for (Value::use_iterator ui = i->first->use_begin();
+          ui != i->first->use_end(); ++ui) {
+      Instruction *user = dyn_cast<Instruction>(*ui);
+      if (user && !flags[user]) {
+        allUsesTainted = false;
+        break;
+      }
+    }
+
+    if (allUsesTainted) {
+      ++changes;
+      i->second = true;
+    }
+  }
+  return changes;
+}
+
+bool approxOrLocal(std::set<Instruction*> &insts, Instruction *inst) {
+  if (isApprox(inst)) {
+    return true;
+  } else if (isa<StoreInst>(inst) ||
+             isa<ReturnInst>(inst) ||
+             isa<BranchInst>(inst)) {
+    return false;  // Never approximate.
+  } else {
+    for (Value::use_iterator ui = inst->use_begin();
+          ui != inst->use_end(); ++ui) {
+      Instruction *user = dyn_cast<Instruction>(*ui);
+      if (user && insts.count(user) == 0) {
+        return false;  // Escapes.
+      }
+    }
+    return true;  // Does not escape.
+  }
+}
+
+std::set<Instruction*> preciseEscapeCheck(std::set<Instruction*> insts) {
+  std::map<Instruction*, bool> flags;
+
+  // Mark all approx and non-escaping instructions.
+  for (std::set<Instruction*>::iterator i = insts.begin();
+       i != insts.end(); ++i) {
+    flags[*i] = approxOrLocal(insts, *i);
+  }
+
+  // Iterate to a fixed point.
+  while (preciseEscapeCheckHelper(flags)) {}
+
+  // Construct a set of untainted instructions.
+  std::set<Instruction*> untainted;
+  for (std::map<Instruction*, bool>::iterator i = flags.begin();
+      i != flags.end(); ++i) {
+    if (!i->second)
+      untainted.insert(i->first);
+  }
+  return untainted;
+}
+
+std::set<Instruction*> preciseEscapeCheck(std::set<BasicBlock*> blocks) {
+  std::set<Instruction*> insts;
+  for (std::set<BasicBlock*>::iterator bi = blocks.begin();
+       bi != blocks.end(); ++bi) {
+    for (BasicBlock::iterator ii = (*bi)->begin();
+         ii != (*bi)->end(); ++ii) {
+      insts.insert(ii);
+    }
+  }
+  return preciseEscapeCheck(insts);
+}
+
+
 // Format a source position.
 std::string srcPosDesc(const Module &mod, const DebugLoc &dl) {
   LLVMContext &ctx = mod.getContext();
@@ -348,6 +434,19 @@ struct ACCEPTPass : public FunctionPass {
     errs() << "loop at "
            << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc())
            << " - " << cElidable << "/" << cTotal << "\n";
+
+    // Adrian is testing some experimental stuff here. Please ignore.
+    std::set<BasicBlock*> loopBlocks;
+    for (Loop::block_iterator bi = loop->block_begin();
+         bi != loop->block_end(); ++bi) {
+      loopBlocks.insert(*bi);
+    }
+    std::set<Instruction*> blockers = preciseEscapeCheck(loopBlocks);
+    errs() << "blockers: " << blockers.size() << "\n";
+    for (std::set<Instruction*>::iterator i = blockers.begin();
+         i != blockers.end(); ++i) {
+      (*i)->dump();
+    }
 
     if (cElidable == cTotal) {
       errs() << "can perforate loop " << id << "\n";

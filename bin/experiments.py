@@ -11,7 +11,7 @@ import subprocess
 import threading
 import argh
 
-APPS = ['streamcluster', 'blackscholes']
+APPS = ['streamcluster', 'blackscholes', 'sobel']
 APPSDIR = 'apps'
 EVALSCRIPT = 'eval.py'
 CONFIGFILE = 'accept_config.txt'
