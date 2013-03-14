@@ -1,6 +1,6 @@
-TARGET := msp430-strawman
+TARGET := looper
 ARCH := msp430
-CLANGARGS := -O0 -Werror
+override CLANGARGS += -O0 -Werror
 LINKER := msp430-gcc
 LDFLAGS := -mmcu=msp430f2618
 PROFLIB := enercrt-msp430.bc
@@ -15,7 +15,7 @@ ifndef MSPGCC_ROOT
   endif
 endif
 
-CFLAGS := -target msp430 -I$(MSPGCC_ROOT)/lib/gcc/msp430/4.6.3/include -I$(MSPGCC_ROOT)/lib/gcc/msp430/4.6.3/include-fixed -I$(MSPGCC_ROOT)/msp430/include -D__MSP430F2618__ $(CLANGARGS)
+CFLAGS := -target msp430 -I$(MSPGCC_ROOT)/lib/gcc/msp430/4.6.3/include -I$(MSPGCC_ROOT)/lib/gcc/msp430/4.6.3/include-fixed -I$(MSPGCC_ROOT)/msp430/include -D__MSP430F2618__
 
 include ../app.mk
 

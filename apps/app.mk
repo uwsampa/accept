@@ -76,8 +76,8 @@ profile: run
 ifeq ($(ARCH),msp430)
 # llc cannot generate object code for msp430, so emit assembly
 .INTERMEDIATE: $(TARGET).s
-$(TARGET).s: $(BCFILES)
-	$(LLVMLINK) $(PROFLIB) $^ | \
+$(TARGET).s: $(BCFILES) $(PROFLIB)
+	$(LLVMLINK) $^ | \
 	$(LLVMOPT) -strip | \
 	$(LLVMLLC) -march=msp430 > $@
 $(TARGET).o: $(TARGET).s
@@ -95,4 +95,5 @@ $(TARGET): $(TARGET).o
 
 clean:
 	$(RM) $(TARGET) $(TARGET).o $(BCFILES) $(LLFILES) \
-	enerc_static.txt enerc_dynamic.txt
+	enerc_static.txt enerc_dynamic.txt \
+	$(CLEANMETOO)
