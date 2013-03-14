@@ -286,7 +286,8 @@ struct ACCEPTPass : public FunctionPass {
   unsigned long gElidableInsts;
   unsigned long gTotalInsts;
   Module *module;
-  std::map<int, int> relaxConfig;  // kind, num -> param
+  std::map<int, int> relaxConfig;  // ident -> param
+  std::map<int, std::string> configDesc;  // ident -> description
   int opportunityId;
 
   ACCEPTPass() : FunctionPass(ID) {
@@ -413,7 +414,7 @@ struct ACCEPTPass : public FunctionPass {
   } relaxKind;
 
   void dumpRelaxConfig() {
-    std::ofstream configFile("accept_config.txt", std::ios_base::app);;
+    std::ofstream configFile("accept_config.txt", std::ios_base::app);
     for (std::map<int, int>::iterator i = relaxConfig.begin();
          i != relaxConfig.end(); ++i) {
       configFile << module->getModuleIdentifier() << " "
@@ -421,6 +422,15 @@ struct ACCEPTPass : public FunctionPass {
                  << i->second << "\n";
     }
     configFile.close();
+
+    std::ofstream descFile("accept_config_desc.txt", std::ios_base::app);
+    for (std::map<int, std::string>::iterator i = configDesc.begin();
+         i != configDesc.end(); ++i) {
+      descFile << module->getModuleIdentifier() << " "
+               << i->first << " "
+               << i->second << "\n";
+    }
+    descFile.close();
   }
 
   void loadRelaxConfig() {
@@ -475,10 +485,12 @@ struct ACCEPTPass : public FunctionPass {
   bool tryToOptimizeLoop(Loop *loop, int id) {
     bool transformed = false;
 
-    errs() << "---\n"
-           << "loop at "
-           << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc())
-           << "\n";
+    std::stringstream ss;
+    ss << "loop at "
+       << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc());
+    std::string loopName = ss.str();
+
+    errs() << "---\n" << loopName << "\n";
 
     // We only consider loops for which there is a header (condition), a
     // latch (increment, in "for"), and a preheader (initialization).
@@ -515,6 +527,7 @@ struct ACCEPTPass : public FunctionPass {
         }
       } else {
         relaxConfig[id] = 0;
+        configDesc[id] = loopName;
       }
     }
 

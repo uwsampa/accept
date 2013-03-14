@@ -15,10 +15,18 @@ APPS = ['streamcluster', 'blackscholes', 'sobel']
 APPSDIR = 'apps'
 EVALSCRIPT = 'eval.py'
 CONFIGFILE = 'accept_config.txt'
+DESCFILE = 'accept_config_desc.txt'
 TIMEOUT_FACTOR = 3
 MAX_ERROR = 0.3
 
+# Work around DumpTruck bugs.
 dumptruck.PYTHON_SQLITE_TYPE_MAP[tuple] = u'json text'
+class Pickle(object):
+    def __init__(self, obj):
+        self.obj = obj
+dumptruck.Pickle = Pickle
+dumptruck.adapters_and_converters.Pickle = Pickle
+dumptruck.PYTHON_SQLITE_TYPE_MAP[Pickle] = u'pickle'
 
 @contextmanager
 def chdir(d):
@@ -43,14 +51,14 @@ class Memoized(object):
         if self.table in self.dt.tables():
             memoized = self.dt.execute(
                 'SELECT res FROM {} WHERE args=? LIMIT 1'.format(self.table),
-                (args,)
+                (Pickle(args),)
             )
             if memoized:
                 return memoized[0]['res']
 
         res = self.func(*args, **kwargs)
         self.dt.insert(
-            {'args': args, 'res': res},
+            {'args': Pickle(args), 'res': Pickle(res)},
             self.table
         )
         return res
@@ -100,7 +108,7 @@ def build(approx=False):
 
 def parse_relax_config(f):
     """Parse a relaxation configuration from a file-like object.
-    Generates (kind, ident, param) tuples.
+    Generates (module, ident, param) tuples.
     """
     for line in f:
         line = line.strip()
@@ -115,17 +123,32 @@ def dump_relax_config(config, f):
     for site in config:
         f.write('{} {} {}\n'.format(*site))
 
+def parse_relax_desc(f):
+    """Parse a relaxation description map from a file-like object.
+    Return a dict mapping (module, ident) pairs to description strings.
+    """
+    out = {}
+    for line in f:
+        line = line.strip()
+        if line:
+            mod, ident, desc = line.split(None, 2)
+            out[mod, int(ident)] = desc
+    return out
+
 @memoize
 def build_and_execute(appname, relax_config, timeout=None, loadfunc=None):
     """Build an application, run it, and collect its output. Return the
     parsed output, the duration of the execution (or None for timeout),
-    the exit status, and the relaxation configuration.
+    the exit status, the relaxation configuration, and the relaxation
+    descriptions.
     """
     if relax_config:
         with open(CONFIGFILE, 'w') as f:
             dump_relax_config(relax_config, f)
     elif os.path.exists(CONFIGFILE):
         os.remove(CONFIGFILE)
+    if os.path.exists(DESCFILE):
+        os.remove(DESCFILE)
 
     build(bool(relax_config))
     elapsed, status = execute(timeout)
@@ -138,8 +161,12 @@ def build_and_execute(appname, relax_config, timeout=None, loadfunc=None):
     if not relax_config:
         with open(CONFIGFILE) as f:
             relax_config = list(parse_relax_config(f))
+        with open(DESCFILE) as f:
+            relax_desc = parse_relax_desc(f)
+    else:
+        relax_desc = None
 
-    return output, elapsed, status, relax_config
+    return output, elapsed, status, relax_config, relax_desc
 
 def permute_config(base):
     """Given a base (null) relaxation configuration, generate new
@@ -210,6 +237,19 @@ def triage_results(results):
     assert len(optimal) + len(suboptimal) + len(bad) == len(results)
     return optimal, suboptimal, bad
 
+def dump_config(config, descs):
+    """Given a relaxation configuration and an accompanying description
+    map, returning a human-readable string describing it.
+    """
+    optimizations = [r for r in config if r[2]]
+    if not optimizations:
+        return u'no optimizations'
+
+    out = []
+    for mod, ident, param in optimizations:
+        out.append(u'{} @ {}'.format(descs[mod, ident], param))
+    return u', '.join(out)
+
 def evaluate(appname, verbose=False):
     with chdir(os.path.join(APPSDIR, appname)):
         try:
@@ -218,14 +258,14 @@ def evaluate(appname, verbose=False):
             assert False, 'no eval.py found in {} directory'.format(appname)
 
         # Precise (baseline) execution.
-        pout, ptime, _, base_config = build_and_execute(
+        pout, ptime, _, base_config, descs = build_and_execute(
             appname, None,
             timeout=None, loadfunc=mod.load
         )
 
         results = []
         for config in permute_config(base_config):
-            aout, atime, status, _ = build_and_execute(
+            aout, atime, status, _, _ = build_and_execute(
                 appname, config,
                 timeout=ptime * TIMEOUT_FACTOR, loadfunc=mod.load
             )
@@ -238,12 +278,18 @@ def evaluate(appname, verbose=False):
             len(optimal), len(suboptimal), len(bad)
         ))
         for res in optimal:
-            print(res.config)
+            print(dump_config(res.config, descs))
             print('{:.1%} error'.format(res.error))
             print('{:.2f}x speedup'.format(res.speedup))
 
         if verbose:
-            print('bad configs:')
+            print('\nsuboptimal configs:')
+            for res in suboptimal:
+                print(dump_config(res.config, descs))
+                print('{:.1%} error'.format(res.error))
+                print('{:.2f}x speedup'.format(res.speedup))
+
+            print('\nbad configs:')
             for res in bad:
                 print(res.desc)
 
