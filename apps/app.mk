@@ -95,5 +95,5 @@ $(TARGET): $(TARGET).o
 
 clean:
 	$(RM) $(TARGET) $(TARGET).o $(BCFILES) $(LLFILES) \
-	enerc_static.txt enerc_dynamic.txt accept_config.txt \
+	enerc_static.txt enerc_dynamic.txt \
 	$(CLEANMETOO)
