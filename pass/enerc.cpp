@@ -364,14 +364,15 @@ struct ACCEPTPass : public FunctionPass {
     }
   }
 
-  IntegerType *getNativeIntegerType(LLVMContext& C) {
-    IntegerType *T = IntegerType::getIntNTy(C, 1); // throwaway instance
-    return Type::getIntNTy(C, T->getIntegerBitWidth());
+  IntegerType *getNativeIntegerType() {
+    DataLayout layout(module->getDataLayout());
+    return Type::getIntNTy(module->getContext(),
+                           layout.getPointerSizeInBits());
   }
 
   void setUpInstrumentation() {
     LLVMContext &C = module->getContext();
-    IntegerType *nativeInt = getNativeIntegerType(C);
+    IntegerType *nativeInt = getNativeIntegerType();
     blockCountFunction = module->getOrInsertFunction(
       FUNC_TRACE,
       Type::getVoidTy(C), // return type
@@ -387,7 +388,7 @@ struct ACCEPTPass : public FunctionPass {
                        unsigned int elidable,
                        unsigned int total) {
     std::vector<Value *> args;
-    IntegerType *nativeInt = getNativeIntegerType(F.getContext());
+    IntegerType *nativeInt = getNativeIntegerType();
     args.push_back(ConstantInt::get(nativeInt, approx));
     args.push_back(ConstantInt::get(nativeInt, elidable));
     args.push_back(ConstantInt::get(nativeInt, total));
@@ -578,7 +579,7 @@ struct ACCEPTPass : public FunctionPass {
         loop->getLoopPreheader()->getParent()->getEntryBlock().begin()
     );
 
-    IntegerType *nativeInt = getNativeIntegerType(module->getContext());
+    IntegerType *nativeInt = getNativeIntegerType();
     AllocaInst *counterAlloca = builder.CreateAlloca(
         nativeInt,
         0,
