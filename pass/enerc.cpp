@@ -475,38 +475,20 @@ struct ACCEPTPass : public FunctionPass {
   bool tryToOptimizeLoop(Loop *loop, int id) {
     bool transformed = false;
 
+    errs() << "---\n"
+           << "loop at "
+           << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc())
+           << "\n";
+
     // We only consider loops for which there is a header (condition), a
     // latch (increment, in "for"), and a preheader (initialization).
     if (!loop->getHeader() || !loop->getLoopLatch()
-        || !loop->getLoopPreheader())
+        || !loop->getLoopPreheader()) {
+      errs() << "loop not in perforatable form\n";
       return false;
-    // Count elidable instructions in the loop.
-    int cTotal = 0;
-    int cElidable = 0;
-    for (Loop::block_iterator bi = loop->block_begin();
-         bi != loop->block_end(); ++bi) {
-      BasicBlock *block = *bi;
-
-      // Don't count the loop control.
-      if (block == loop->getHeader() || block == loop->getLoopLatch())
-        continue;
-
-      for (BasicBlock::iterator ii = block->begin();
-           ii != block->end(); ++ii) {
-        if ((Instruction*)ii == block->getTerminator())
-          continue;
-        if (elidable(ii))
-          ++cElidable;
-        ++cTotal;
-      }
     }
 
-    // How elidable is the loop body as a whole?
-    errs() << "loop at "
-           << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc())
-           << " - " << cElidable << "/" << cTotal << "\n";
-
-    // Adrian is testing some experimental stuff here. Please ignore.
+    // Check whether the body of this loop is elidable (precise-pure).
     std::set<BasicBlock*> loopBlocks;
     for (Loop::block_iterator bi = loop->block_begin();
          bi != loop->block_end(); ++bi) {
@@ -522,7 +504,7 @@ struct ACCEPTPass : public FunctionPass {
       errs() << " - " << instDesc(*module, *i) << "\n";
     }
 
-    if (cElidable == cTotal) {
+    if (!blockers.size()) {
       errs() << "can perforate loop " << id << "\n";
       if (optRelax) {
         int param = relaxConfig[id];
