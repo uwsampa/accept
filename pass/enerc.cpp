@@ -15,6 +15,7 @@
 #include "llvm/Analysis/CaptureTracking.h"
 #include "llvm/IRBuilder.h"
 #include "llvm/DebugInfo.h"
+#include "llvm/IntrinsicInst.h"
 
 #include <sstream>
 #include <set>
@@ -122,7 +123,6 @@ bool storeEscapes(StoreInst *store, std::set<Instruction*> insts) {
     for (BasicBlock::iterator ii = bi->begin(); ii != bi->end(); ++ii) {
       if (LoadInst *load = dyn_cast<LoadInst>(ii)) {
         if (load->getPointerOperand() == ptr && !insts.count(load)) {
-          load->dump();
           return true;
         }
       }
@@ -142,13 +142,21 @@ int preciseEscapeCheckHelper(std::map<Instruction*, bool> &flags,
       continue;
     }
 
+    // Precise store: check whether it escapes.
     if (StoreInst *store = dyn_cast<StoreInst>(i->first)) {
-      // Precise store: check whether it escapes.
       if (!storeEscapes(store, insts)) {
         i->second = true;
         ++changes;
       }
       continue;
+    }
+
+    // Calls must be to precise-pure functions.
+    if (CallInst *call = dyn_cast<CallInst>(i->first)) {
+      if (!isa<DbgInfoIntrinsic>(call)) {
+        // TODO: Check purity.
+        continue;
+      }
     }
 
     bool allUsesTainted = true;
@@ -174,7 +182,8 @@ bool approxOrLocal(std::set<Instruction*> &insts, Instruction *inst) {
     return true;
   } else if (isa<StoreInst>(inst) ||
              isa<ReturnInst>(inst) ||
-             isa<BranchInst>(inst)) {
+             isa<BranchInst>(inst) ||
+             isa<CallInst>(inst)) {
     return false;  // Never approximate.
   } else {
     for (Value::use_iterator ui = inst->use_begin();
