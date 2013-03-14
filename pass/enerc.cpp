@@ -231,11 +231,11 @@ std::set<Instruction*> preciseEscapeCheck(std::set<BasicBlock*> blocks) {
   return preciseEscapeCheck(insts);
 }
 
-
 // Format a source position.
 std::string srcPosDesc(const Module &mod, const DebugLoc &dl) {
   LLVMContext &ctx = mod.getContext();
-  std::stringstream ss;
+  std::string out;
+  raw_string_ostream ss(out);
 
   // Try to get filename from debug location.
   DIScope scope(dl.getScope(ctx));
@@ -250,7 +250,29 @@ std::string srcPosDesc(const Module &mod, const DebugLoc &dl) {
   ss << dl.getLine();
   if (dl.getCol())
     ss << "," << dl.getCol();
-  return ss.str();
+  return out;
+}
+
+// Describe an instruction.
+std::string instDesc(const Module &mod, Instruction *inst) {
+  std::string out;
+  raw_string_ostream ss(out);
+  ss << srcPosDesc(mod, inst->getDebugLoc()) << ": ";
+
+  if (CallInst *call = dyn_cast<CallInst>(inst)) {
+    Function *func = call->getCalledFunction();
+    if (func)
+      ss << "call to " << func->getName().data() << "()";
+    else
+      ss << "indirect function call";
+  } else if (StoreInst *store = dyn_cast<StoreInst>(inst)) {
+    Value *ptr = store->getPointerOperand();
+    ss << "store to '" << ptr->getName().data() << "'";
+  } else {
+    inst->print(ss);
+  }
+
+  return out;
 }
 
 
@@ -497,7 +519,7 @@ struct ACCEPTPass : public FunctionPass {
     errs() << "blockers: " << blockers.size() << "\n";
     for (std::set<Instruction*>::iterator i = blockers.begin();
          i != blockers.end(); ++i) {
-      (*i)->dump();
+      errs() << " - " << instDesc(*module, *i) << "\n";
     }
 
     if (cElidable == cTotal) {
