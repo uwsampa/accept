@@ -142,7 +142,7 @@ APPROX float dist(Point p1, Point p2, int dim)
 }
 
 
-float pspeedy(Points *points, float z, long *kcenter, int pid, pthread_barrier_t* barrier)
+APPROX float pspeedy(Points *points, APPROX float z, long *kcenter, int pid, pthread_barrier_t* barrier)
 {
 #ifdef ENABLE_THREADS
   pthread_barrier_wait(barrier);
@@ -153,10 +153,10 @@ float pspeedy(Points *points, float z, long *kcenter, int pid, pthread_barrier_t
   long k2 = k1 + bsize;
   if( pid == nproc-1 ) k2 = points->num;
 
-  static double totalcost;
+  APPROX static double totalcost;
 
   static bool open = false;
-  static double* costs; //cost for each thread. 
+  APPROX static double* costs; //cost for each thread. 
   static int i;
 
 #ifdef ENABLE_THREADS
@@ -241,7 +241,7 @@ float pspeedy(Points *points, float z, long *kcenter, int pid, pthread_barrier_t
   pthread_barrier_wait(barrier);
 #endif
   open = false;
-  double mytotal = 0;
+  APPROX double mytotal = 0;
   for( int k = k1; k < k2; k++ )  {
     mytotal += points->p[k].cost;
   }
@@ -630,7 +630,7 @@ APPROX float pkmedian(Points *points, long kmin, long kmax, long* kfinal,
   int i;
   APPROX double cost;
   APPROX double lastcost;
-  double hiz, loz, z;
+  APPROX double hiz, loz, z;
 
   static long k;
   static int *feasible;
@@ -749,7 +749,7 @@ APPROX float pkmedian(Points *points, long kmin, long kmax, long* kfinal,
 
     /* if k is good, return the result */
     /* if we're stuck, just give up and return what we have */
-    if (((k <= kmax)&&(k >= kmin))||((loz >= (0.999)*hiz)) )
+    if ( ((k <= kmax)&&(k >= kmin))|| ENDORSE((loz >= (0.999)*hiz)) )
       { 
 	break;
       }
