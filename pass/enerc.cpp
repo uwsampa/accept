@@ -178,12 +178,13 @@ int preciseEscapeCheckHelper(std::map<Instruction*, bool> &flags,
 }
 
 bool approxOrLocal(std::set<Instruction*> &insts, Instruction *inst) {
-  if (isApprox(inst)) {
+  if (isa<CallInst>(inst)) {
+    return false;
+  } else if (isApprox(inst)) {
     return true;
   } else if (isa<StoreInst>(inst) ||
              isa<ReturnInst>(inst) ||
-             isa<BranchInst>(inst) ||
-             isa<CallInst>(inst)) {
+             isa<BranchInst>(inst)) {
     return false;  // Never approximate.
   } else {
     for (Value::use_iterator ui = inst->use_begin();
