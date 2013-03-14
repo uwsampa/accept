@@ -262,13 +262,26 @@ std::string instDesc(const Module &mod, Instruction *inst) {
 
   if (CallInst *call = dyn_cast<CallInst>(inst)) {
     Function *func = call->getCalledFunction();
-    if (func)
-      ss << "call to " << func->getName().data() << "()";
+    if (func) {
+      StringRef name = func->getName();
+      if (!name.empty() && name.front() == '_') {
+        // C++ name. An extra leading underscore makes the name legible by
+        // c++filt.
+        ss << "call to _" << name;
+      } else {
+        ss << "call to " << name << "()";
+      }
+    }
     else
       ss << "indirect function call";
   } else if (StoreInst *store = dyn_cast<StoreInst>(inst)) {
     Value *ptr = store->getPointerOperand();
-    ss << "store to '" << ptr->getName().data() << "'";
+    StringRef name = ptr->getName();
+    if (!name.empty() && name.front() == '_') {
+      ss << "store to _" << ptr->getName().data();
+    } else {
+      ss << "store to " << ptr->getName().data();
+    }
   } else {
     inst->print(ss);
   }
@@ -290,6 +303,7 @@ struct ACCEPTPass : public FunctionPass {
   std::map<int, int> relaxConfig;  // ident -> param
   std::map<int, std::string> configDesc;  // ident -> description
   int opportunityId;
+  raw_fd_ostream *log;
 
   ACCEPTPass() : FunctionPass(ID) {
     gApproxInsts = 0;
@@ -297,6 +311,7 @@ struct ACCEPTPass : public FunctionPass {
     gTotalInsts = 0;
     module = 0;
     opportunityId = 0;
+    log = 0;
   }
 
   virtual void getAnalysisUsage(AnalysisUsage &Info) const {
@@ -317,6 +332,9 @@ struct ACCEPTPass : public FunctionPass {
     if (optRelax)
       loadRelaxConfig();
 
+    std::string error;
+    log = new raw_fd_ostream("accept_log.txt", error);
+
     return false;
   }
 
@@ -324,6 +342,7 @@ struct ACCEPTPass : public FunctionPass {
     dumpStaticStats();
     if (!optRelax)
       dumpRelaxConfig();
+    log->close();
     return false;
   }
 
@@ -494,13 +513,13 @@ struct ACCEPTPass : public FunctionPass {
        << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc());
     std::string loopName = ss.str();
 
-    errs() << "---\n" << loopName << "\n";
+    *log << "---\n" << loopName << "\n";
 
     // We only consider loops for which there is a header (condition), a
     // latch (increment, in "for"), and a preheader (initialization).
     if (!loop->getHeader() || !loop->getLoopLatch()
         || !loop->getLoopPreheader()) {
-      errs() << "loop not in perforatable form\n";
+      *log << "loop not in perforatable form\n";
       return false;
     }
 
@@ -514,18 +533,18 @@ struct ACCEPTPass : public FunctionPass {
       loopBlocks.insert(*bi);
     }
     std::set<Instruction*> blockers = preciseEscapeCheck(loopBlocks);
-    errs() << "blockers: " << blockers.size() << "\n";
+    *log << "blockers: " << blockers.size() << "\n";
     for (std::set<Instruction*>::iterator i = blockers.begin();
          i != blockers.end(); ++i) {
-      errs() << " - " << instDesc(*module, *i) << "\n";
+      *log << " - " << instDesc(*module, *i) << "\n";
     }
 
     if (!blockers.size()) {
-      errs() << "can perforate loop " << id << "\n";
+      *log << "can perforate loop " << id << "\n";
       if (optRelax) {
         int param = relaxConfig[id];
         if (param) {
-          errs() << "perforating with factor 2^" << param << "\n";
+          *log << "perforating with factor 2^" << param << "\n";
           perforateLoop(loop, param);
           transformed = true;
         }
@@ -546,7 +565,7 @@ struct ACCEPTPass : public FunctionPass {
     // First, check for required blocks.
     if (!loop->getHeader() || !loop->getLoopLatch()
         || !loop->getLoopPreheader() || !loop->getExitBlock()) {
-      llvm::errs() << "malformed loop\n";
+      errs() << "malformed loop\n";
       return;
     }
     // Next, make sure the header (condition block) ends with a body/exit
@@ -555,7 +574,7 @@ struct ACCEPTPass : public FunctionPass {
         loop->getHeader()->getTerminator()
     );
     if (!condBranch || condBranch->getNumSuccessors() != 2) {
-      llvm::errs() << "malformed loop condition\n";
+      errs() << "malformed loop condition\n";
       return;
     }
     BasicBlock *bodyBlock;
@@ -564,7 +583,7 @@ struct ACCEPTPass : public FunctionPass {
     } else if (condBranch->getSuccessor(1) == loop->getExitBlock()) {
       bodyBlock = condBranch->getSuccessor(0);
     } else {
-      llvm::errs() << "loop condition does not exit\n";
+      errs() << "loop condition does not exit\n";
       return;
     }
 
