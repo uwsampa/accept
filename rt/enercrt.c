@@ -3,12 +3,16 @@
 #include <stdlib.h>
 #endif // __MSP430__
 
-#ifndef __MSP430__
+#ifdef __MSP430__
+unsigned enerc_approx = 0;
+unsigned enerc_elidable = 0;
+unsigned enerc_total = 0;
+#else
 int enerc_registered_atexit = 0;
-#endif
 unsigned long enerc_approx = 0;
 unsigned long enerc_elidable = 0;
 unsigned long enerc_total = 0;
+#endif
 
 #ifndef __MSP430__
 void enerc_done() {
