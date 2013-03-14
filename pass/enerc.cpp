@@ -364,13 +364,20 @@ struct ACCEPTPass : public FunctionPass {
     }
   }
 
+  IntegerType *getNativeIntegerType(LLVMContext& C) {
+    IntegerType *T = IntegerType::getIntNTy(C, 1); // throwaway instance
+    return Type::getIntNTy(C, T->getIntegerBitWidth());
+  }
+
   void setUpInstrumentation() {
+    LLVMContext &C = module->getContext();
+    IntegerType *nativeInt = getNativeIntegerType(C);
     blockCountFunction = module->getOrInsertFunction(
       FUNC_TRACE,
-      Type::getVoidTy(module->getContext()), // return type
-      Type::getInt32Ty(module->getContext()), // approx
-      Type::getInt32Ty(module->getContext()), // elidable
-      Type::getInt32Ty(module->getContext()), // total
+      Type::getVoidTy(C), // return type
+      nativeInt, // approx
+      nativeInt, // elidable
+      nativeInt, // total
       NULL
     );
   }
@@ -380,15 +387,10 @@ struct ACCEPTPass : public FunctionPass {
                        unsigned int elidable,
                        unsigned int total) {
     std::vector<Value *> args;
-    args.push_back(
-        ConstantInt::get(Type::getInt32Ty(F.getContext()), approx)
-    );
-    args.push_back(
-        ConstantInt::get(Type::getInt32Ty(F.getContext()), elidable)
-    );
-    args.push_back(
-        ConstantInt::get(Type::getInt32Ty(F.getContext()), total)
-    );
+    IntegerType *nativeInt = getNativeIntegerType(F.getContext());
+    args.push_back(ConstantInt::get(nativeInt, approx));
+    args.push_back(ConstantInt::get(nativeInt, elidable));
+    args.push_back(ConstantInt::get(nativeInt, total));
 
     // For now, we're inserting calls at the end of basic blocks.
     CallInst::Create(
@@ -575,8 +577,10 @@ struct ACCEPTPass : public FunctionPass {
     builder.SetInsertPoint(
         loop->getLoopPreheader()->getParent()->getEntryBlock().begin()
     );
+
+    IntegerType *nativeInt = getNativeIntegerType(module->getContext());
     AllocaInst *counterAlloca = builder.CreateAlloca(
-        builder.getInt32Ty(),
+        nativeInt,
         0,
         "accept_counter"
     );
@@ -584,7 +588,7 @@ struct ACCEPTPass : public FunctionPass {
     // Initialize the counter in the preheader.
     builder.SetInsertPoint(loop->getLoopPreheader()->getTerminator());
     builder.CreateStore(
-        builder.getInt32(0),
+        ConstantInt::get(nativeInt, 0, false),
         counterAlloca
     );
 
@@ -596,7 +600,7 @@ struct ACCEPTPass : public FunctionPass {
     );
     result = builder.CreateAdd(
         result,
-        builder.getInt32(1),
+        ConstantInt::get(nativeInt, 1, false),
         "accept_inc"
     );
     builder.CreateStore(
