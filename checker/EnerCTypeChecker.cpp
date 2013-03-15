@@ -6,11 +6,8 @@
 #include "NodeTyper.h"
 #include "TyperVisitor.h"
 #include "llvm/Support/Debug.h"
+#include "enerc.h"
 #include <iostream>
-
-// Random numbers unlikely to come up in source programs...
-#define TAG_ENDORSEMENT 9946037276205
-#define TAG_DEDORSEMENT 9946037276206
 
 using namespace clang;
 
