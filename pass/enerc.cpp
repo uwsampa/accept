@@ -28,6 +28,7 @@
 #define ECQ_APPROX 1
 
 #define FUNC_TRACE "enerc_trace"
+#define PERMIT "ACCEPT_PERMIT"
 
 // I'm not sure why, but I can't seem to enable debug output in the usual way
 // (with command line flags). Here's a hack.
@@ -177,8 +178,35 @@ int preciseEscapeCheckHelper(std::map<Instruction*, bool> &flags,
   return changes;
 }
 
+bool hasPermit(Instruction *inst) {
+  DebugLoc dl = inst->getDebugLoc();
+  DIScope scope(dl.getScope(inst->getContext()));
+  if (!scope.Verify())
+    return false;
+
+  // Read line N of the file.
+  std::ifstream srcFile(scope.getFilename().data());
+  int lineno = 1;
+  std::string theLine;
+  while (srcFile.good()) {
+    std::string curLine;
+    getline(srcFile, curLine);
+    if (lineno == dl.getLine()) {
+      theLine = curLine;
+      break;
+    } else {
+      ++lineno;
+    }
+  }
+  srcFile.close();
+
+  return theLine.find(PERMIT) != std::string::npos;
+}
+
 bool approxOrLocal(std::set<Instruction*> &insts, Instruction *inst) {
-  if (isa<CallInst>(inst)) {
+  if (hasPermit(inst)) {
+    return true;
+  } else if (isa<CallInst>(inst)) {
     return false;
   } else if (isApprox(inst)) {
     return true;

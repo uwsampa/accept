@@ -539,7 +539,7 @@ APPROX double pgain(long x, Points *points, APPROX double z, long int *numcenter
     // http://code-perforation.blogspot.com/2009/11/streamcluster-perforated-loops.html
     for (i=0;i<iter;i++) {
       x = i%numfeasible;
-      change += pgain(feasible[x], points, z, k, pid, barrier);
+      change += pgain(feasible[x], points, z, k, pid, barrier); // ACCEPT_PERMIT
     }
 
     cost -= change;
