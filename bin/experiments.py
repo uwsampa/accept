@@ -10,6 +10,8 @@ import time
 import subprocess
 import threading
 import argh
+import shutil
+import tempfile
 
 APPS = ['streamcluster', 'blackscholes', 'sobel']
 APPSDIR = 'apps'
@@ -18,6 +20,7 @@ CONFIGFILE = 'accept_config.txt'
 DESCFILE = 'accept_config_desc.txt'
 TIMEOUT_FACTOR = 3
 MAX_ERROR = 0.3
+BASEDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Work around DumpTruck bugs.
 dumptruck.PYTHON_SQLITE_TYPE_MAP[tuple] = u'json text'
@@ -36,6 +39,19 @@ def chdir(d):
     os.chdir(d)
     yield
     os.chdir(olddir)
+
+@contextmanager
+def sandbox():
+    """Create a temporary sandbox directory, copy everything from the
+    current directory into it, and enter the directory. Afterwards,
+    change back and clean up.
+    """
+    basedir = tempfile.mkdtemp()
+    sandbox_dir = os.path.join(basedir, os.path.basename(os.getcwd()))
+    shutil.copytree(os.getcwd(), sandbox_dir)
+    with chdir(sandbox_dir):
+        yield
+    shutil.rmtree(basedir)
 
 class Memoized(object):
     """Wrap a function and memoize it in a persistent database. Only
@@ -86,13 +102,19 @@ def run_cmd(command, timeout=None):
     else:
         return thread.proc.returncode
 
+def _make_args():
+    return [
+        'ENERCDIR={}'.format(BASEDIR),
+        'APP_MK={}'.format(os.path.join(BASEDIR, 'apps', 'app.mk')),
+    ]
+
 def execute(timeout):
     """Run the application in the working directory and return the
     wall-clock duration (in seconds) of the execution and the exit
     status (or None if the process timed out).
     """
     start_time = time.time()
-    status = run_cmd(['make', 'run'], timeout)
+    status = run_cmd(['make', 'run'] + _make_args(), timeout)
     end_time = time.time()
     return end_time - start_time, status
 
@@ -100,8 +122,8 @@ def build(approx=False):
     """Compile the application in the working directory. If `approx`,
     then it is built with ACCEPT relaxation enabled.
     """
-    subprocess.check_call(['make', 'clean'])
-    build_cmd = ['make', 'build']
+    subprocess.check_call(['make', 'clean'] + _make_args())
+    build_cmd = ['make', 'build'] + _make_args()
     if approx:
         build_cmd.append('CLANGARGS=-mllvm -accept-relax')
     subprocess.check_call(build_cmd)
@@ -142,29 +164,31 @@ def build_and_execute(appname, relax_config, timeout=None, loadfunc=None):
     the exit status, the relaxation configuration, and the relaxation
     descriptions.
     """
-    if relax_config:
-        with open(CONFIGFILE, 'w') as f:
-            dump_relax_config(relax_config, f)
-    elif os.path.exists(CONFIGFILE):
-        os.remove(CONFIGFILE)
-    if os.path.exists(DESCFILE):
-        os.remove(DESCFILE)
+    with sandbox():
 
-    build(bool(relax_config))
-    elapsed, status = execute(timeout)
-    if elapsed is None or status:
-        # Timeout or error.
-        output = None
-    else:
-        output = loadfunc()
+        if relax_config:
+            with open(CONFIGFILE, 'w') as f:
+                dump_relax_config(relax_config, f)
+        elif os.path.exists(CONFIGFILE):
+            os.remove(CONFIGFILE)
+        if os.path.exists(DESCFILE):
+            os.remove(DESCFILE)
 
-    if not relax_config:
-        with open(CONFIGFILE) as f:
-            relax_config = list(parse_relax_config(f))
-        with open(DESCFILE) as f:
-            relax_desc = parse_relax_desc(f)
-    else:
-        relax_desc = None
+        build(bool(relax_config))
+        elapsed, status = execute(timeout)
+        if elapsed is None or status:
+            # Timeout or error.
+            output = None
+        else:
+            output = loadfunc()
+
+        if not relax_config:
+            with open(CONFIGFILE) as f:
+                relax_config = list(parse_relax_config(f))
+            with open(DESCFILE) as f:
+                relax_desc = parse_relax_desc(f)
+        else:
+            relax_desc = None
 
     return output, elapsed, status, relax_config, relax_desc
 

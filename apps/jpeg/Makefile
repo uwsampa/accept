@@ -1,4 +1,5 @@
 TARGET := jpeg
 LDFLAGS := -lm
 
-include ../app.mk
+APP_MK := ../ap.mk
+include $(APP_MK)

@@ -17,7 +17,8 @@ endif
 
 CFLAGS := -target msp430 -I$(MSPGCC_ROOT)/lib/gcc/msp430/4.6.3/include -I$(MSPGCC_ROOT)/lib/gcc/msp430/4.6.3/include-fixed -I$(MSPGCC_ROOT)/msp430/include -D__MSP430F2618__
 
-include ../app.mk
+APP_MK := ../ap.mk
+include $(APP_MK)
 
 ENERCRT_SRC=$(ENERCDIR)/rt/enercrt.c
 $(PROFLIB): $(ENERCRT_SRC)
