@@ -4,14 +4,18 @@ from __future__ import division
 import os
 from contextlib import contextmanager
 import imp
-import dumptruck
-import functools
 import time
 import subprocess
 import threading
 import argh
 import shutil
 import tempfile
+import cw.client
+from sqlite3dbm import sshelve
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 
 APPS = ['streamcluster', 'blackscholes', 'sobel']
 APPSDIR = 'apps'
@@ -21,15 +25,6 @@ DESCFILE = 'accept_config_desc.txt'
 TIMEOUT_FACTOR = 3
 MAX_ERROR = 0.3
 BASEDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-# Work around DumpTruck bugs.
-dumptruck.PYTHON_SQLITE_TYPE_MAP[tuple] = u'json text'
-class Pickle(object):
-    def __init__(self, obj):
-        self.obj = obj
-dumptruck.Pickle = Pickle
-dumptruck.adapters_and_converters.Pickle = Pickle
-dumptruck.PYTHON_SQLITE_TYPE_MAP[Pickle] = u'pickle'
 
 @contextmanager
 def chdir(d):
@@ -53,33 +48,75 @@ def sandbox():
         yield
     shutil.rmtree(basedir)
 
-class Memoized(object):
-    """Wrap a function and memoize it in a persistent database. Only
-    positional arguments, not keyword arguments, are used as memo table
-    keys. These (and the return value) must be serializable.
-    """
-    def __init__(self, dbname, func):
-        self.func = func
-        self.dt = dumptruck.DumpTruck(dbname)
-        self.table = 'memo_{}'.format(func.__name__)
+class CWMemo(object):
+    def __init__(self, dbname='memo.db', host='localhost'):
+        self.dbname = dbname
+        self.db = sshelve.open(self.dbname)
+        self.completion_thread_db = None
+        self.client = cw.client.ClientThread(self.completion, host)
+        self.jobs = {}
+        self.completion_cond = self.client.jobs_cond
 
-    def __call__(self, *args, **kwargs):
-        if self.table in self.dt.tables():
-            memoized = self.dt.execute(
-                'SELECT res FROM {} WHERE args=? LIMIT 1'.format(self.table),
-                (Pickle(args),)
-            )
-            if memoized:
-                return memoized[0]['res']
+    def __enter__(self):
+        self.client.start()
+        return self
 
-        res = self.func(*args, **kwargs)
-        self.dt.insert(
-            {'args': Pickle(args), 'res': Pickle(res)},
-            self.table
-        )
-        return res
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.client.wait()
+        self.client.stop()
+        self.db.close()
 
-memoize = functools.partial(Memoized, 'memo.db')
+    def completion(self, jobid, output):
+        # Called in a different thread, so we need a separate SQLite
+        # connection.
+        if not self.completion_thread_db:
+            self.completion_thread_db = sshelve.open(self.dbname)
+        db = self.completion_thread_db
+
+        # Get the arguments and save them with the result.
+        with self.client.jobs_cond:
+            key = self.jobs.pop(jobid)
+        db[key] = output
+
+    def _key_for(self, func, args, kwargs):
+        # Keyed on function name and arguments. Keyword arguments are
+        # ignored.
+        return pickle.dumps((func.__module__, func.__name__, args))
+
+    def submit(self, func, *args, **kwargs):
+        # Check whether this call is memoized.
+        key = self._key_for(func, args, kwargs)
+        if key in self.db:
+            return
+
+        # If not, submit a job to execute it.
+        jobid = cw.randid()
+        with self.client.jobs_cond:
+            self.jobs[jobid] = key
+        self.client.submit(jobid, func, *args, **kwargs)
+
+    def get(self, func, *args, **kwargs):
+        """Block until the result for a call is ready and return that
+        result. (If the value is memoized, this call does not block.)
+        """
+        key = self._key_for(func, args, kwargs)
+        with self.client.jobs_cond:
+            while key in self.jobs.values() and \
+                  not self.client.remote_exception:
+                self.client.jobs_cond.wait()
+
+            if self.client.remote_exception:
+                exc = self.client.remote_exception
+                self.client.remote_exception = None
+                raise exc
+
+            elif key in self.db:
+                return self.db[key]
+
+            else:
+                raise KeyError(u'no job or result for {} on {}'.format(
+                    func, args
+                ))
 
 class CommandThread(threading.Thread):
     def __init__(self, command):
@@ -157,8 +194,7 @@ def parse_relax_desc(f):
             out[mod, int(ident)] = desc
     return out
 
-@memoize
-def build_and_execute(appname, relax_config, timeout=None, loadfunc=None):
+def build_and_execute(appname, relax_config, timeout=None):
     """Build an application, run it, and collect its output. Return the
     parsed output, the duration of the execution (or None for timeout),
     the exit status, the relaxation configuration, and the relaxation
@@ -180,7 +216,8 @@ def build_and_execute(appname, relax_config, timeout=None, loadfunc=None):
             # Timeout or error.
             output = None
         else:
-            output = loadfunc()
+            mod = imp.load_source('evalscript', EVALSCRIPT)
+            output = mod.load()
 
         if not relax_config:
             with open(CONFIGFILE) as f:
@@ -275,27 +312,39 @@ def dump_config(config, descs):
     return u', '.join(out)
 
 def evaluate(appname, verbose=False):
+    memo_db = os.path.abspath('memo.db')
+
     with chdir(os.path.join(APPSDIR, appname)):
         try:
             mod = imp.load_source('evalscript', EVALSCRIPT)
         except IOError:
             assert False, 'no eval.py found in {} directory'.format(appname)
 
-        # Precise (baseline) execution.
-        pout, ptime, _, base_config, descs = build_and_execute(
-            appname, None,
-            timeout=None, loadfunc=mod.load
-        )
-
-        results = []
-        for config in permute_config(base_config):
-            aout, atime, status, _, _ = build_and_execute(
-                appname, config,
-                timeout=ptime * TIMEOUT_FACTOR, loadfunc=mod.load
+        with CWMemo(dbname=memo_db) as client:
+            # Precise (baseline) execution.
+            client.submit(build_and_execute,
+                appname, None,
+                timeout=None
             )
-            res = Result(appname, config, atime, status, aout)
-            res.evaluate(mod.score, pout, ptime)
-            results.append(res)
+            pout, ptime, _, base_config, descs = client.get(build_and_execute,
+                                                            appname, None)
+
+            # Submit relaxed executions.
+            configs = list(permute_config(base_config))
+            for config in configs:
+                client.submit(build_and_execute,
+                    appname, config,
+                    timeout=ptime * TIMEOUT_FACTOR
+                )
+
+            # Gather relaxed executions.
+            results = []
+            for config in configs:
+                aout, atime, status, _, _ = client.get(build_and_execute,
+                                                       appname, config)
+                res = Result(appname, config, atime, status, aout)
+                res.evaluate(mod.score, pout, ptime)
+                results.append(res)
 
         optimal, suboptimal, bad = triage_results(results)
         print('{} optimal, {} suboptimal, {} bad'.format(

@@ -79,4 +79,18 @@ First, it might be a good idea to `./bin/runtests.sh` to make sure the compiler 
 
 Then, install the necessary Python modules by typing `pip install -r requirements.txt`.
 
+Next, you currently need to install and set up the [cluster-workers][] library, which assists in running the data collection jobs in parallel (including on clusters). Clone the repository and install it like so:
+
+    $ git clone git://github.com/sampsyo/cluster-workers.git
+    $ cd cluster-workers
+    $ pip install -e .
+
+Then start a local master and worker process:
+
+    $ ./mp.py -n1 start
+
+(In the future, I'll make it possible to do local executions without the cluster infrastructure.)
+
 Finally, run the experiments by typing `./bin/experiments.py`. This will record some data in an SQLite database called `memo.db`; clear this out if you need to run things from the beginning again.
+
+[cluster-workers]: https://github.com/sampsyo/cluster-workers
