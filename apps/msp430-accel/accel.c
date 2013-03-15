@@ -25,7 +25,7 @@ typedef struct {
     APPROX unsigned z;
 } accel_reading;
 
-inline unsigned read_accel_channel (unsigned channel) {
+unsigned read_accel_channel (unsigned channel) {
     ADC12CTL0 &= ~ENC;
     ADC12CTL0 = ADC12ON + SHT0_1;
     ADC12CTL1 = SHP;
@@ -126,13 +126,13 @@ int main (void) {
     for (i = 0; i < NUM_READINGS; ++i) {
         read_sensor(&cur_reading);
 
-        if (ENDORSE(cur_reading).x > max_x) max_x = cur_reading.x;
-        if (ENDORSE(cur_reading).y > max_y) max_y = cur_reading.y;
-        if (ENDORSE(cur_reading).z > max_z) max_z = cur_reading.z;
+        if (ENDORSE(cur_reading.x > max_x)) max_x = cur_reading.x;
+        if (ENDORSE(cur_reading.y > max_y)) max_y = cur_reading.y;
+        if (ENDORSE(cur_reading.z > max_z)) max_z = cur_reading.z;
 
-        if (ENDORSE(cur_reading).x < min_x) min_x = cur_reading.x;
-        if (ENDORSE(cur_reading).y < min_y) min_y = cur_reading.y;
-        if (ENDORSE(cur_reading).z < min_z) min_z = cur_reading.z;
+        if (ENDORSE(cur_reading.x < min_x)) min_x = cur_reading.x;
+        if (ENDORSE(cur_reading.y < min_y)) min_y = cur_reading.y;
+        if (ENDORSE(cur_reading.z < min_z)) min_z = cur_reading.z;
 
         // TODO: moving average
     }
