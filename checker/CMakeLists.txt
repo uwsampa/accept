@@ -4,7 +4,6 @@ set(SOURCES
 
 add_clang_plugin(EnerCTypeChecker ${SOURCES})
 
-# Link to checkerlib.
-include_directories(${CHECKERLIB_SOURCE_DIR})
+include_directories(${CHECKERLIB_SOURCE_DIR} ${Project_SOURCE_DIR}/include)
 target_link_libraries(EnerCTypeChecker checkerlib)
 
