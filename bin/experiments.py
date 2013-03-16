@@ -62,7 +62,8 @@ class CWMemo(object):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        self.client.wait()
+        if not exc_type:
+            self.client.wait()
         self.client.stop()
         self.db.close()
 
