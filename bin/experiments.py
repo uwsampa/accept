@@ -311,8 +311,9 @@ def dump_config(config, descs):
         out.append(u'{} @ {}'.format(descs[mod, ident], param))
     return u', '.join(out)
 
-def evaluate(appname, verbose=False):
+def evaluate(appname, verbose=False, cluster=False):
     memo_db = os.path.abspath('memo.db')
+    master_host = cw.slurm_master_host() if cluster else 'localhost'
 
     with chdir(os.path.join(APPSDIR, appname)):
         try:
@@ -320,7 +321,7 @@ def evaluate(appname, verbose=False):
         except IOError:
             assert False, 'no eval.py found in {} directory'.format(appname)
 
-        with CWMemo(dbname=memo_db) as client:
+        with CWMemo(dbname=memo_db, host=master_host) as client:
             # Precise (baseline) execution.
             client.submit(build_and_execute,
                 appname, None,
@@ -368,10 +369,10 @@ def evaluate(appname, verbose=False):
 
 @argh.arg('appnames', metavar='NAME', default=APPS, nargs='*',
           help='applications', type=unicode)
-def experiments(appnames, verbose=False):
+def experiments(appnames, verbose=False, cluster=False):
     for appname in appnames:
         print(appname)
-        evaluate(appname, verbose)
+        evaluate(appname, verbose, cluster)
 
 if __name__ == '__main__':
     argh.dispatch_command(experiments)
