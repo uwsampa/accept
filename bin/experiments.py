@@ -10,6 +10,7 @@ import threading
 import argh
 import shutil
 import tempfile
+import math
 import cw.client
 from sqlite3dbm import sshelve
 try:
@@ -24,6 +25,8 @@ CONFIGFILE = 'accept_config.txt'
 DESCFILE = 'accept_config_desc.txt'
 TIMEOUT_FACTOR = 3
 MAX_ERROR = 0.3
+LOCAL_REPS = 1
+CLUSTER_REPS = 5
 BASEDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 @contextmanager
@@ -48,7 +51,28 @@ def sandbox():
         yield
     shutil.rmtree(basedir)
 
+def meanerr(nums):
+    """Given a list of numbers, return their mean and standard error of
+    the mean.
+    """
+    mean = sum(nums) / len(nums)
+    stdev = math.sqrt(sum((x - mean) ** 2 for x in nums) * (1.0 / len(nums)))
+    stderr = stdev / math.sqrt(len(nums))
+    return mean, stderr
+
+def fmt_mean(mean, stderr):
+    """Pretty-print a value and error.
+    """
+    return u'{:.2f} +/ {:.2f}'.format(mean, stderr)
+
 class CWMemo(object):
+    """A proxy for performing function calls that are both memoized and
+    parallelized. Its interface is akin to futures: call `submit(func,
+    arg, ...)` to request a job and, later, call `get(func, arg, ...)`
+    to block until the result is ready. If the call was made previously,
+    its result is read back from an on-disk database, and `get` returns
+    immediately.
+    """
     def __init__(self, dbname='memo.db', host='localhost'):
         self.dbname = dbname
         self.db = sshelve.open(self.dbname)
@@ -195,7 +219,7 @@ def parse_relax_desc(f):
             out[mod, int(ident)] = desc
     return out
 
-def build_and_execute(appname, relax_config, timeout=None):
+def build_and_execute(appname, relax_config, rep, timeout=None):
     """Build an application, run it, and collect its output. Return the
     parsed output, the duration of the execution (or None for timeout),
     the exit status, the relaxation configuration, and the relaxation
@@ -242,40 +266,68 @@ def permute_config(base):
         yield config
 
 class Result(object):
-    def __init__(self, app, config, duration, status, output):
+    """Represents the result of executing one relaxed configuration of a
+    program.
+    """
+    def __init__(self, app, config, durations, status, output):
         self.app = app
         self.config = config
-        self.duration = duration
+        self.durations = durations
         self.status = status
         self.output = output
 
-    def evaluate(self, scorefunc, precise_output, precise_duration):
+        self.duration_mean, self.duration_err = meanerr(self.durations)
+
+    def evaluate(self, scorefunc, precise_output, precise_durations):
+        p_dur_mean, p_dur_err = meanerr(precise_durations)
+
         if self.status is None:
             # Timed out.
             self.good = False
             self.desc = 'timed out'
-        elif self.status:
+            return
+
+        if self.status:
             # Error status.
             self.good = False
             self.desc = 'exited with status {}'.format(self.status)
-        elif self.duration > precise_duration:
+            return
+
+        # Get output error.
+        self.error = scorefunc(precise_output, self.output)
+
+        # Calculate speedup, propagating error if available.
+        self.speedup_mean = p_dur_mean / self.duration_mean
+        if p_dur_err:
+            self.speedup_err = self.speedup_mean * \
+                (p_dur_mean / p_dur_err) * \
+                (self.duration_err / self.duration_mean)
+        else:
+            self.speedup_err = 0.0
+
+        if self.error > MAX_ERROR:
+            # Large output error.
+            self.good = False
+            self.desc = 'large error: {:.2%}'.format(self.error)
+            return
+
+        if self.speedup_mean + self.speedup_err < 1.0:
             # Slowdown.
             self.good = False
-            self.desc = 'slowdown: {:.2f} vs. {:.2f}'.format(
-                self.duration, precise_duration
+            self.desc = 'slowdown: {} vs. {}'.format(
+                fmt_mean(self.duration_mean, self.duration_err),
+                fmt_mean(p_dur_mean, p_dur_err),
             )
-        else:
-            self.speedup = precise_duration / self.duration
-            self.error = scorefunc(precise_output, self.output)
-            if self.error > MAX_ERROR:
-                # Large output error.
-                self.good = False
-                self.desc = 'large error: {:.2%}'.format(self.error)
-            else:
-                self.good = True
-                self.desc = 'good'
+            return
+
+        # All good!
+        self.good = True
+        self.desc = 'good'
 
 def triage_results(results):
+    """Given a list of Result objects, splits the data set into three
+    lists: optimal, suboptimal, and bad results.
+    """
     good = []
     bad = []
     for res in results:
@@ -287,7 +339,9 @@ def triage_results(results):
         for other in good:
             if res == good:
                 continue
-            if other.error < res.error and other.speedup > res.speedup:
+            if other.error < res.error and \
+                    other.speedup_mean - other.speedup_err > \
+                    res.speedup_mean + res.speedup_err:
                 # other dominates res, so eliminate res from the optimal
                 # set.
                 suboptimal.append(res)
@@ -312,9 +366,64 @@ def dump_config(config, descs):
         out.append(u'{} @ {}'.format(descs[mod, ident], param))
     return u', '.join(out)
 
+def get_results(appname, client, scorefunc, reps):
+    """Get a list of Result objects for a given application along with
+    its location descriptions. Takes an active CWMemo instance,
+    `client`, through which jobs will be submitted and outputs
+    collected. `scorefunc` is the application's output quality scoring
+    function. `reps` is the number of executions per configuration to
+    run.
+    """
+    # Precise (baseline) execution.
+    for rep in range(reps):
+        client.submit(build_and_execute,
+            appname, None, rep,
+            timeout=None
+        )
+
+    # Relaxed executions.
+    pout, ptime, _, base_config, descs = client.get(build_and_execute,
+                                                    appname, None, 0)
+    configs = list(permute_config(base_config))
+    for config in configs:
+        for rep in range(reps):
+            client.submit(build_and_execute,
+                appname, config, rep,
+                timeout=ptime * TIMEOUT_FACTOR
+            )
+
+    # Get execution times for the precise version.
+    ptimes = []
+    for rep in range(reps):
+        _, dur, _, _, _ = client.get(build_and_execute,
+                                     appname, None, rep)
+        ptimes.append(dur)
+
+    # Gather relaxed executions.
+    results = []
+    for config in configs:
+        # Get outputs from first execution.
+        aout, _, status, _, _ = client.get(build_and_execute,
+                                           appname, config, 0)
+
+        # Get all execution times.
+        atimes = []
+        for rep in range(reps):
+            _, dur, _, _, _ = client.get(build_and_execute,
+                                         appname, config, rep)
+            atimes.append(dur)
+
+        # Evaluate the result.
+        res = Result(appname, config, atimes, status, aout)
+        res.evaluate(scorefunc, pout, ptimes)
+        results.append(res)
+
+    return results, descs
+
 def evaluate(appname, verbose=False, cluster=False):
     memo_db = os.path.abspath('memo.db')
     master_host = cw.slurm_master_host() if cluster else 'localhost'
+    reps = CLUSTER_REPS if cluster else LOCAL_REPS
 
     with chdir(os.path.join(APPSDIR, appname)):
         try:
@@ -323,30 +432,7 @@ def evaluate(appname, verbose=False, cluster=False):
             assert False, 'no eval.py found in {} directory'.format(appname)
 
         with CWMemo(dbname=memo_db, host=master_host) as client:
-            # Precise (baseline) execution.
-            client.submit(build_and_execute,
-                appname, None,
-                timeout=None
-            )
-            pout, ptime, _, base_config, descs = client.get(build_and_execute,
-                                                            appname, None)
-
-            # Submit relaxed executions.
-            configs = list(permute_config(base_config))
-            for config in configs:
-                client.submit(build_and_execute,
-                    appname, config,
-                    timeout=ptime * TIMEOUT_FACTOR
-                )
-
-            # Gather relaxed executions.
-            results = []
-            for config in configs:
-                aout, atime, status, _, _ = client.get(build_and_execute,
-                                                       appname, config)
-                res = Result(appname, config, atime, status, aout)
-                res.evaluate(mod.score, pout, ptime)
-                results.append(res)
+            results, descs = get_results(appname, client, mod.score, reps)
 
         optimal, suboptimal, bad = triage_results(results)
         print('{} optimal, {} suboptimal, {} bad'.format(
@@ -355,14 +441,18 @@ def evaluate(appname, verbose=False, cluster=False):
         for res in optimal:
             print(dump_config(res.config, descs))
             print('{:.1%} error'.format(res.error))
-            print('{:.2f}x speedup'.format(res.speedup))
+            print('{} speedup'.format(
+                fmt_mean(res.speedup_mean, res.speedup_err)
+            ))
 
         if verbose:
             print('\nsuboptimal configs:')
             for res in suboptimal:
                 print(dump_config(res.config, descs))
                 print('{:.1%} error'.format(res.error))
-                print('{:.2f}x speedup'.format(res.speedup))
+                print('{} speedup'.format(
+                    fmt_mean(res.speedup_mean, res.speedup_err)
+                ))
 
             print('\nbad configs:')
             for res in bad:
