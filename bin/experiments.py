@@ -25,7 +25,7 @@ CONFIGFILE = 'accept_config.txt'
 DESCFILE = 'accept_config_desc.txt'
 TIMEOUT_FACTOR = 3
 MAX_ERROR = 0.3
-LOCAL_REPS = 1
+LOCAL_REPS = 5
 CLUSTER_REPS = 5
 BASEDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -51,19 +51,84 @@ def sandbox():
         yield
     shutil.rmtree(basedir)
 
-def meanerr(nums):
-    """Given a list of numbers, return their mean and standard error of
-    the mean.
+class Uncertain(object):
+    def __init__(self, value, error):
+        self.value = value
+        self.error = error
+
+    def __unicode__(self):
+        return u'{:.2f} +/- {:.2f}'.format(self.value, self.error)
+
+    def __str__(self):
+        return str(unicode(self))
+
+    def __repr__(self):
+        return 'Uncertain({}, {})'.format(self.value, self.error)
+
+    def __mul__(self, other):
+        if isinstance(other, Uncertain):
+            value = self.value * other.value
+            return Uncertain(
+                value,
+                abs(value) * math.sqrt(
+                    (self.error / self.value) ** 2 +
+                    (other.error / other.value) ** 2
+                )
+            )
+        else:
+            return Uncertain(self.value * other, abs(self.error * other))
+
+    def __rmul__(self, other):
+        return self * other
+
+    def __truediv__(self, other):
+        return self * other ** -1.0
+
+    def __pow__(self, other):
+        if isinstance(other, Uncertain):
+            raise NotImplementedError()
+        else:
+            value = self.value ** other
+            return Uncertain(
+                value,
+                abs(value) * abs(other) * self.error / abs(self.value)
+            )
+
+    def __add__(self, other):
+        if isinstance(other, Uncertain):
+            return Uncertain(
+                self.value + other.value,
+                math.sqrt(
+                    self.error ** 2 +
+                    other.error ** 2
+                )
+            )
+        else:
+            return Uncertain(self.value + other, self.error)
+
+    def __sub__(self, other):
+        return self + (-other)
+
+    def __neg__(self):
+        return self * -1.0
+
+    def __gt__(self, other):
+        if isinstance(other, Uncertain):
+            return self.value - self.error > other.value + other.error
+        else:
+            return self.value - self.error > other
+
+    def __lt__(self, other):
+        return -self > -other
+
+def umean(nums):
+    """Given a list of numbers, return their mean with standard error as
+    an Uncertain.
     """
     mean = sum(nums) / len(nums)
     stdev = math.sqrt(sum((x - mean) ** 2 for x in nums) * (1.0 / len(nums)))
     stderr = stdev / math.sqrt(len(nums))
-    return mean, stderr
-
-def fmt_mean(mean, stderr):
-    """Pretty-print a value and error.
-    """
-    return u'{:.2f} +/ {:.2f}'.format(mean, stderr)
+    return Uncertain(mean, stderr)
 
 class CWMemo(object):
     """A proxy for performing function calls that are both memoized and
@@ -276,10 +341,10 @@ class Result(object):
         self.status = status
         self.output = output
 
-        self.duration_mean, self.duration_err = meanerr(self.durations)
+        self.duration = umean(self.durations)
 
     def evaluate(self, scorefunc, precise_output, precise_durations):
-        p_dur_mean, p_dur_err = meanerr(precise_durations)
+        p_dur = umean(precise_durations)
 
         if self.status is None:
             # Timed out.
@@ -293,17 +358,9 @@ class Result(object):
             self.desc = 'exited with status {}'.format(self.status)
             return
 
-        # Get output error.
+        # Get output error and speedup.
         self.error = scorefunc(precise_output, self.output)
-
-        # Calculate speedup, propagating error if available.
-        self.speedup_mean = p_dur_mean / self.duration_mean
-        if p_dur_err:
-            self.speedup_err = self.speedup_mean * \
-                (p_dur_mean / p_dur_err) * \
-                (self.duration_err / self.duration_mean)
-        else:
-            self.speedup_err = 0.0
+        self.speedup = p_dur / self.duration
 
         if self.error > MAX_ERROR:
             # Large output error.
@@ -311,13 +368,10 @@ class Result(object):
             self.desc = 'large error: {:.2%}'.format(self.error)
             return
 
-        if self.speedup_mean + self.speedup_err < 1.0:
+        if self.speedup < 1.0:
             # Slowdown.
             self.good = False
-            self.desc = 'slowdown: {} vs. {}'.format(
-                fmt_mean(self.duration_mean, self.duration_err),
-                fmt_mean(p_dur_mean, p_dur_err),
-            )
+            self.desc = 'slowdown: {} vs. {}'.format(self.duration, p_dur)
             return
 
         # All good!
@@ -339,9 +393,7 @@ def triage_results(results):
         for other in good:
             if res == good:
                 continue
-            if other.error < res.error and \
-                    other.speedup_mean - other.speedup_err > \
-                    res.speedup_mean + res.speedup_err:
+            if other.error < res.error and other.speedup > res.speedup:
                 # other dominates res, so eliminate res from the optimal
                 # set.
                 suboptimal.append(res)
@@ -441,18 +493,14 @@ def evaluate(appname, verbose=False, cluster=False):
         for res in optimal:
             print(dump_config(res.config, descs))
             print('{:.1%} error'.format(res.error))
-            print('{} speedup'.format(
-                fmt_mean(res.speedup_mean, res.speedup_err)
-            ))
+            print('{} speedup'.format(res.speedup))
 
         if verbose:
             print('\nsuboptimal configs:')
             for res in suboptimal:
                 print(dump_config(res.config, descs))
                 print('{:.1%} error'.format(res.error))
-                print('{} speedup'.format(
-                    fmt_mean(res.speedup_mean, res.speedup_err)
-                ))
+                print('{} speedup'.format(res.speedup))
 
             print('\nbad configs:')
             for res in bad:
