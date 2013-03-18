@@ -100,165 +100,6 @@ bool elidable(Instruction *instr) {
   return elidable_helper(instr, seen);
 }
 
-// Conservatively check whether a store instruction can be observed by any
-// load instructions *other* than those in the specified set of instructions.
-bool storeEscapes(StoreInst *store, std::set<Instruction*> insts) {
-  Value *ptr = store->getPointerOperand();
-
-  // Make sure the pointer was created locally. That is, conservatively assume
-  // that pointers coming from arguments or returned from other functions are
-  // aliased somewhere else.
-  if (!isa<AllocaInst>(ptr))
-    return true;
-
-  // Give up if the pointer is copied and leaves the function. This could be
-  // smarter if it only looked *after* the store (flow-wise).
-  if (PointerMayBeCaptured(ptr, true, true))
-    return true;
-
-  // Look for loads to the pointer not present in our exclusion set. Again, it
-  // would be smarter to only look at the *successors* of the block in which
-  // the store appears.
-  Function *func = store->getParent()->getParent();
-  for (Function::iterator bi = func->begin(); bi != func->end(); ++bi) {
-    for (BasicBlock::iterator ii = bi->begin(); ii != bi->end(); ++ii) {
-      if (LoadInst *load = dyn_cast<LoadInst>(ii)) {
-        if (load->getPointerOperand() == ptr && !insts.count(load)) {
-          return true;
-        }
-      }
-    }
-  }
-
-  return false;
-}
-
-int preciseEscapeCheckHelper(std::map<Instruction*, bool> &flags,
-                             const std::set<Instruction*> &insts) {
-  int changes = 0;
-  for (std::map<Instruction*, bool>::iterator i = flags.begin();
-      i != flags.end(); ++i) {
-    // Only consider currently-untainted instructions.
-    if (i->second) {
-      continue;
-    }
-
-    // Precise store: check whether it escapes.
-    if (StoreInst *store = dyn_cast<StoreInst>(i->first)) {
-      if (!storeEscapes(store, insts)) {
-        i->second = true;
-        ++changes;
-      }
-      continue;
-    }
-
-    // Calls must be to precise-pure functions.
-    if (CallInst *call = dyn_cast<CallInst>(i->first)) {
-      if (!isa<DbgInfoIntrinsic>(call)) {
-        // TODO: Check purity.
-        continue;
-      }
-    }
-
-    bool allUsesTainted = true;
-    for (Value::use_iterator ui = i->first->use_begin();
-          ui != i->first->use_end(); ++ui) {
-      Instruction *user = dyn_cast<Instruction>(*ui);
-      if (user && !flags[user]) {
-        allUsesTainted = false;
-        break;
-      }
-    }
-
-    if (allUsesTainted) {
-      ++changes;
-      i->second = true;
-    }
-  }
-  return changes;
-}
-
-bool hasPermit(Instruction *inst) {
-  DebugLoc dl = inst->getDebugLoc();
-  DIScope scope(dl.getScope(inst->getContext()));
-  if (!scope.Verify())
-    return false;
-
-  // Read line N of the file.
-  std::ifstream srcFile(scope.getFilename().data());
-  int lineno = 1;
-  std::string theLine;
-  while (srcFile.good()) {
-    std::string curLine;
-    getline(srcFile, curLine);
-    if (lineno == dl.getLine()) {
-      theLine = curLine;
-      break;
-    } else {
-      ++lineno;
-    }
-  }
-  srcFile.close();
-
-  return theLine.find(PERMIT) != std::string::npos;
-}
-
-bool approxOrLocal(std::set<Instruction*> &insts, Instruction *inst) {
-  if (hasPermit(inst)) {
-    return true;
-  } else if (isa<CallInst>(inst)) {
-    return false;
-  } else if (isApprox(inst)) {
-    return true;
-  } else if (isa<StoreInst>(inst) ||
-             isa<ReturnInst>(inst) ||
-             isa<BranchInst>(inst)) {
-    return false;  // Never approximate.
-  } else {
-    for (Value::use_iterator ui = inst->use_begin();
-          ui != inst->use_end(); ++ui) {
-      Instruction *user = dyn_cast<Instruction>(*ui);
-      if (user && insts.count(user) == 0) {
-        return false;  // Escapes.
-      }
-    }
-    return true;  // Does not escape.
-  }
-}
-
-std::set<Instruction*> preciseEscapeCheck(std::set<Instruction*> insts) {
-  std::map<Instruction*, bool> flags;
-
-  // Mark all approx and non-escaping instructions.
-  for (std::set<Instruction*>::iterator i = insts.begin();
-       i != insts.end(); ++i) {
-    flags[*i] = approxOrLocal(insts, *i);
-  }
-
-  // Iterate to a fixed point.
-  while (preciseEscapeCheckHelper(flags, insts)) {}
-
-  // Construct a set of untainted instructions.
-  std::set<Instruction*> untainted;
-  for (std::map<Instruction*, bool>::iterator i = flags.begin();
-      i != flags.end(); ++i) {
-    if (!i->second)
-      untainted.insert(i->first);
-  }
-  return untainted;
-}
-
-std::set<Instruction*> preciseEscapeCheck(std::set<BasicBlock*> blocks) {
-  std::set<Instruction*> insts;
-  for (std::set<BasicBlock*>::iterator bi = blocks.begin();
-       bi != blocks.end(); ++bi) {
-    for (BasicBlock::iterator ii = (*bi)->begin();
-         ii != (*bi)->end(); ++ii) {
-      insts.insert(ii);
-    }
-  }
-  return preciseEscapeCheck(insts);
-}
 
 // Format a source position.
 std::string srcPosDesc(const Module &mod, const DebugLoc &dl) {
@@ -318,6 +159,196 @@ std::string instDesc(const Module &mod, Instruction *inst) {
 }
 
 
+/**** (NEW) ELIDABILITY ANALYSIS ***/
+
+struct ACCEPTAnalysis {
+  ACCEPTAnalysis() {
+  }
+
+  // Conservatively check whether a store instruction can be observed by any
+  // load instructions *other* than those in the specified set of instructions.
+  bool storeEscapes(StoreInst *store, std::set<Instruction*> insts) {
+    Value *ptr = store->getPointerOperand();
+
+    // Make sure the pointer was created locally. That is, conservatively assume
+    // that pointers coming from arguments or returned from other functions are
+    // aliased somewhere else.
+    if (!isa<AllocaInst>(ptr))
+      return true;
+
+    // Give up if the pointer is copied and leaves the function. This could be
+    // smarter if it only looked *after* the store (flow-wise).
+    if (PointerMayBeCaptured(ptr, true, true))
+      return true;
+
+    // Look for loads to the pointer not present in our exclusion set. Again, it
+    // would be smarter to only look at the *successors* of the block in which
+    // the store appears.
+    Function *func = store->getParent()->getParent();
+    for (Function::iterator bi = func->begin(); bi != func->end(); ++bi) {
+      for (BasicBlock::iterator ii = bi->begin(); ii != bi->end(); ++ii) {
+        if (LoadInst *load = dyn_cast<LoadInst>(ii)) {
+          if (load->getPointerOperand() == ptr && !insts.count(load)) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  int preciseEscapeCheckHelper(std::map<Instruction*, bool> &flags,
+                               const std::set<Instruction*> &insts) {
+    int changes = 0;
+    for (std::map<Instruction*, bool>::iterator i = flags.begin();
+        i != flags.end(); ++i) {
+      // Only consider currently-untainted instructions.
+      if (i->second) {
+        continue;
+      }
+
+      // Precise store: check whether it escapes.
+      if (StoreInst *store = dyn_cast<StoreInst>(i->first)) {
+        if (!storeEscapes(store, insts)) {
+          i->second = true;
+          ++changes;
+        }
+        continue;
+      }
+
+      // Calls must be to precise-pure functions.
+      if (CallInst *call = dyn_cast<CallInst>(i->first)) {
+        if (!isa<DbgInfoIntrinsic>(call)) {
+
+          Function *func = call->getCalledFunction();
+          if (func && isPrecisePure(func)) {
+            // The call itself is precise-pure, but now we need to make sure
+            // that the uses are also tainted.
+            // Fall through to usage check.
+          } else {
+            continue;
+          }
+
+        }
+      }
+
+      bool allUsesTainted = true;
+      for (Value::use_iterator ui = i->first->use_begin();
+            ui != i->first->use_end(); ++ui) {
+        Instruction *user = dyn_cast<Instruction>(*ui);
+        if (user && !flags[user]) {
+          allUsesTainted = false;
+          break;
+        }
+      }
+
+      if (allUsesTainted) {
+        ++changes;
+        i->second = true;
+      }
+    }
+    return changes;
+  }
+
+  bool hasPermit(Instruction *inst) {
+    DebugLoc dl = inst->getDebugLoc();
+    DIScope scope(dl.getScope(inst->getContext()));
+    if (!scope.Verify())
+      return false;
+
+    // Read line N of the file.
+    std::ifstream srcFile(scope.getFilename().data());
+    int lineno = 1;
+    std::string theLine;
+    while (srcFile.good()) {
+      std::string curLine;
+      getline(srcFile, curLine);
+      if (lineno == dl.getLine()) {
+        theLine = curLine;
+        break;
+      } else {
+        ++lineno;
+      }
+    }
+    srcFile.close();
+
+    return theLine.find(PERMIT) != std::string::npos;
+  }
+
+  bool approxOrLocal(std::set<Instruction*> &insts, Instruction *inst) {
+    if (hasPermit(inst)) {
+      return true;
+    } else if (CallInst *call = dyn_cast<CallInst>(inst)) {
+      Function *func = call->getCalledFunction();
+      if (func && isPrecisePure(func)) {
+        if (isApprox(inst)) {
+          return true;
+        }
+        // Otherwise, fall through and check usages for escape.
+      } else {
+        return false;
+      }
+    } else if (isApprox(inst)) {
+      return true;
+    } else if (isa<StoreInst>(inst) ||
+               isa<ReturnInst>(inst) ||
+               isa<BranchInst>(inst)) {
+      return false;  // Never approximate.
+    }
+
+    for (Value::use_iterator ui = inst->use_begin();
+          ui != inst->use_end(); ++ui) {
+      Instruction *user = dyn_cast<Instruction>(*ui);
+      if (user && insts.count(user) == 0) {
+        return false;  // Escapes.
+      }
+    }
+    return true;  // Does not escape.
+  }
+
+  std::set<Instruction*> preciseEscapeCheck(std::set<Instruction*> insts) {
+    std::map<Instruction*, bool> flags;
+
+    // Mark all approx and non-escaping instructions.
+    for (std::set<Instruction*>::iterator i = insts.begin();
+         i != insts.end(); ++i) {
+      flags[*i] = approxOrLocal(insts, *i);
+    }
+
+    // Iterate to a fixed point.
+    while (preciseEscapeCheckHelper(flags, insts)) {}
+
+    // Construct a set of untainted instructions.
+    std::set<Instruction*> untainted;
+    for (std::map<Instruction*, bool>::iterator i = flags.begin();
+        i != flags.end(); ++i) {
+      if (!i->second)
+        untainted.insert(i->first);
+    }
+    return untainted;
+  }
+
+  std::set<Instruction*> preciseEscapeCheck(std::set<BasicBlock*> blocks) {
+    std::set<Instruction*> insts;
+    for (std::set<BasicBlock*>::iterator bi = blocks.begin();
+         bi != blocks.end(); ++bi) {
+      for (BasicBlock::iterator ii = (*bi)->begin();
+           ii != (*bi)->end(); ++ii) {
+        insts.insert(ii);
+      }
+    }
+    return preciseEscapeCheck(insts);
+  }
+
+  // Determine whether a function can only affect approximate memory (i.e., no
+  // precise stores escape).
+  bool isPrecisePure(Function *func) {
+    return false;
+  }
+};
+
+
 /**** THE MAIN LLVM PASS ****/
 
 struct ACCEPTPass : public FunctionPass {
@@ -332,6 +363,7 @@ struct ACCEPTPass : public FunctionPass {
   std::map<int, std::string> configDesc;  // ident -> description
   int opportunityId;
   raw_fd_ostream *log;
+  ACCEPTAnalysis analysis;
 
   ACCEPTPass() : FunctionPass(ID) {
     gApproxInsts = 0;
@@ -560,7 +592,7 @@ struct ACCEPTPass : public FunctionPass {
         continue;
       loopBlocks.insert(*bi);
     }
-    std::set<Instruction*> blockers = preciseEscapeCheck(loopBlocks);
+    std::set<Instruction*> blockers = analysis.preciseEscapeCheck(loopBlocks);
     *log << "blockers: " << blockers.size() << "\n";
     for (std::set<Instruction*>::iterator i = blockers.begin();
          i != blockers.end(); ++i) {
