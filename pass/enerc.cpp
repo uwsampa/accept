@@ -356,6 +356,13 @@ struct ACCEPTAnalysis {
       return true;
     }
 
+    // Empty functions (those for which we don't have a definition) are
+    // conservatively marked non-pure.
+    if (func->empty()) {
+      functionPurity[func] = false;
+      return false;
+    }
+
     // Begin by marking the function as non-pure. This avoids an infinite loop
     // for recursive function calls (but is, of course, conservative).
     functionPurity[func] = false;
