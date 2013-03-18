@@ -25,7 +25,7 @@ CONFIGFILE = 'accept_config.txt'
 DESCFILE = 'accept_config_desc.txt'
 TIMEOUT_FACTOR = 3
 MAX_ERROR = 0.3
-LOCAL_REPS = 5
+LOCAL_REPS = 1
 CLUSTER_REPS = 5
 BASEDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -137,14 +137,20 @@ class CWMemo(object):
     to block until the result is ready. If the call was made previously,
     its result is read back from an on-disk database, and `get` returns
     immediately.
+
+    `dbname` is the filename of the SQLite database to use for
+    memoization. `host` is the cluster-workers master hostname address.
+    If `force` is true, then no memoized values will be used; every job
+    is recomputed and overwrites any previous result.
     """
-    def __init__(self, dbname='memo.db', host='localhost'):
+    def __init__(self, dbname='memo.db', host='localhost', force=False):
         self.dbname = dbname
         self.db = sshelve.open(self.dbname)
         self.completion_thread_db = None
         self.client = cw.client.ClientThread(self.completion, host)
         self.jobs = {}
         self.completion_cond = self.client.jobs_cond
+        self.force = force
 
     def __enter__(self):
         self.client.start()
@@ -177,7 +183,10 @@ class CWMemo(object):
         # Check whether this call is memoized.
         key = self._key_for(func, args, kwargs)
         if key in self.db:
-            return
+            if self.force:
+                del self.db[key]
+            else:
+                return
 
         # If not, submit a job to execute it.
         jobid = cw.randid()
@@ -472,7 +481,7 @@ def get_results(appname, client, scorefunc, reps):
 
     return results, descs
 
-def evaluate(appname, verbose=False, cluster=False):
+def evaluate(appname, verbose=False, cluster=False, force=False):
     memo_db = os.path.abspath('memo.db')
     master_host = cw.slurm_master_host() if cluster else 'localhost'
     reps = CLUSTER_REPS if cluster else LOCAL_REPS
@@ -483,7 +492,7 @@ def evaluate(appname, verbose=False, cluster=False):
         except IOError:
             assert False, 'no eval.py found in {} directory'.format(appname)
 
-        with CWMemo(dbname=memo_db, host=master_host) as client:
+        with CWMemo(dbname=memo_db, host=master_host, force=force) as client:
             results, descs = get_results(appname, client, mod.score, reps)
 
         optimal, suboptimal, bad = triage_results(results)
@@ -508,10 +517,10 @@ def evaluate(appname, verbose=False, cluster=False):
 
 @argh.arg('appnames', metavar='NAME', default=APPS, nargs='*',
           help='applications', type=unicode)
-def experiments(appnames, verbose=False, cluster=False):
+def experiments(appnames, verbose=False, cluster=False, force=False):
     for appname in appnames:
         print(appname)
-        evaluate(appname, verbose, cluster)
+        evaluate(appname, verbose, cluster, force)
 
 if __name__ == '__main__':
     argh.dispatch_command(experiments)
