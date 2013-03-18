@@ -91,6 +91,10 @@ Then start a local master and worker process:
 
 (In the future, I'll make it possible to do local executions without the cluster infrastructure.)
 
+For some of the benchmarks, you will need large input files that are not included in this repository:
+
+* blackscholes: "simlarge" input from PARSEC (`in_64K.txt`)
+
 Finally, run the experiments by typing `./bin/experiments.py`. This will record some data in an SQLite database called `memo.db`; clear this out if you need to run things from the beginning again.
 
 [cluster-workers]: https://github.com/sampsyo/cluster-workers
