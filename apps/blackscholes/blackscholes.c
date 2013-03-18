@@ -45,7 +45,7 @@ MAIN_ENV
 //Precision to use for calculations
 #define fptype float
 
-APPROX int NUM_RUNS = 1;
+int NUM_RUNS = 10;
 
 typedef struct OptionData_ {
         APPROX fptype s;          // spot price
@@ -214,13 +214,16 @@ DWORD WINAPI bs_thread(LPVOID tid_ptr){
 int bs_thread(void *tid_ptr) {
 #endif
     int i;
-    APPROX int j;
+    int j;
     APPROX fptype price;
     APPROX fptype priceDelta;
     int tid = *(int *)tid_ptr;
     int start = tid * (numOptions / nThreads);
     int end = start + (numOptions / nThreads);
 
+    int _dummy = 0;
+    for (j=0; j<NUM_RUNS; j++) {
+        _dummy = 1; // ACCEPT: Prohibit perforation of this loop.
 #ifdef ENABLE_OPENMP
 #pragma omp parallel for
         for (i=0; i<numOptions; i++) {
@@ -244,6 +247,8 @@ int bs_thread(void *tid_ptr) {
             }
 #endif
         }
+    }
+    _dummy = _dummy;
 
     return 0;
 }
