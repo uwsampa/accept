@@ -3,6 +3,7 @@ import os
 import string
 import random
 import PIL
+import PIL.Image
 import itertools
 
 IMGDIR = 'saved_outputs'
