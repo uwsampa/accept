@@ -163,8 +163,11 @@ std::string instDesc(const Module &mod, Instruction *inst) {
 
 struct ACCEPTAnalysis {
   std::map<Function*, bool> functionPurity;
+  raw_fd_ostream *log;
 
-  ACCEPTAnalysis() {}
+  ACCEPTAnalysis(raw_fd_ostream *l) :
+    log(l)
+    {}
 
   // Conservatively check whether a store instruction can be observed by any
   // load instructions *other* than those in the specified set of instructions.
@@ -281,6 +284,11 @@ struct ACCEPTAnalysis {
     if (hasPermit(inst)) {
       return true;
     } else if (CallInst *call = dyn_cast<CallInst>(inst)) {
+
+      if (isa<DbgInfoIntrinsic>(call)) {
+        return true;
+      }
+
       Function *func = call->getCalledFunction();
       if (func && isPrecisePure(func)) {
         if (isApprox(inst)) {
@@ -290,6 +298,7 @@ struct ACCEPTAnalysis {
       } else {
         return false;
       }
+
     } else if (isApprox(inst)) {
       return true;
     } else if (isa<StoreInst>(inst) ||
@@ -350,8 +359,11 @@ struct ACCEPTAnalysis {
       return functionPurity[func];
     }
 
+    *log << " - checking function " << func->getName() << "\n";
+
     // LLVM's own nominal purity analysis.
     if (func->onlyReadsMemory()) {
+      *log << " - only reads memory\n";
       functionPurity[func] = true;
       return true;
     }
@@ -359,6 +371,7 @@ struct ACCEPTAnalysis {
     // Empty functions (those for which we don't have a definition) are
     // conservatively marked non-pure.
     if (func->empty()) {
+      *log << " - definition not available\n";
       functionPurity[func] = false;
       return false;
     }
@@ -371,9 +384,19 @@ struct ACCEPTAnalysis {
     for (Function::iterator bi = func->begin(); bi != func->end(); ++bi) {
       blocks.insert(bi);
     }
-    bool res = preciseEscapeCheck(blocks).empty();
-    functionPurity[func] = res;
-    return res;
+    std::set<Instruction*> blockers = preciseEscapeCheck(blocks);
+
+    *log << " - blockers: " << blockers.size() << "\n";
+    for (std::set<Instruction*>::iterator i = blockers.begin();
+         i != blockers.end(); ++i) {
+      *log << " - * " << instDesc(*(func->getParent()), *i) << "\n";
+    }
+    if (blockers.empty()) {
+      *log << " - precise-pure function: " << func->getName() << "\n";
+    }
+
+    functionPurity[func] = blockers.empty();
+    return blockers.empty();
   }
 };
 
@@ -392,7 +415,7 @@ struct ACCEPTPass : public FunctionPass {
   std::map<int, std::string> configDesc;  // ident -> description
   int opportunityId;
   raw_fd_ostream *log;
-  ACCEPTAnalysis analysis;
+  ACCEPTAnalysis *analysis;
 
   ACCEPTPass() : FunctionPass(ID) {
     gApproxInsts = 0;
@@ -424,6 +447,8 @@ struct ACCEPTPass : public FunctionPass {
     std::string error;
     log = new raw_fd_ostream("accept_log.txt", error);
 
+    analysis = new ACCEPTAnalysis(log);
+
     return false;
   }
 
@@ -432,6 +457,8 @@ struct ACCEPTPass : public FunctionPass {
     if (!optRelax)
       dumpRelaxConfig();
     log->close();
+    delete log;
+    delete analysis;
     return false;
   }
 
@@ -621,11 +648,11 @@ struct ACCEPTPass : public FunctionPass {
         continue;
       loopBlocks.insert(*bi);
     }
-    std::set<Instruction*> blockers = analysis.preciseEscapeCheck(loopBlocks);
+    std::set<Instruction*> blockers = analysis->preciseEscapeCheck(loopBlocks);
     *log << "blockers: " << blockers.size() << "\n";
     for (std::set<Instruction*>::iterator i = blockers.begin();
          i != blockers.end(); ++i) {
-      *log << " - " << instDesc(*module, *i) << "\n";
+      *log << " * " << instDesc(*module, *i) << "\n";
     }
 
     if (!blockers.size()) {
