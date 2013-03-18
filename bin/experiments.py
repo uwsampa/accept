@@ -17,6 +17,8 @@ try:
     import cPickle as pickle
 except ImportError:
     import pickle
+import logging
+import sys
 
 APPS = ['streamcluster', 'blackscholes', 'sobel']
 APPSDIR = 'apps'
@@ -151,6 +153,8 @@ class CWMemo(object):
         self.jobs = {}
         self.completion_cond = self.client.jobs_cond
         self.force = force
+        self.logger = logging.getLogger('cwmemo')
+        self.logger.setLevel(logging.INFO)
 
     def __enter__(self):
         self.client.start()
@@ -163,6 +167,14 @@ class CWMemo(object):
         self.db.close()
 
     def completion(self, jobid, output):
+        """Callback invoked when a cluster-workers job finishes. We
+        store the result for a later get() call and wake up any pending
+        get()s.
+        """
+        self.logger.info(u'job completed ({} pending)'.format(
+            len(self.jobs) - 1
+        ))
+
         # Called in a different thread, so we need a separate SQLite
         # connection.
         if not self.completion_thread_db:
@@ -180,6 +192,8 @@ class CWMemo(object):
         return pickle.dumps((func.__module__, func.__name__, args))
 
     def submit(self, func, *args, **kwargs):
+        """Start a job (if it is not already memoized).
+        """
         # Check whether this call is memoized.
         key = self._key_for(func, args, kwargs)
         if key in self.db:
@@ -192,6 +206,9 @@ class CWMemo(object):
         jobid = cw.randid()
         with self.client.jobs_cond:
             self.jobs[jobid] = key
+        self.logger.info(u'submitting {}({})'.format(
+            func.__name__, u', '.join(repr(a) for a in args)
+        ))
         self.client.submit(jobid, func, *args, **kwargs)
 
     def get(self, func, *args, **kwargs):
@@ -522,6 +539,9 @@ def experiments(appnames, verbose=False, cluster=False, force=False,
                 reps=None):
     if not reps:
         reps = CLUSTER_REPS if cluster else LOCAL_REPS
+
+    logging.getLogger().addHandler(logging.StreamHandler(sys.stderr))
+
     for appname in appnames:
         print(appname)
         evaluate(appname, verbose, cluster, force, reps)
