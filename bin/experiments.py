@@ -43,17 +43,28 @@ def chdir(d):
     os.chdir(olddir)
 
 @contextmanager
-def sandbox():
-    """Create a temporary sandbox directory, copy everything from the
-    current directory into it, and enter the directory. Afterwards,
-    change back and clean up.
+def sandbox(symlink=False):
+    """Create a temporary sandbox directory, copy (or symlink)
+    everything from the current directory into it, and enter the
+    directory. Afterwards, change back and clean up.
     """
-    basedir = tempfile.mkdtemp()
-    sandbox_dir = os.path.join(basedir, os.path.basename(os.getcwd()))
-    shutil.copytree(os.getcwd(), sandbox_dir)
+    sandbox_dir = tempfile.mkdtemp()
+
+    for name in os.listdir(os.getcwd()):
+        src = os.path.join(os.getcwd(), name)
+        dst = os.path.join(sandbox_dir, name)
+        if symlink:
+            os.symlink(src, dst)
+        else:
+            if os.path.isdir(src):
+                shutil.copytree(src, dst)
+            else:
+                shutil.copyfile(src, dst)
+
     with chdir(sandbox_dir):
         yield
-    shutil.rmtree(basedir)
+
+    shutil.rmtree(sandbox_dir)
 
 def _random_string(length=20, chars=(string.ascii_letters + string.digits)):
     return ''.join(random.choice(chars) for i in range(length))
@@ -345,7 +356,7 @@ def build_and_execute(appname, relax_config, rep, timeout=None):
     the exit status, the relaxation configuration, and the relaxation
     descriptions.
     """
-    with sandbox():
+    with sandbox(True):
 
         if relax_config:
             with open(CONFIGFILE, 'w') as f:
