@@ -45,7 +45,7 @@ MAIN_ENV
 //Precision to use for calculations
 #define fptype float
 
-APPROX int NUM_RUNS = 100;
+APPROX int NUM_RUNS = 1;
 
 typedef struct OptionData_ {
         APPROX fptype s;          // spot price
@@ -221,7 +221,6 @@ int bs_thread(void *tid_ptr) {
     int start = tid * (numOptions / nThreads);
     int end = start + (numOptions / nThreads);
 
-    for (j=0; ENDORSE(j<NUM_RUNS); j++) {
 #ifdef ENABLE_OPENMP
 #pragma omp parallel for
         for (i=0; i<numOptions; i++) {
@@ -245,7 +244,6 @@ int bs_thread(void *tid_ptr) {
             }
 #endif
         }
-    }
 
     return 0;
 }
