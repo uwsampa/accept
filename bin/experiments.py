@@ -18,6 +18,8 @@ except ImportError:
     import pickle
 import logging
 import sys
+import string
+import random
 
 APPS = ['streamcluster', 'blackscholes', 'sobel']
 APPSDIR = 'apps'
@@ -29,6 +31,7 @@ MAX_ERROR = 0.3
 LOCAL_REPS = 1
 CLUSTER_REPS = 5
 BASEDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+OUTPUTS_DIR = os.path.join(BASEDIR, 'saved_outputs')
 
 @contextmanager
 def chdir(d):
@@ -51,6 +54,9 @@ def sandbox():
     with chdir(sandbox_dir):
         yield
     shutil.rmtree(basedir)
+
+def _random_string(length=20, chars=(string.ascii_letters + string.digits)):
+    return ''.join(random.choice(chars) for i in range(length))
 
 class Uncertain(object):
     def __init__(self, value, error):
@@ -357,6 +363,15 @@ def build_and_execute(appname, relax_config, rep, timeout=None):
         else:
             mod = imp.load_source('evalscript', EVALSCRIPT)
             output = mod.load()
+
+        # Sequester filesystem output.
+        if isinstance(output, basestring) and output.startswith('file:'):
+            fn = output[len('file:'):]
+            _, ext = os.path.splitext(fn)
+            if not os.path.isdir(OUTPUTS_DIR):
+                os.mkdir(OUTPUTS_DIR)
+            output = os.path.join(OUTPUTS_DIR, _random_string() + ext)
+            shutil.copyfile(fn, output)
 
         if not relax_config:
             with open(CONFIGFILE) as f:
