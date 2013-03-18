@@ -321,7 +321,9 @@ def build(approx=False):
     subprocess.check_call(['make', 'clean'] + _make_args())
     build_cmd = ['make', 'build'] + _make_args()
     if approx:
-        build_cmd.append('CLANGARGS=-mllvm -accept-relax')
+        build_cmd.append('CLANGARGS=-mllvm -accept-relax -O3')
+    else:
+        build_cmd.append('CLANGARGS=-O3')
     subprocess.check_call(build_cmd)
 
 def parse_relax_config(f):
