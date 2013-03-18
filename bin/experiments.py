@@ -481,10 +481,9 @@ def get_results(appname, client, scorefunc, reps):
 
     return results, descs
 
-def evaluate(appname, verbose=False, cluster=False, force=False):
+def evaluate(appname, verbose=False, cluster=False, force=False, reps=1):
     memo_db = os.path.abspath('memo.db')
     master_host = cw.slurm_master_host() if cluster else 'localhost'
-    reps = CLUSTER_REPS if cluster else LOCAL_REPS
 
     with chdir(os.path.join(APPSDIR, appname)):
         try:
@@ -515,12 +514,17 @@ def evaluate(appname, verbose=False, cluster=False, force=False):
             for res in bad:
                 print(res.desc)
 
-@argh.arg('appnames', metavar='NAME', default=APPS, nargs='*',
-          help='applications', type=unicode)
-def experiments(appnames, verbose=False, cluster=False, force=False):
+@argh.arg('appnames', metavar='NAME', default=APPS, nargs='*', type=unicode,
+          help='applications')
+@argh.arg('-r', '--reps', metavar='N', default=None, type=int,
+          help='replications')
+def experiments(appnames, verbose=False, cluster=False, force=False,
+                reps=None):
+    if not reps:
+        reps = CLUSTER_REPS if cluster else LOCAL_REPS
     for appname in appnames:
         print(appname)
-        evaluate(appname, verbose, cluster, force)
+        evaluate(appname, verbose, cluster, force, reps)
 
 if __name__ == '__main__':
     argh.dispatch_command(experiments)
