@@ -11,7 +11,6 @@ import argh
 import shutil
 import tempfile
 import math
-import cw.client
 from sqlite3dbm import sshelve
 try:
     import cPickle as pickle
@@ -141,29 +140,38 @@ class CWMemo(object):
     immediately.
 
     `dbname` is the filename of the SQLite database to use for
-    memoization. `host` is the cluster-workers master hostname address.
-    If `force` is true, then no memoized values will be used; every job
-    is recomputed and overwrites any previous result.
+    memoization. `host` is the cluster-workers master hostname address
+    or None to run everything locally and eagerly on the main thread
+    (for slow debugging of small runs). If `force` is true, then no
+    memoized values will be used; every job is recomputed and overwrites
+    any previous result.
     """
-    def __init__(self, dbname='memo.db', host='localhost', force=False):
+    def __init__(self, dbname='memo.db', host=None, force=False):
         self.dbname = dbname
-        self.db = sshelve.open(self.dbname)
-        self.completion_thread_db = None
-        self.client = cw.client.ClientThread(self.completion, host)
-        self.jobs = {}
-        self.completion_cond = self.client.jobs_cond
         self.force = force
         self.logger = logging.getLogger('cwmemo')
         self.logger.setLevel(logging.INFO)
+        self.host = host
+        self.local = host is None
+
+        if not self.local:
+            import cw.client
+            self.completion_thread_db = None
+            self.client = cw.client.ClientThread(self.completion, host)
+            self.jobs = {}
+            self.completion_cond = self.client.jobs_cond
 
     def __enter__(self):
-        self.client.start()
+        if not self.local:
+            self.client.start()
+        self.db = sshelve.open(self.dbname)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if not exc_type:
-            self.client.wait()
-        self.client.stop()
+        if not self.local:
+            if not exc_type:
+                self.client.wait()
+            self.client.stop()
         self.db.close()
 
     def completion(self, jobid, output):
@@ -202,7 +210,13 @@ class CWMemo(object):
             else:
                 return
 
-        # If not, submit a job to execute it.
+        # If executing locally, just run the function.
+        if self.local:
+            output = func(*args, **kwargs)
+            self.db[key] = output
+            return
+
+        # Otherwise, submit a job to execute it.
         jobid = cw.randid()
         with self.client.jobs_cond:
             self.jobs[jobid] = key
@@ -216,6 +230,15 @@ class CWMemo(object):
         result. (If the value is memoized, this call does not block.)
         """
         key = self._key_for(func, args, kwargs)
+
+        if self.local:
+            if key in self.db:
+                return self.db[key]
+            else:
+                raise KeyError(u'no result for {} on {}'.format(
+                    func, args
+                ))
+
         with self.client.jobs_cond:
             while key in self.jobs.values() and \
                   not self.client.remote_exception:
@@ -500,7 +523,7 @@ def get_results(appname, client, scorefunc, reps):
 
 def evaluate(appname, verbose=False, cluster=False, force=False, reps=1):
     memo_db = os.path.abspath('memo.db')
-    master_host = cw.slurm_master_host() if cluster else 'localhost'
+    master_host = cw.slurm_master_host() if cluster else None
 
     with chdir(os.path.join(APPSDIR, appname)):
         try:
