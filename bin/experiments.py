@@ -20,6 +20,10 @@ import logging
 import sys
 import string
 import random
+try:
+    import cw.client
+except ImportError:
+    pass
 
 APPS = ['streamcluster', 'blackscholes', 'sobel']
 APPSDIR = 'apps'
@@ -172,7 +176,6 @@ class CWMemo(object):
         self.local = host is None
 
         if not self.local:
-            import cw.client
             self.completion_thread_db = None
             self.client = cw.client.ClientThread(self.completion, host)
             self.jobs = {}
