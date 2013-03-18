@@ -161,13 +161,44 @@ std::string instDesc(const Module &mod, Instruction *inst) {
 
 /**** (NEW) ELIDABILITY ANALYSIS ***/
 
+char const* _funcWhitelistArray[] = {
+  // math.h
+  "cos",
+  "sin",
+  "tan",
+  "acos",
+  "asin",
+  "atan",
+  "atan2",
+  "cosh",
+  "sinh",
+  "tanh",
+  "exp",
+  "frexp",
+  "ldexp",
+  "log",
+  "log10",
+  "modf",
+  "pow",
+  "sqrt",
+  "ceil",
+  "fabs",
+  "floor",
+  "fmod",
+};
+const std::set<std::string> funcWhitelist(
+  _funcWhitelistArray,
+  _funcWhitelistArray + sizeof(_funcWhitelistArray) /
+                        sizeof(_funcWhitelistArray[0])
+);
+
 struct ACCEPTAnalysis {
   std::map<Function*, bool> functionPurity;
   raw_fd_ostream *log;
 
   ACCEPTAnalysis(raw_fd_ostream *l) :
-    log(l)
-    {}
+        log(l)
+        {}
 
   // Conservatively check whether a store instruction can be observed by any
   // load instructions *other* than those in the specified set of instructions.
@@ -366,6 +397,13 @@ struct ACCEPTAnalysis {
       *log << " - only reads memory\n";
       functionPurity[func] = true;
       return true;
+    }
+
+    // Whitelisted pure functions from standard libraries.
+    if (func->empty() || funcWhitelist.count(func->getName())) {
+        *log << " - whitelisted\n";
+        functionPurity[func] = true;
+        return true;
     }
 
     // Empty functions (those for which we don't have a definition) are
