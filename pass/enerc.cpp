@@ -162,8 +162,9 @@ std::string instDesc(const Module &mod, Instruction *inst) {
 /**** (NEW) ELIDABILITY ANALYSIS ***/
 
 struct ACCEPTAnalysis {
-  ACCEPTAnalysis() {
-  }
+  std::map<Function*, bool> functionPurity;
+
+  ACCEPTAnalysis() {}
 
   // Conservatively check whether a store instruction can be observed by any
   // load instructions *other* than those in the specified set of instructions.
@@ -344,7 +345,28 @@ struct ACCEPTAnalysis {
   // Determine whether a function can only affect approximate memory (i.e., no
   // precise stores escape).
   bool isPrecisePure(Function *func) {
-    return false;
+    // Check for cached result.
+    if (functionPurity.count(func)) {
+      return functionPurity[func];
+    }
+
+    // LLVM's own nominal purity analysis.
+    if (func->onlyReadsMemory()) {
+      functionPurity[func] = true;
+      return true;
+    }
+
+    // Begin by marking the function as non-pure. This avoids an infinite loop
+    // for recursive function calls (but is, of course, conservative).
+    functionPurity[func] = false;
+
+    std::set<BasicBlock*> blocks;
+    for (Function::iterator bi = func->begin(); bi != func->end(); ++bi) {
+      blocks.insert(bi);
+    }
+    bool res = preciseEscapeCheck(blocks).empty();
+    functionPurity[func] = res;
+    return res;
   }
 };
 
