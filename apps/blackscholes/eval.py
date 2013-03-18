@@ -16,5 +16,6 @@ def score(orig, relaxed):
         return 1.0
 
     errors = [abs(p - a) for (p, a) in zip(orig, relaxed)]
-    errors = [min(e / max(orig), 1.0) for e in errors]
+    max_price = max(orig)
+    errors = [min(e / max_price, 1.0) for e in errors]
     return sum(errors) / len(errors)
