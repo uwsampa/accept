@@ -422,7 +422,7 @@ struct ACCEPTAnalysis {
     }
 
     // Whitelisted pure functions from standard libraries.
-    if (func->empty() || funcWhitelist.count(func->getName())) {
+    if (func->empty() && funcWhitelist.count(func->getName())) {
         *log << " - whitelisted\n";
         functionPurity[func] = true;
         return true;
