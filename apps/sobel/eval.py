@@ -13,8 +13,14 @@ def score(orig, relaxed):
     relaxed_image = PIL.Image.open(relaxed)
     error = 0
     total = 0
-    for ppixel, apixel in itertools.izip(orig_image.getdata(),
-                                         relaxed_image.getdata()):
+
+    try:
+        orig_data = orig_image.getdata()
+        relaxed_data = relaxed_image.getdata()
+    except ValueError:
+        return 1.0
+
+    for ppixel, apixel in itertools.izip(orig_data, relaxed_data):
         error += abs(ppixel - apixel)
         total += 1
     return error / 255 / total
