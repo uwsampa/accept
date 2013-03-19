@@ -583,6 +583,7 @@ def evaluate(appname, verbose=False, cluster=False, force=False, reps=1):
 
             print('\nbad configs:')
             for res in bad:
+                print(dump_config(res.config, descs))
                 print(res.desc)
 
 @argh.arg('appnames', metavar='NAME', default=APPS, nargs='*', type=unicode,

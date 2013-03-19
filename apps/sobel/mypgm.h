@@ -25,7 +25,7 @@ void load_image_data( )
 /* Input of header & body information of pgm file */
 /* for image1[ ][ ]ÅCx_size1ÅCy_size1 */
 {
-  char *file_name = "sunflower.pgm";
+  char *file_name = "i1.pgm";
   char buffer[MAX_BUFFERSIZE];
   FILE *fp; /* File pointer */
   int max_gray; /* Maximum gray level */
