@@ -2,7 +2,7 @@
 #include <enerc.h>
 
 /* Constant declaration */
-#define MAX_IMAGESIZE  1024
+#define MAX_IMAGESIZE  4096
 #define MAX_BRIGHTNESS  255 /* Maximum gray level */
 #define GRAYLEVEL       256 /* No. of gray levels */
 #define MAX_FILENAME    256 /* Filename length limit */
@@ -25,7 +25,7 @@ void load_image_data( )
 /* Input of header & body information of pgm file */
 /* for image1[ ][ ]ÅCx_size1ÅCy_size1 */
 {
-  char *file_name = "i1.pgm";
+  char *file_name = "sunflower.pgm";
   char buffer[MAX_BUFFERSIZE];
   FILE *fp; /* File pointer */
   int max_gray; /* Maximum gray level */

@@ -200,6 +200,26 @@ struct ACCEPTAnalysis {
         log(l)
         {}
 
+  void successorsOfHelper(BasicBlock *block,
+                          std::set<BasicBlock*> &succ) {
+    TerminatorInst *term = block->getTerminator();
+    if (!term)
+      return;
+    for (int i = 0; i < term->getNumSuccessors(); ++i) {
+      BasicBlock *sb = term->getSuccessor(i);
+      if (!succ.count(sb)) {
+        succ.insert(sb);
+        successorsOfHelper(sb, succ);
+      }
+    }
+  }
+  std::set<BasicBlock*> successorsOf(BasicBlock *block) {
+    // TODO memoize
+    std::set<BasicBlock*> successors;
+    successorsOfHelper(block, successors);
+    return successors;
+  }
+
   // Conservatively check whether a store instruction can be observed by any
   // load instructions *other* than those in the specified set of instructions.
   bool storeEscapes(StoreInst *store, std::set<Instruction*> insts) {
@@ -216,12 +236,14 @@ struct ACCEPTAnalysis {
     if (PointerMayBeCaptured(ptr, true, true))
       return true;
 
-    // Look for loads to the pointer not present in our exclusion set. Again, it
-    // would be smarter to only look at the *successors* of the block in which
-    // the store appears.
-    Function *func = store->getParent()->getParent();
-    for (Function::iterator bi = func->begin(); bi != func->end(); ++bi) {
-      for (BasicBlock::iterator ii = bi->begin(); ii != bi->end(); ++ii) {
+    // Look for loads to the pointer not present in our exclusion set. We
+    // only look for loads in successors to this block. This could be made
+    // more precise by detecting anti-dependencies (i.e., stores that shadow
+    // this store).
+    std::set<BasicBlock*> successors = successorsOf(store->getParent());
+    for (std::set<BasicBlock*>::iterator bi = successors.begin();
+         bi != successors.end(); ++bi) {
+      for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii) {
         if (LoadInst *load = dyn_cast<LoadInst>(ii)) {
           if (load->getPointerOperand() == ptr && !insts.count(load)) {
             return true;
