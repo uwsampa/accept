@@ -22,8 +22,9 @@ int main (int argc, const char* argv[]) {
 	UINT8 *outputBufferPtr;
 
 	if (argc > 1) {
-		strcpy(inputFileName, "./data/baboon-220px.rgb");
-		strcpy(outputFileName, "./data/baboon-220px.rgb.jpg");
+		strcpy(inputFileName, argv[1]);
+		strcpy(outputFileName, argv[1]);
+        strcat(outputFileName, ".jpg");
 	} else {
 		strcpy(inputFileName, "./data/baboon-220px.rgb");
 		strcpy(outputFileName, "./data/baboon-220px.rgb.jpg");
