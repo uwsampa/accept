@@ -66,6 +66,9 @@ This repository includes lots of stuff:
   emission). This uses LLVM's [LIT][] testing infrastructure. To run the
   tests, just type `./bin/runtests.sh`.
 * `apps/`: Benchmarks annotated for use with EnerC.
+* `accept/`: The high-level profile-guided feedback loop used to drive a full
+  compilation. This Python package also scripts the experiments that generate
+  the results used in the (eventual) paper.
 
 [LIT]: http://llvm.org/docs/CommandGuide/lit.html
 
@@ -81,7 +84,7 @@ For some of the benchmarks, you will need large input files that are not include
 
 * blackscholes: "simlarge" input from PARSEC (`in_64K.txt`)
 
-Finally, run the experiments by typing `./bin/experiments.py`. This will record some data in an SQLite database called `memo.db`; clear this out if you need to run things from the beginning again.
+Finally, run the experiments by typing `./bin/accept experiments`. This will record some data in an SQLite database called `memo.db`; clear this out if you need to run things from the beginning again.
 
 The above will run all compilations and executions locally and in serial. To
 run data collections on a cluster, install and set up the [cluster-workers][]
