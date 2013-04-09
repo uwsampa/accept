@@ -84,7 +84,7 @@ For some of the benchmarks, you will need large input files that are not include
 
 * blackscholes: "simlarge" input from PARSEC (`in_64K.txt`)
 
-Finally, run the experiments by typing `./bin/accept experiments`. This will record some data in an SQLite database called `memo.db`; clear this out if you need to run things from the beginning again.
+Finally, run the experiments by typing `./bin/accept exp`. This will record some data in an SQLite database called `memo.db`; clear this out if you need to run things from the beginning again.
 
 The above will run all compilations and executions locally and in serial. To
 run data collections on a cluster, install and set up the [cluster-workers][]
