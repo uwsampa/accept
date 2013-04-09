@@ -33,6 +33,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <vector>
+#include <fstream>
 
 #ifdef ENABLE_THREADS
 #include <pthread.h>
@@ -125,7 +126,13 @@ int main (int argc, char * const argv[]) {
 	__parsec_roi_end();
 #endif
 	
-	cout << "Final routing is: " << my_netlist.total_routing_cost() << endl;
+  routing_cost_t cost = my_netlist.total_routing_cost();
+	cout << "Final routing is: " << cost << endl;
+
+  ofstream accept_output;
+  accept_output.open("output.txt");
+  accept_output << cost;
+  accept_output.close();
 
 #ifdef ENABLE_PARSEC_HOOKS
 	__parsec_bench_end();
