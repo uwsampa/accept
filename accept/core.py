@@ -147,47 +147,49 @@ def parse_relax_desc(f):
 
 # High-level profiling driver.
 
-def build_and_execute(appname, relax_config, rep, timeout=None):
-    """Build an application, run it, and collect its output. Return the
-    parsed output, the duration of the execution (or None for timeout),
-    the exit status, the relaxation configuration, and the relaxation
-    descriptions.
+def build_and_execute(directory, relax_config, rep, timeout=None):
+    """Build the application in the given directory (which must contain
+    both a Makefile and an eval.py), run it, and collect its output.
+    Return the parsed output, the duration of the execution (or None for
+    timeout), the exit status, the relaxation configuration, and the
+    relaxation descriptions.
     """
-    with sandbox(True):
+    with chdir(directory):
+        with sandbox(True):
 
-        if relax_config:
-            with open(CONFIGFILE, 'w') as f:
-                dump_relax_config(relax_config, f)
-        elif os.path.exists(CONFIGFILE):
-            os.remove(CONFIGFILE)
-        if os.path.exists(DESCFILE):
-            os.remove(DESCFILE)
+            if relax_config:
+                with open(CONFIGFILE, 'w') as f:
+                    dump_relax_config(relax_config, f)
+            elif os.path.exists(CONFIGFILE):
+                os.remove(CONFIGFILE)
+            if os.path.exists(DESCFILE):
+                os.remove(DESCFILE)
 
-        build(bool(relax_config))
-        elapsed, status = execute(timeout)
-        if elapsed is None or status:
-            # Timeout or error.
-            output = None
-        else:
-            mod = imp.load_source('evalscript', EVALSCRIPT)
-            output = mod.load()
+            build(bool(relax_config))
+            elapsed, status = execute(timeout)
+            if elapsed is None or status:
+                # Timeout or error.
+                output = None
+            else:
+                mod = imp.load_source('evalscript', EVALSCRIPT)
+                output = mod.load()
 
-        # Sequester filesystem output.
-        if isinstance(output, basestring) and output.startswith('file:'):
-            fn = output[len('file:'):]
-            _, ext = os.path.splitext(fn)
-            if not os.path.isdir(OUTPUTS_DIR):
-                os.mkdir(OUTPUTS_DIR)
-            output = os.path.join(OUTPUTS_DIR, _random_string() + ext)
-            shutil.copyfile(fn, output)
+            # Sequester filesystem output.
+            if isinstance(output, basestring) and output.startswith('file:'):
+                fn = output[len('file:'):]
+                _, ext = os.path.splitext(fn)
+                if not os.path.isdir(OUTPUTS_DIR):
+                    os.mkdir(OUTPUTS_DIR)
+                output = os.path.join(OUTPUTS_DIR, _random_string() + ext)
+                shutil.copyfile(fn, output)
 
-        if not relax_config:
-            with open(CONFIGFILE) as f:
-                relax_config = list(parse_relax_config(f))
-            with open(DESCFILE) as f:
-                relax_desc = parse_relax_desc(f)
-        else:
-            relax_desc = None
+            if not relax_config:
+                with open(CONFIGFILE) as f:
+                    relax_config = list(parse_relax_config(f))
+                with open(DESCFILE) as f:
+                    relax_desc = parse_relax_desc(f)
+            else:
+                relax_desc = None
 
     return output, elapsed, status, relax_config, relax_desc
 

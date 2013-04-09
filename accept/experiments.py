@@ -191,21 +191,23 @@ def get_results(appname, client, scorefunc, reps):
     function. `reps` is the number of executions per configuration to
     run.
     """
+    appdir = os.path.join(APPSDIR, appname)
+
     # Precise (baseline) execution.
     for rep in range(reps):
         client.submit(core.build_and_execute,
-            appname, None, rep,
+            appdir, None, rep,
             timeout=None
         )
 
     # Relaxed executions.
     pout, ptime, _, base_config, descs = client.get(core.build_and_execute,
-                                                    appname, None, 0)
+                                                    appdir, None, 0)
     configs = list(core.permute_config(base_config))
     for config in configs:
         for rep in range(reps):
             client.submit(core.build_and_execute,
-                appname, config, rep,
+                appdir, config, rep,
                 timeout=ptime * TIMEOUT_FACTOR
             )
 
@@ -213,7 +215,7 @@ def get_results(appname, client, scorefunc, reps):
     ptimes = []
     for rep in range(reps):
         _, dur, _, _, _ = client.get(core.build_and_execute,
-                                     appname, None, rep)
+                                     appdir, None, rep)
         ptimes.append(dur)
 
     # Gather relaxed executions.
@@ -221,13 +223,13 @@ def get_results(appname, client, scorefunc, reps):
     for config in configs:
         # Get outputs from first execution.
         aout, _, status, _, _ = client.get(core.build_and_execute,
-                                           appname, config, 0)
+                                           appdir, config, 0)
 
         # Get all execution times.
         atimes = []
         for rep in range(reps):
             _, dur, _, _, _ = client.get(core.build_and_execute,
-                                         appname, config, rep)
+                                         appdir, config, rep)
             atimes.append(dur)
 
         # Evaluate the result.
@@ -245,26 +247,26 @@ def evaluate(appname, verbose=False, cluster=False, force=False, reps=1):
         except IOError:
             assert False, 'no eval.py found in {} directory'.format(appname)
 
-        with get_client(cluster, force) as client:
-            results, descs = get_results(appname, client, mod.score, reps)
+    with get_client(cluster, force) as client:
+        results, descs = get_results(appname, client, mod.score, reps)
 
-        optimal, suboptimal, bad = triage_results(results)
-        print('{} optimal, {} suboptimal, {} bad'.format(
-            len(optimal), len(suboptimal), len(bad)
-        ))
-        for res in optimal:
+    optimal, suboptimal, bad = triage_results(results)
+    print('{} optimal, {} suboptimal, {} bad'.format(
+        len(optimal), len(suboptimal), len(bad)
+    ))
+    for res in optimal:
+        print(dump_config(res.config, descs))
+        print('{:.1%} error'.format(res.error))
+        print('{} speedup'.format(res.speedup))
+
+    if verbose:
+        print('\nsuboptimal configs:')
+        for res in suboptimal:
             print(dump_config(res.config, descs))
             print('{:.1%} error'.format(res.error))
             print('{} speedup'.format(res.speedup))
 
-        if verbose:
-            print('\nsuboptimal configs:')
-            for res in suboptimal:
-                print(dump_config(res.config, descs))
-                print('{:.1%} error'.format(res.error))
-                print('{} speedup'.format(res.speedup))
-
-            print('\nbad configs:')
-            for res in bad:
-                print(dump_config(res.config, descs))
-                print(res.desc)
+        print('\nbad configs:')
+        for res in bad:
+            print(dump_config(res.config, descs))
+            print(res.desc)
