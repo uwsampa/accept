@@ -73,8 +73,6 @@ This repository includes lots of stuff:
 Running the Experiments
 -----------------------
 
-I'm writing the empirical evaluation now, but here's how it will work when it's finished.
-
 First, it might be a good idea to `./bin/runtests.sh` to make sure the compiler itself is working.
 
 Then, install the necessary Python modules by typing `pip install -r requirements.txt`.
