@@ -73,6 +73,23 @@ This repository includes lots of stuff:
 [LIT]: http://llvm.org/docs/CommandGuide/lit.html
 
 
+Using the Tool
+--------------
+
+Once you have the compiler set up, you can use the driver logic to
+interactively explore relaxations of programs. (You can also run our batch of
+experiments non-interactively; see below.) The main entry point is the
+`bin/accept` script, which invokes the Python code in the `accept` directory.
+For convenience, you can put this on your `$PATH` by running `source
+activate.sh`.
+
+Type `accept help` to see the available commands:
+
+* `accept log`: Dump the ACCEPT compiler log when compiling the program in the
+  current directory, which can help you get an idea of which approximations are
+  available.
+
+
 Running the Experiments
 -----------------------
 
