@@ -4,6 +4,7 @@ from __future__ import absolute_import
 import argh
 import logging
 import sys
+import os
 from . import experiments
 from . import core
 from . import cwmemo
@@ -38,14 +39,16 @@ def exp(appnames, verbose=False, cluster=False, reps=None):
 
 # Get the compilation log.
 
-def get_log(directory):
+def get_log(directory, fn='accept_log.txt'):
     """Build the benchmark in `directory` and return the contents of the
     compilation log.
     """
     with core.chdir(directory):
         with core.sandbox(True):
+            if os.path.exists(fn):
+                os.remove(fn)
             core.build()
-            with open('accept_log.txt') as f:
+            with open(fn) as f:
                 return f.read()
 
 @argh.arg('appdir', nargs='?', help='application directory')
