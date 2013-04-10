@@ -14,19 +14,26 @@ CLUSTER_REPS = 5
 APPS = ['streamcluster', 'blackscholes', 'sobel']
 
 
+_client = None
+
+def global_config(opts):
+    global _client
+    _client = cwmemo.get_client(cluster=opts.cluster, force=opts.force)
+
+
 # Run the experiments.
 
 @argh.arg('appnames', metavar='NAME', default=APPS, nargs='*', type=unicode,
           help='applications')
 @argh.arg('-r', '--reps', metavar='N', default=None, type=int,
           help='replications')
-def exp(appnames, verbose=False, cluster=False, force=False, reps=None):
+def exp(appnames, verbose=False, cluster=False, reps=None):
     if not reps:
         reps = CLUSTER_REPS if cluster else LOCAL_REPS
 
     for appname in appnames:
         print(appname)
-        experiments.evaluate(appname, verbose, cluster, force, reps)
+        experiments.evaluate(_client, appname, verbose, reps)
 
 
 # Get the compilation log.
@@ -43,14 +50,20 @@ def get_log(directory):
 
 @argh.arg('appdir', nargs='?', help='application directory')
 def log(appdir='.'):
-    with cwmemo.get_client(cluster=False, force=False) as client:
-        client.submit(get_log, appdir)
-        logtxt = client.get(get_log, appdir)
-    print(logtxt)
+    with _client:
+        _client.submit(get_log, appdir)
+        return _client.get(get_log, appdir)
 
 
-if __name__ == '__main__':
+def main():
     logging.getLogger().addHandler(logging.StreamHandler(sys.stderr))
     parser = argh.ArghParser()
     parser.add_commands([exp, log])
-    parser.dispatch()
+    parser.add_argument('--cluster', '-c', default=False, action='store_true',
+                        help='execute on Slurm cluster')
+    parser.add_argument('--force', '-f', default=False, action='store_true',
+                        help='clear memoized results')
+    parser.dispatch(pre_call=global_config)
+
+if __name__ == '__main__':
+    main()

@@ -240,14 +240,14 @@ def get_results(appname, client, scorefunc, reps):
     return results, descs
 
 
-def evaluate(appname, verbose=False, cluster=False, force=False, reps=1):
+def evaluate(client, appname, verbose=False, reps=1):
     with core.chdir(os.path.join(APPSDIR, appname)):
         try:
             mod = imp.load_source('evalscript', core.EVALSCRIPT)
         except IOError:
             assert False, 'no eval.py found in {} directory'.format(appname)
 
-    with get_client(cluster, force) as client:
+    with client:
         results, descs = get_results(appname, client, mod.score, reps)
 
     optimal, suboptimal, bad = triage_results(results)
