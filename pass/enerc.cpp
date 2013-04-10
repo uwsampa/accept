@@ -412,7 +412,7 @@ struct ACCEPTAnalysis {
       return functionPurity[func];
     }
 
-    *log << " - checking function " << func->getName() << "\n";
+    *log << " - checking function _" << func->getName() << "\n";
 
     // LLVM's own nominal purity analysis.
     if (func->onlyReadsMemory()) {
@@ -452,7 +452,7 @@ struct ACCEPTAnalysis {
       *log << " - * " << instDesc(*(func->getParent()), *i) << "\n";
     }
     if (blockers.empty()) {
-      *log << " - precise-pure function: " << func->getName() << "\n";
+      *log << " - precise-pure function: _" << func->getName() << "\n";
     }
 
     functionPurity[func] = blockers.empty();

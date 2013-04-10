@@ -5,6 +5,7 @@ import argh
 import logging
 import sys
 import os
+import subprocess
 from . import experiments
 from . import core
 from . import cwmemo
@@ -55,7 +56,13 @@ def get_log(directory, fn='accept_log.txt'):
 def log(appdir='.'):
     with _client:
         _client.submit(get_log, appdir)
-        return _client.get(get_log, appdir)
+        logtxt = _client.get(get_log, appdir)
+
+    # Pass the log file through c++filt.
+    filtproc = subprocess.Popen(['c++filt'], stdin=subprocess.PIPE,
+                                stdout=subprocess.PIPE)
+    output, _ = filtproc.communicate(logtxt)
+    return output
 
 
 def main():

@@ -87,7 +87,7 @@ Type `accept help` to see the available commands:
 
 * `accept log`: Dump the ACCEPT compiler log when compiling the program in the
   current directory, which can help you get an idea of which approximations are
-  available.
+  available. The output is filtered through c++filt to demangle C++ names.
 
 
 Running the Experiments
