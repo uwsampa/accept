@@ -1,11 +1,12 @@
 #!/bin/sh
+base=`dirname $0`/..
 
 # This is where all build products will be installed.
-destdir=`pwd`/build/built
+destdir=$base/build/built
 mkdir -p $destdir
 
 # Build LLVM "out-of-source" in a scratch directory.
-builddir=build/llvm
+builddir=$base/build/llvm
 mkdir -p $builddir
 cd $builddir
 cmake -G Ninja -DCMAKE_BUILD_TYPE:STRING=Debug -DCMAKE_INSTALL_PREFIX:PATH=$destdir ../../llvm

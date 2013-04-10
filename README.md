@@ -89,6 +89,10 @@ Type `accept help` to see the available commands:
   current directory, which can help you get an idea of which approximations are
   available. The output is filtered through c++filt to demangle C++ names.
 
+(If you're hacking on ACCEPT itself, you can also use the `build_enerc.sh` and
+`build_llvm.sh` scripts once you've extended your `$PATH`. This avoids the
+`cd`-to-build-directory, `cd -` dance that would otherwise be necessary.)
+
 
 Running the Experiments
 -----------------------

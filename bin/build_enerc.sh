@@ -1,9 +1,10 @@
 #!/bin/sh
+base=`dirname $0`/..
 
-destdir=`pwd`/build/built
+destdir=$base/build/built
 mkdir -p $destdir
 
-builddir=build/enerc
+builddir=$base/build/enerc
 mkdir -p $builddir
 cd $builddir
 cmake -G Ninja -DCMAKE_BUILD_TYPE:STRING=Debug -DCMAKE_INSTALL_PREFIX:PATH=$destdir ../..
