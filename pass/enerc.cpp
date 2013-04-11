@@ -490,8 +490,33 @@ struct ACCEPTPass : public FunctionPass {
     Info.addRequired<LoopInfo>();
   }
 
+  DISubprogram debugInfoForFunc(Function &F) {
+    DebugInfoFinder finder;
+    finder.processModule(*module);
+    for (DebugInfoFinder::iterator i = finder.subprogram_begin();
+         i != finder.subprogram_end(); ++i) {
+      DISubprogram sp(*i);
+      if (sp.getFunction() == &F) {
+        return sp;
+      }
+    }
+    return DISubprogram();
+  }
+
+  bool isLibraryFunc(Function &F) {
+    DIScope scope = debugInfoForFunc(F).getContext();
+    if (scope.Verify()) {
+      return scope.getFilename().startswith("/usr/include");
+    }
+    return false;
+  }
+
   virtual bool runOnFunction(Function &F) {
     countAndInstrument(F);
+
+    // Skip optimizing functions that seem to be in standard libraries.
+    if (isLibraryFunc(F))
+      return false;
     return optimizeLoops(F);
   }
 
