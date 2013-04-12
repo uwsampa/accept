@@ -729,9 +729,6 @@ struct ACCEPTPass : public FunctionPass {
     std::set<BasicBlock*> loopBlocks;
     for (Loop::block_iterator bi = loop->block_begin();
          bi != loop->block_end(); ++bi) {
-      if (*bi == loop->getHeader() || *bi == loop->getLoopLatch())
-        // Don't count the loop control.
-        continue;
       loopBlocks.insert(*bi);
     }
     std::set<Instruction*> blockers = analysis->preciseEscapeCheck(loopBlocks);
