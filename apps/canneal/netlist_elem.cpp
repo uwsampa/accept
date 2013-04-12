@@ -29,6 +29,7 @@
 
 #include <assert.h>
 #include <math.h>
+#include <enerc.h>
 
 #include "annealer_types.h"
 #include "location_t.h"

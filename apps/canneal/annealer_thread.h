@@ -36,6 +36,7 @@
 #endif
 
 #include <assert.h>
+#include <enerc.h>
 
 #include "annealer_types.h"
 #include "netlist.h"

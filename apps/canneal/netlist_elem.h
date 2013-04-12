@@ -32,6 +32,7 @@
 
 #include <string>
 #include <vector>
+#include <enerc.h>
 
 #include "AtomicPtr.h"
 #include "location_t.h"
