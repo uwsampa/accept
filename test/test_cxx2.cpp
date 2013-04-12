@@ -10,7 +10,12 @@ struct mystruct {
 class myclass {
 public:
   int meth(APPROX int *x);
+  APPROX int meth2();
 };
+
+APPROX int myclass::meth2() {
+  return 1;
+}
 
 class superclass {
 public:
