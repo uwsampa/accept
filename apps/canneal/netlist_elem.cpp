@@ -48,10 +48,10 @@ netlist_elem::netlist_elem()
 // SYNC: Do i need to make this an atomic operation?  i.e. are there misaligned memoery issues that can cause this to fail
 //       even if I have atomic writes?
 //*****************************************************************************************
-routing_cost_t netlist_elem::routing_cost_given_loc(location_t loc)
+APPROX routing_cost_t netlist_elem::routing_cost_given_loc(location_t loc)
 {
-	routing_cost_t fanin_cost = 0;
-	routing_cost_t fanout_cost = 0;
+	APPROX routing_cost_t fanin_cost = 0;
+	APPROX routing_cost_t fanout_cost = 0;
 	
 	for (int i = 0; i< fanin.size(); ++i){
 		location_t* fanin_loc = fanin[i]->present_loc.Get();
@@ -65,17 +65,17 @@ routing_cost_t netlist_elem::routing_cost_given_loc(location_t loc)
 		fanout_cost += fabs(loc.y - fanout_loc->y);
 	}
 
-	routing_cost_t total_cost = fanin_cost + fanout_cost;
+	APPROX routing_cost_t total_cost = fanin_cost + fanout_cost;
 	return total_cost;
 }
 
 //*****************************************************************************************
 //  Get the cost change of swapping from our present location to a new location
 //*****************************************************************************************
-routing_cost_t netlist_elem::swap_cost(location_t* old_loc, location_t* new_loc)
+APPROX routing_cost_t netlist_elem::swap_cost(location_t* old_loc, location_t* new_loc)
 {
-	routing_cost_t no_swap = 0;
-	routing_cost_t yes_swap = 0;
+	APPROX routing_cost_t no_swap = 0;
+	APPROX routing_cost_t yes_swap = 0;
 	
 	for (int i = 0; i< fanin.size(); ++i){
 		location_t* fanin_loc = fanin[i]->present_loc.Get();

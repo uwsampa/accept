@@ -115,12 +115,12 @@ annealer_thread::move_decision_t annealer_thread::accept_move(routing_cost_t del
 //*****************************************************************************************
 //  If get turns out to be expensive, I can reduce the # by passing it into the swap cost fcn
 //*****************************************************************************************
-routing_cost_t annealer_thread::calculate_delta_routing_cost(netlist_elem* a, netlist_elem* b)
+APPROX routing_cost_t annealer_thread::calculate_delta_routing_cost(netlist_elem* a, netlist_elem* b)
 {
 	location_t* a_loc = a->present_loc.Get();
 	location_t* b_loc = b->present_loc.Get();
 	
-	routing_cost_t delta_cost = a->swap_cost(a_loc, b_loc);
+	APPROX routing_cost_t delta_cost = a->swap_cost(a_loc, b_loc);
 	delta_cost += b->swap_cost(b_loc, a_loc);
 
 	return delta_cost;
