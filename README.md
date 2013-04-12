@@ -88,6 +88,9 @@ Type `accept help` to see the available commands:
 * `accept log`: Dump the ACCEPT compiler log when compiling the program in the
   current directory, which can help you get an idea of which approximations are
   available. The output is filtered through c++filt to demangle C++ names.
+* `accept build`: Dump the Clang output from compiling the program. This can be
+  helpful during the annotation process. Shares a memoized build call with the
+  `log` command, so after running one, the other will be free.
 
 (If you're hacking on ACCEPT itself, you can also use the `build_enerc.sh` and
 `build_llvm.sh` scripts once you've extended your `$PATH`. This avoids the

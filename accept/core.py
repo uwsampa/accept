@@ -90,6 +90,11 @@ def _make_args():
         'APP_MK={}'.format(os.path.join(BASEDIR, 'apps', 'app.mk')),
     ]
 
+class BuildError(Exception):
+    """The application failed to build.
+    """
+    pass
+
 def execute(timeout):
     """Run the application in the working directory and return the
     wall-clock duration (in seconds) of the execution and the exit
@@ -100,17 +105,25 @@ def execute(timeout):
     end_time = time.time()
     return end_time - start_time, status
 
-def build(approx=False):
+def build(approx=False, require=True):
     """Compile the application in the working directory. If `approx`,
-    then it is built with ACCEPT relaxation enabled.
+    then it is built with ACCEPT relaxation enabled. Return the combined
+    stderr/stdout from the compilation process.
     """
     subprocess.check_call(['make', 'clean'] + _make_args())
+
     build_cmd = ['make', 'build'] + _make_args()
+    clang_args = '-O3 -fcolor-diagnostics'
     if approx:
-        build_cmd.append('CLANGARGS=-mllvm -accept-relax -O3')
-    else:
-        build_cmd.append('CLANGARGS=-O3')
-    subprocess.check_call(build_cmd)
+        clang_args += '-mllvm -accept-relax'
+    build_cmd.append('CLANGARGS={}'.format(clang_args))
+
+    proc = subprocess.Popen(build_cmd, stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT)
+    output, _ = proc.communicate()
+    if require and proc.returncode:
+        raise BuildError()
+    return output
 
 
 # Manage the relaxation configuration file.

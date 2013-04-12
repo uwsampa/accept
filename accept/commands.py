@@ -38,9 +38,9 @@ def exp(appnames, verbose=False, cluster=False, reps=None):
         experiments.evaluate(_client, appname, verbose, reps)
 
 
-# Get the compilation log.
+# Get the compilation log or compiler output.
 
-def get_log(directory, fn='accept_log.txt'):
+def log_and_output(directory, fn='accept_log.txt'):
     """Build the benchmark in `directory` and return the contents of the
     compilation log.
     """
@@ -48,27 +48,41 @@ def get_log(directory, fn='accept_log.txt'):
         with core.sandbox(True):
             if os.path.exists(fn):
                 os.remove(fn)
-            core.build()
-            with open(fn) as f:
-                return f.read()
+
+            output = core.build(require=False)
+
+            if os.path.exists(fn):
+                with open(fn) as f:
+                    log = f.read()
+            else:
+                log = ''
+
+            return log, output
 
 @argh.arg('appdir', nargs='?', help='application directory')
 def log(appdir='.'):
     with _client:
-        _client.submit(get_log, appdir)
-        logtxt = _client.get(get_log, appdir)
+        _client.submit(log_and_output, appdir)
+        logtxt, _ = _client.get(log_and_output, appdir)
 
     # Pass the log file through c++filt.
     filtproc = subprocess.Popen(['c++filt'], stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE)
-    output, _ = filtproc.communicate(logtxt)
+    out, _ = filtproc.communicate(logtxt)
+    return out
+
+@argh.arg('appdir', nargs='?', help='application directory')
+def build(appdir='.'):
+    with _client:
+        _client.submit(log_and_output, appdir)
+        _, output = _client.get(log_and_output, appdir)
     return output
 
 
 def main():
     logging.getLogger().addHandler(logging.StreamHandler(sys.stderr))
     parser = argh.ArghParser()
-    parser.add_commands([exp, log])
+    parser.add_commands([exp, log, build])
     parser.add_argument('--cluster', '-c', default=False, action='store_true',
                         help='execute on Slurm cluster')
     parser.add_argument('--force', '-f', default=False, action='store_true',
