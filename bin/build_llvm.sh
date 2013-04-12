@@ -1,5 +1,6 @@
 #!/bin/sh
-base=`dirname $0`/..
+here=$(cd "$(dirname "$0")"; pwd)
+base=$here/..
 
 # This is where all build products will be installed.
 destdir=$base/build/built

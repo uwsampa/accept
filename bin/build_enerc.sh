@@ -1,5 +1,6 @@
 #!/bin/sh
-base=`dirname $0`/..
+here=$(cd "$(dirname "$0")"; pwd)
+base=$here/..
 
 destdir=$base/build/built
 mkdir -p $destdir
