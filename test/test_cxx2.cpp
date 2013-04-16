@@ -11,11 +11,14 @@ class myclass {
 public:
   int meth(APPROX int *x);
   APPROX int meth2();
+  void meth3(APPROX int *a);
 };
 
 APPROX int myclass::meth2() {
   return 1;
 }
+
+void myclass::meth3(APPROX int *a) {}
 
 class superclass {
 public:

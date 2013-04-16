@@ -174,7 +174,7 @@ APPROX inline double MTRand::randNorm( APPROX const double& mean, APPROX const d
 	// mean and variance by Box-Muller method
 	APPROX double r = sqrt( -2.0 * log( 1.0-randDblExc()) ) * variance;
 	APPROX double phi = 2.0 * 3.14159265358979323846264338328 * randExc();
-	return mean + r * cos(phi);
+	return mean + r * cos(ENDORSE(phi));
 }
 
 APPROX inline MTRand::uint32 MTRand::randInt()
