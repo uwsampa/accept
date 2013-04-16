@@ -31,4 +31,8 @@ int main() {
     // array-to-pointer demotion
     APPROX int arr[10];
     APPROX int *aptr = arr;
+
+    // unary operators on pointers
+    APPROX int v = 0;
+    *xp++ = v;
 }

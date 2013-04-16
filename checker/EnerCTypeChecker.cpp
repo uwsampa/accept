@@ -281,32 +281,8 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
 
 
   // UNARY OPERATORS
-  case clang::Stmt::UnaryOperatorClass: {
-    clang::UnaryOperator *uop = llvm::cast<UnaryOperator>(expr);
-    uint32_t argt = typeOf(uop->getSubExpr());
-    switch (uop->getOpcode()) {
-      case UO_PostInc:
-      case UO_PostDec:
-      case UO_PreInc:
-      case UO_PreDec:
-      case UO_Plus:
-      case UO_Minus:
-      case UO_Not:
-      case UO_LNot:
-        // arithmetic
-        return argt;
-
-      case UO_AddrOf:
-      case UO_Deref:
-        return CL_LEAVE_UNCHANGED;
-
-      case UO_Real:
-      case UO_Imag:
-      case UO_Extension:
-        // funky complex stuff
-        return argt;
-    }
-  }
+  case clang::Stmt::UnaryOperatorClass:
+    return CL_LEAVE_UNCHANGED;
 
 
   // ARRAYS
