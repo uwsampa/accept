@@ -65,6 +65,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <math.h>
+#include <enerc.h>
 
 class MTRand {
 // Data
@@ -77,15 +78,15 @@ public:
 protected:
 	enum { M = 397 };  // period parameter
 	
-	uint32 state[N];   // internal state
-	uint32 *pNext;     // next value to get from state
+	APPROX uint32 state[N];   // internal state
+	APPROX uint32 *pNext;     // next value to get from state
 	int left;          // number of values left before reload needed
 
 
 //Methods
 public:
-	MTRand( const uint32& oneSeed );  // initialize with a simple uint32
-	MTRand( uint32 *const bigSeed, uint32 const seedLength = N );  // or an array
+	MTRand( APPROX const uint32& oneSeed );  // initialize with a simple uint32
+	MTRand( APPROX uint32 *const bigSeed, uint32 const seedLength = N );  // or an array
 	MTRand();  // auto-initialize with /dev/urandom or time() and clock()
 	
 	// Do NOT use for CRYPTOGRAPHY without securely hashing several returned
@@ -93,25 +94,25 @@ public:
 	// reading 624 consecutive values.
 	
 	// Access to 32-bit random numbers
-	double rand();                          // real number in [0,1]
-	double rand( const double& n );         // real number in [0,n]
-	double randExc();                       // real number in [0,1)
-	double randExc( const double& n );      // real number in [0,n)
-	double randDblExc();                    // real number in (0,1)
-	double randDblExc( const double& n );   // real number in (0,n)
-	uint32 randInt();                       // integer in [0,2^32-1]
-	uint32 randInt( const uint32& n );      // integer in [0,n] for n < 2^32
-	double operator()() { return rand(); }  // same as rand()
+	APPROX double rand();                          // real number in [0,1]
+	APPROX double rand( const double& n );         // real number in [0,n]
+	APPROX double randExc();                       // real number in [0,1)
+	APPROX double randExc( const double& n );      // real number in [0,n)
+	APPROX double randDblExc();                    // real number in (0,1)
+	APPROX double randDblExc( const double& n );   // real number in (0,n)
+	APPROX uint32 randInt();                       // integer in [0,2^32-1]
+	APPROX uint32 randInt( const uint32& n );      // integer in [0,n] for n < 2^32
+	APPROX double operator()() { return rand(); }  // same as rand()
 	
 	// Access to 53-bit random numbers (capacity of IEEE double precision)
-	double rand53();  // real number in [0,1)
+	APPROX double rand53();  // real number in [0,1)
 	
 	// Access to nonuniform random number distributions
-	double randNorm( const double& mean = 0.0, const double& variance = 0.0 );
+	APPROX double randNorm( APPROX const double& mean = 0.0, APPROX const double& variance = 0.0 );
 	
 	// Re-seeding functions with same behavior as initializers
-	void seed( const uint32 oneSeed );
-	void seed( uint32 *const bigSeed, const uint32 seedLength = N );
+	void seed( APPROX const uint32 oneSeed );
+	void seed( APPROX uint32 *const bigSeed, const uint32 seedLength = N );
 	void seed();
 	
 	// Saving and loading generator state
@@ -121,23 +122,23 @@ public:
 	friend std::istream& operator>>( std::istream& is, MTRand& mtrand );
 
 protected:
-	void initialize( const uint32 oneSeed );
+	void initialize( APPROX const uint32 oneSeed );
 	void reload();
-	uint32 hiBit( const uint32& u ) const { return u & 0x80000000UL; }
-	uint32 loBit( const uint32& u ) const { return u & 0x00000001UL; }
-	uint32 loBits( const uint32& u ) const { return u & 0x7fffffffUL; }
-	uint32 mixBits( const uint32& u, const uint32& v ) const
+	APPROX uint32 hiBit( APPROX const uint32& u ) const { return u & 0x80000000UL; }
+	APPROX uint32 loBit( APPROX const uint32& u ) const { return u & 0x00000001UL; }
+	APPROX uint32 loBits( APPROX const uint32& u ) const { return u & 0x7fffffffUL; }
+	APPROX uint32 mixBits( APPROX const uint32& u, APPROX const uint32& v ) const
 		{ return hiBit(u) | loBits(v); }
-	uint32 twist( const uint32& m, const uint32& s0, const uint32& s1 ) const
+	APPROX uint32 twist( APPROX const uint32& m, APPROX const uint32& s0, APPROX const uint32& s1 ) const
 		{ return m ^ (mixBits(s0,s1)>>1) ^ (-loBit(s1) & 0x9908b0dfUL); }
-	static uint32 hash( time_t t, clock_t c );
+	APPROX static uint32 hash( APPROX time_t t, APPROX clock_t c );
 };
 
 
-inline MTRand::MTRand( const uint32& oneSeed )
+inline MTRand::MTRand( APPROX const uint32& oneSeed )
 	{ seed(oneSeed); }
 
-inline MTRand::MTRand( uint32 *const bigSeed, const uint32 seedLength )
+inline MTRand::MTRand( APPROX uint32 *const bigSeed, const uint32 seedLength )
 	{ seed(bigSeed,seedLength); }
 
 inline MTRand::MTRand()
@@ -146,37 +147,37 @@ inline MTRand::MTRand()
 inline double MTRand::rand()
 	{ return double(randInt()) * (1.0/4294967295.0); }
 
-inline double MTRand::rand( const double& n )
+APPROX inline double MTRand::rand( APPROX const double& n )
 	{ return rand() * n; }
 
-inline double MTRand::randExc()
+APPROX inline double MTRand::randExc()
 	{ return double(randInt()) * (1.0/4294967296.0); }
 
-inline double MTRand::randExc( const double& n )
+APPROX inline double MTRand::randExc( APPROX const double& n )
 	{ return randExc() * n; }
 
-inline double MTRand::randDblExc()
+APPROX inline double MTRand::randDblExc()
 	{ return ( double(randInt()) + 0.5 ) * (1.0/4294967296.0); }
 
-inline double MTRand::randDblExc( const double& n )
+APPROX inline double MTRand::randDblExc( APPROX const double& n )
 	{ return randDblExc() * n; }
 
-inline double MTRand::rand53()
+APPROX inline double MTRand::rand53()
 {
-	uint32 a = randInt() >> 5, b = randInt() >> 6;
+	APPROX uint32 a = randInt() >> 5, b = randInt() >> 6;
 	return ( a * 67108864.0 + b ) * (1.0/9007199254740992.0);  // by Isaku Wada
 }
 
-inline double MTRand::randNorm( const double& mean, const double& variance )
+APPROX inline double MTRand::randNorm( APPROX const double& mean, APPROX const double& variance )
 {
 	// Return a real number from a normal (Gaussian) distribution with given
 	// mean and variance by Box-Muller method
-	double r = sqrt( -2.0 * log( 1.0-randDblExc()) ) * variance;
-	double phi = 2.0 * 3.14159265358979323846264338328 * randExc();
+	APPROX double r = sqrt( -2.0 * log( 1.0-randDblExc()) ) * variance;
+	APPROX double phi = 2.0 * 3.14159265358979323846264338328 * randExc();
 	return mean + r * cos(phi);
 }
 
-inline MTRand::uint32 MTRand::randInt()
+APPROX inline MTRand::uint32 MTRand::randInt()
 {
 	// Pull a 32-bit integer from the generator state
 	// Every other access function simply transforms the numbers extracted here
@@ -184,7 +185,7 @@ inline MTRand::uint32 MTRand::randInt()
 	if( left == 0 ) reload();
 	--left;
 		
-	register uint32 s1;
+	APPROX register uint32 s1;
 	s1 = *pNext++;
 	s1 ^= (s1 >> 11);
 	s1 ^= (s1 <<  7) & 0x9d2c5680UL;
@@ -192,7 +193,7 @@ inline MTRand::uint32 MTRand::randInt()
 	return ( s1 ^ (s1 >> 18) );
 }
 
-inline MTRand::uint32 MTRand::randInt( const uint32& n )
+APPROX inline MTRand::uint32 MTRand::randInt( const uint32& n )
 {
 	// Find which bits are used in n
 	// Optimized by Magnus Jonsson (magnus@smartelectronix.com)
@@ -204,15 +205,15 @@ inline MTRand::uint32 MTRand::randInt( const uint32& n )
 	used |= used >> 16;
 	
 	// Draw numbers until one is found in [0,n]
-	uint32 i;
+	APPROX uint32 i;
 	do
 		i = randInt() & used;  // toss unused bits to shorten search
-	while( i > n );
+	while( ENDORSE(i > n) );
 	return i;
 }
 
 
-inline void MTRand::seed( const uint32 oneSeed )
+inline void MTRand::seed( APPROX const uint32 oneSeed )
 {
 	// Seed the generator with a simple uint32
 	initialize(oneSeed);
@@ -220,7 +221,7 @@ inline void MTRand::seed( const uint32 oneSeed )
 }
 
 
-inline void MTRand::seed( uint32 *const bigSeed, const uint32 seedLength )
+inline void MTRand::seed( APPROX uint32 *const bigSeed, const uint32 seedLength )
 {
 	// Seed the generator with an array of uint32's
 	// There are 2^19937-1 possible initial states.  This function allows
@@ -265,8 +266,8 @@ inline void MTRand::seed()
 	FILE* urandom = fopen( "/dev/urandom", "rb" );
 	if( urandom )
 	{
-		uint32 bigSeed[N];
-		register uint32 *s = bigSeed;
+		APPROX uint32 bigSeed[N];
+		APPROX register uint32 *s = bigSeed;
 		register int i = N;
 		register bool success = true;
 		while( success && i-- )
@@ -280,14 +281,14 @@ inline void MTRand::seed()
 }
 
 
-inline void MTRand::initialize( const uint32 seed )
+inline void MTRand::initialize( APPROX const uint32 seed )
 {
 	// Initialize generator state with seed
 	// See Knuth TAOCP Vol 2, 3rd Ed, p.106 for multiplier.
 	// In previous versions, most significant bits (MSBs) of the seed affect
 	// only MSBs of the state array.  Modified 9 Jan 2002 by Makoto Matsumoto.
-	register uint32 *s = state;
-	register uint32 *r = state;
+	APPROX register uint32 *s = state;
+	APPROX register uint32 *r = state;
 	register int i = 1;
 	*s++ = seed & 0xffffffffUL;
 	for( ; i < N; ++i )
@@ -302,7 +303,7 @@ inline void MTRand::reload()
 {
 	// Generate N new values in state
 	// Made clearer and faster by Matthew Bellew (matthew.bellew@home.com)
-	register uint32 *p = state;
+	APPROX register uint32 *p = state;
 	register int i;
 	for( i = N - M; i--; ++p )
 		*p = twist( p[M], p[0], p[1] );
@@ -314,7 +315,7 @@ inline void MTRand::reload()
 }
 
 
-inline MTRand::uint32 MTRand::hash( time_t t, clock_t c )
+APPROX inline MTRand::uint32 MTRand::hash( APPROX time_t t, APPROX clock_t c )
 {
 	// Get a uint32 from t and c
 	// Better than uint32(x) in case x is floating point in [0,1]
@@ -343,16 +344,16 @@ inline MTRand::uint32 MTRand::hash( time_t t, clock_t c )
 inline void MTRand::save( uint32* saveArray ) const
 {
 	register uint32 *sa = saveArray;
-	register const uint32 *s = state;
+	APPROX register const uint32 *s = state;
 	register int i = N;
-	for( ; i--; *sa++ = *s++ ) {}
+	for( ; i--; *sa++ = ENDORSE(*s++) ) {}
 	*sa = left;
 }
 
 
 inline void MTRand::load( uint32 *const loadArray )
 {
-	register uint32 *s = state;
+	APPROX register uint32 *s = state;
 	register uint32 *la = loadArray;
 	register int i = N;
 	for( ; i--; *s++ = *la++ ) {}
@@ -363,16 +364,16 @@ inline void MTRand::load( uint32 *const loadArray )
 
 inline std::ostream& operator<<( std::ostream& os, const MTRand& mtrand )
 {
-	register const MTRand::uint32 *s = mtrand.state;
+	APPROX register const MTRand::uint32 *s = mtrand.state;
 	register int i = mtrand.N;
-	for( ; i--; os << *s++ << "\t" ) {}
+	for( ; i--; os << ENDORSE(*s++) << "\t" ) {}
 	return os << mtrand.left;
 }
 
 
 inline std::istream& operator>>( std::istream& is, MTRand& mtrand )
 {
-	register MTRand::uint32 *s = mtrand.state;
+	APPROX register MTRand::uint32 *s = mtrand.state;
 	register int i = mtrand.N;
 	for( ; i--; is >> *s++ ) {}
 	is >> mtrand.left;

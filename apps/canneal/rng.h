@@ -53,9 +53,9 @@ public:
 	~Rng() {
 		delete _rng;
 	}
-	long rand();
-	long rand(int max);
-	double drand();
+	APPROX long rand();
+	APPROX long rand(int max);
+	APPROX double drand();
 protected:
 	//use same random seed for each run
 	static unsigned int seed;
