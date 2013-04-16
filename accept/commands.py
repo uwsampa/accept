@@ -95,7 +95,12 @@ def precise(appdir='.'):
         _client.submit(core.build_and_execute, appdir, None, 0)
         pout, ptime, _, base_config, descs = \
                 _client.get(core.build_and_execute, appdir, None, 0)
-    print('precise output', pout)
+
+    print('output:', pout)
+    print('time: {:.2f}'.format(ptime))
+    print('sites: {}'.format(len(descs)))
+    for desc in descs.values():
+        print('  ', desc)
 
 
 def main():
