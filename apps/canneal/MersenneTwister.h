@@ -271,7 +271,7 @@ inline void MTRand::seed()
 		register int i = N;
 		register bool success = true;
 		while( success && i-- )
-			success = fread( s++, sizeof(uint32), 1, urandom );
+			success = fread( ENDORSE(s++), sizeof(uint32), 1, urandom );
 		fclose(urandom);
 		if( success ) { seed( bigSeed, N );  return; }
 	}
