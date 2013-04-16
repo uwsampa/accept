@@ -40,9 +40,66 @@ for checking types, a backend (LLVM) pass for analysis and
 transformation, and a runtime library. Now you can use `bin/enerclang`
 and `bin/enerclang++` to compile EnerC programs.
 
+Now, it might be a good idea to `./bin/runtests.sh` to make sure everything's
+working.
 
-What's Here
------------
+
+Using the Tool
+--------------
+
+Once you have the compiler set up, you can use the driver logic to
+interactively explore relaxations of programs. This stuff is all written in
+Python and has a number of dependencies. Install these by typing:
+
+    pip install -r requirements.txt
+
+The main entry point is the `bin/accept` script, which invokes the Python code
+in the `accept` directory. For convenience, you can put this on your `$PATH` by
+running `source activate.sh`.
+
+Type `accept help` to see the available commands:
+
+* `accept log`: Dump the ACCEPT compiler log when compiling the program in the
+  current directory, which can help you get an idea of which approximations are
+  available. The output is filtered through `c++filt` to demangle C++ names.
+* `accept build`: Dump the Clang output from compiling the program. This can be
+  helpful during the annotation process. Shares a memoized build call with the
+  `log` command, so after running one, the other will be free.
+* `accept precise`: Show the precise output, precise running time, and
+  approximation opportunities for the application.
+* `accept approx [CONFIGNUM]`: Similarly, show the approximate output and
+  approximate running time for either a particular relaxation or all
+  configurations if the parameter is omitted. Both this and `precise` share
+  memoized calls with the main experiments.
+
+All of the commands use memoization to some degree. Memoized results are stored
+in an SQLite database called `memo.db`. Clear this out or pass the
+`-f`/`--force` flag to `accept` to throw away the results and recompute.
+
+(If you're hacking on ACCEPT itself, you can also use the `build_enerc.sh` and
+`build_llvm.sh` scripts once you've extended your `$PATH`. This avoids the
+`cd`-to-build-directory, `cd -` dance that would otherwise be necessary.)
+
+### Running the Experiments
+
+For some of the benchmarks, you will need some large input files that are not included in this repository:
+
+* blackscholes: "simlarge" input from PARSEC (`in_64K.txt`)
+
+Run the experiments by typing `accept exp`.
+
+### Running on a Cluster
+
+The above will run all compilations and executions locally and in serial. To
+run data collections on a cluster, install and set up the [cluster-workers][]
+library. Then pass the `-c`/`--cluster` flag to `accept` to enable cluster
+execution.
+
+[cluster-workers]: https://github.com/sampsyo/cluster-workers
+
+
+What Else is Here?
+------------------
 
 This repository includes lots of stuff:
 
@@ -71,48 +128,3 @@ This repository includes lots of stuff:
   the results used in the (eventual) paper.
 
 [LIT]: http://llvm.org/docs/CommandGuide/lit.html
-
-
-Using the Tool
---------------
-
-Once you have the compiler set up, you can use the driver logic to
-interactively explore relaxations of programs. (You can also run our batch of
-experiments non-interactively; see below.) The main entry point is the
-`bin/accept` script, which invokes the Python code in the `accept` directory.
-For convenience, you can put this on your `$PATH` by running `source
-activate.sh`.
-
-Type `accept help` to see the available commands:
-
-* `accept log`: Dump the ACCEPT compiler log when compiling the program in the
-  current directory, which can help you get an idea of which approximations are
-  available. The output is filtered through c++filt to demangle C++ names.
-* `accept build`: Dump the Clang output from compiling the program. This can be
-  helpful during the annotation process. Shares a memoized build call with the
-  `log` command, so after running one, the other will be free.
-
-(If you're hacking on ACCEPT itself, you can also use the `build_enerc.sh` and
-`build_llvm.sh` scripts once you've extended your `$PATH`. This avoids the
-`cd`-to-build-directory, `cd -` dance that would otherwise be necessary.)
-
-
-Running the Experiments
------------------------
-
-First, it might be a good idea to `./bin/runtests.sh` to make sure the compiler itself is working.
-
-Then, install the necessary Python modules by typing `pip install -r requirements.txt`.
-
-For some of the benchmarks, you will need large input files that are not included in this repository:
-
-* blackscholes: "simlarge" input from PARSEC (`in_64K.txt`)
-
-Finally, run the experiments by typing `./bin/accept exp`. This will record some data in an SQLite database called `memo.db`; clear this out if you need to run things from the beginning again.
-
-The above will run all compilations and executions locally and in serial. To
-run data collections on a cluster, install and set up the [cluster-workers][]
-library. Then pass the `-c` flag to the experiments script to enable cluster
-execution.
-
-[cluster-workers]: https://github.com/sampsyo/cluster-workers
