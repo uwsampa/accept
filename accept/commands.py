@@ -6,6 +6,7 @@ import logging
 import sys
 import os
 import subprocess
+import locale
 from . import experiments
 from . import core
 from . import cwmemo
@@ -13,7 +14,7 @@ from . import cwmemo
 
 LOCAL_REPS = 1
 CLUSTER_REPS = 5
-APPS = ['streamcluster', 'blackscholes', 'sobel']
+APPS = ['streamcluster', 'blackscholes', 'sobel', 'canneal']
 
 
 _client = None
@@ -21,6 +22,10 @@ _client = None
 def global_config(opts):
     global _client
     _client = cwmemo.get_client(cluster=opts.cluster, force=opts.force)
+
+def exppath(path):
+    enc = locale.getpreferredencoding()
+    return os.path.abspath(os.path.expanduser(path.decode(enc)))
 
 
 # Run the experiments.
@@ -61,6 +66,7 @@ def log_and_output(directory, fn='accept_log.txt'):
 
 @argh.arg('appdir', nargs='?', help='application directory')
 def log(appdir='.'):
+    appdir = exppath(appdir)
     with _client:
         _client.submit(log_and_output, appdir)
         logtxt, _ = _client.get(log_and_output, appdir)
@@ -73,16 +79,29 @@ def log(appdir='.'):
 
 @argh.arg('appdir', nargs='?', help='application directory')
 def build(appdir='.'):
+    appdir = exppath(appdir)
     with _client:
         _client.submit(log_and_output, appdir)
         _, output = _client.get(log_and_output, appdir)
     return output
 
 
+# Parts of the experiments.
+
+@argh.arg('appdir', nargs='?', help='application directory')
+def precise(appdir='.'):
+    appdir = exppath(appdir)
+    with _client:
+        _client.submit(core.build_and_execute, appdir, None, 0)
+        pout, ptime, _, base_config, descs = \
+                _client.get(core.build_and_execute, appdir, None, 0)
+    print('precise output', pout)
+
+
 def main():
     logging.getLogger().addHandler(logging.StreamHandler(sys.stderr))
     parser = argh.ArghParser()
-    parser.add_commands([exp, log, build])
+    parser.add_commands([exp, log, build, precise])
     parser.add_argument('--cluster', '-c', default=False, action='store_true',
                         help='execute on Slurm cluster')
     parser.add_argument('--force', '-f', default=False, action='store_true',
