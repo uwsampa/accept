@@ -270,7 +270,7 @@ class Experiment(object):
 
     def run_approx(self, configs):
         """Evaluate a set of approximate configurations. Return a list of
-        results.
+        results and append them to `self.results`.
         """
         # Relaxed executions.
         for config in configs:
@@ -282,14 +282,21 @@ class Experiment(object):
             self.ptimes = list(self.precise_times())
 
         # Gather relaxed executions.
-        return [self.get_approx_result(config) for config in configs]
+        res = [self.get_approx_result(config) for config in configs]
+        self.results += res
+        return res
 
     def run(self):
         """Execute the experiment.
         """
         self.setup()
-        res = self.run_approx(list(core.permute_config(self.base_config)))
-        self.results += res
+        results = self.run_approx(list(core.permute_config(self.base_config)))
+
+        # Evaluate a configuration that combines all the good ones.
+        config = core.combine_configs(
+            r.config for r in results if r.good
+        )
+        self.run_approx([config])
 
 
 def evaluate(client, appname, verbose=False, reps=1):

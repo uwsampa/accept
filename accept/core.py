@@ -219,3 +219,23 @@ def permute_config(base):
         site = site[0], site[1], 1
         config[i] = site
         yield config
+
+def combine_configs(configs):
+    """Generate a new configuration that superimposes all the
+    optimizations from the set of configurations.
+    """
+    configs = list(configs)
+
+    # Combine nonzero parameters in an unordered way.
+    sites = {}
+    for config in configs:
+        for mod, ident, param in config:
+            if param:
+                sites[(mod, ident)] = param
+
+    # Modify the first config with the new parameters.
+    out = configs[0]
+    for i, (mod, ident, param) in enumerate(out):
+        if (mod, ident) in sites:
+            out[i] = mod, ident, sites[(mod, ident)]
+    return out
