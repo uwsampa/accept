@@ -198,7 +198,7 @@ class Experiment(object):
         self.scorefunc = scorefunc
         self.reps = reps
 
-        self.appdir = os.path.join(APPSDIR, appname)
+        self.appdir = core.normpath(os.path.join(APPSDIR, appname))
 
         # Results, to be populated later.
         self.ptimes = []

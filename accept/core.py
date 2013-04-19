@@ -10,6 +10,7 @@ import shutil
 import tempfile
 import string
 import random
+import locale
 
 
 EVALSCRIPT = 'eval.py'
@@ -56,6 +57,12 @@ def sandbox(symlink=False):
 
 def _random_string(length=20, chars=(string.ascii_letters + string.digits)):
     return ''.join(random.choice(chars) for i in range(length))
+
+def normpath(path):
+    enc = locale.getpreferredencoding()
+    return os.path.normpath(os.path.abspath(os.path.expanduser(
+        path.decode(enc)
+    )))
 
 
 # Command execution (system()-like) with timeouts.

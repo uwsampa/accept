@@ -6,7 +6,6 @@ import logging
 import sys
 import os
 import subprocess
-import locale
 from . import experiments
 from . import core
 from . import cwmemo
@@ -22,10 +21,6 @@ _client = None
 def global_config(opts):
     global _client
     _client = cwmemo.get_client(cluster=opts.cluster, force=opts.force)
-
-def exppath(path):
-    enc = locale.getpreferredencoding()
-    return os.path.abspath(os.path.expanduser(path.decode(enc)))
 
 
 # Run the experiments.
@@ -66,7 +61,7 @@ def log_and_output(directory, fn='accept_log.txt'):
 
 @argh.arg('appdir', nargs='?', help='application directory')
 def log(appdir='.'):
-    appdir = exppath(appdir)
+    appdir = core.normpath(appdir)
     with _client:
         _client.submit(log_and_output, appdir)
         logtxt, _ = _client.get(log_and_output, appdir)
@@ -79,7 +74,7 @@ def log(appdir='.'):
 
 @argh.arg('appdir', nargs='?', help='application directory')
 def build(appdir='.'):
-    appdir = exppath(appdir)
+    appdir = core.normpath(appdir)
     with _client:
         _client.submit(log_and_output, appdir)
         _, output = _client.get(log_and_output, appdir)
@@ -90,7 +85,7 @@ def build(appdir='.'):
 
 @argh.arg('appdir', nargs='?', help='application directory')
 def precise(appdir='.'):
-    appdir = exppath(appdir)
+    appdir = core.normpath(appdir)
     with _client:
         _client.submit(core.build_and_execute, appdir, None, 0)
         pout, ptime, _, base_config, descs = \
@@ -105,7 +100,7 @@ def precise(appdir='.'):
 @argh.arg('num', nargs='?', type=int, help='which configuration')
 @argh.arg('appdir', nargs='?', help='application directory')
 def approx(num=None, appdir='.'):
-    appdir = exppath(appdir)
+    appdir = core.normpath(appdir)
     with _client:
         _client.submit(core.build_and_execute, appdir, None, 0)
         _, ptime, _, base_config, descs = \
