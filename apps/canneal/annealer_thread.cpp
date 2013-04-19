@@ -132,10 +132,11 @@ APPROX routing_cost_t annealer_thread::calculate_delta_routing_cost(netlist_elem
 bool annealer_thread::keep_going(int temp_steps_completed, int accepted_good_moves, int accepted_bad_moves)
 {
 	bool rv;
+  int accept_epsilon = 0;
 
 	if(_number_temp_steps == -1) {
 		//run until design converges
-		rv = _keep_going_global_flag && (accepted_good_moves > accepted_bad_moves);
+		rv = _keep_going_global_flag && (accepted_good_moves - accepted_bad_moves > accept_epsilon);
 		if(!rv) _keep_going_global_flag = false; // signal we have converged
 	} else {
 		//run a fixed amount of steps
