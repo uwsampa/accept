@@ -200,17 +200,52 @@ class Experiment(object):
 
         self.appdir = os.path.join(APPSDIR, appname)
 
-        # Precise results, to be populated later.
+        # Results, to be populated later.
         self.ptimes = []
         self.pout = None
+        self.descs = None
+        self.ptime = None
+        self.ptimes = []
+        self.base_config = None
+        self.results = []
 
-    def submit_approx_runs(self, config, timeout):
-        """Submit the executions for a given configurations.
+    def setup(self):
+        """Submit the baseline precise executions and gather some
+        information about the first. Set the fields `pout` (the precise
+        output), `pout` (precise execution time), `base_config`, and
+        `descs`.
+        """
+        # Precise (baseline) execution.
+        for rep in range(self.reps):
+            self.client.submit(core.build_and_execute,
+                self.appdir, None, rep,
+                timeout=None
+            )
+
+        # Get information from the first execution. The rest of the
+        # executions are for timing and can finish later.
+        self.pout, self.ptime, _, self.base_config, self.descs = \
+                self.client.get(
+                    core.build_and_execute,
+                    self.appdir, None, 0
+                )
+
+    def precise_times(self):
+        """Generate the durations for the precise executions. Must be
+        called after `setup`.
+        """
+        for rep in range(self.reps):
+            _, dur, _, _, _ = self.client.get(core.build_and_execute,
+                                              self.appdir, None, rep)
+            yield dur
+
+    def submit_approx_runs(self, config):
+        """Submit the executions for a given configuration.
         """
         for rep in range(self.reps):
             self.client.submit(core.build_and_execute,
                 self.appdir, config, rep,
-                timeout=timeout
+                timeout=self.ptime * TIMEOUT_FACTOR
             )
 
     def get_approx_result(self, config):
@@ -233,46 +268,13 @@ class Experiment(object):
         res.evaluate(self.scorefunc, self.pout, self.ptimes)
         return res
 
-    def setup(self):
-        """Submit the baseline precise executions and gather some
-        information about the first. Return the precise output, precise
-        execution time, base configuration, and the configuration
-        descriptions.
+    def run_approx(self, configs):
+        """Evaluate a set of approximate configurations. Return a list of
+        results.
         """
-        # Precise (baseline) execution.
-        for rep in range(self.reps):
-            self.client.submit(core.build_and_execute,
-                self.appdir, None, rep,
-                timeout=None
-            )
-
-        # Get information from the first execution. The rest of the
-        # executions are for timing and can finish later.
-        pout, ptime, _, base_config, descs = self.client.get(
-            core.build_and_execute,
-            self.appdir, None, 0
-        )
-        return pout, ptime, base_config, descs
-
-    def precise_times(self):
-        """Generate the durations for the precise executions. Must be
-        called after `setup`.
-        """
-        for rep in range(self.reps):
-            _, dur, _, _, _ = self.client.get(core.build_and_execute,
-                                              self.appdir, None, rep)
-            yield dur
-
-    def run(self):
-        """Execute the experiment, getting a list of Result objects for
-        a given application along with its location descriptions.
-        """
-        self.pout, ptime, base_config, descs = self.setup()
-
         # Relaxed executions.
-        configs = list(core.permute_config(base_config))
         for config in configs:
-            self.submit_approx_runs(config, ptime * TIMEOUT_FACTOR)
+            self.submit_approx_runs(config)
 
         # If we don't have the precise times yet, collect them. We need
         # them to evaluate approximate executions.
@@ -280,9 +282,14 @@ class Experiment(object):
             self.ptimes = list(self.precise_times())
 
         # Gather relaxed executions.
-        results = [self.get_approx_result(config) for config in configs]
+        return [self.get_approx_result(config) for config in configs]
 
-        return results, descs
+    def run(self):
+        """Execute the experiment.
+        """
+        self.setup()
+        res = self.run_approx(list(core.permute_config(self.base_config)))
+        self.results += res
 
 
 def evaluate(client, appname, verbose=False, reps=1):
@@ -292,9 +299,10 @@ def evaluate(client, appname, verbose=False, reps=1):
         except IOError:
             assert False, 'no eval.py found in {} directory'.format(appname)
 
+    exp = Experiment(appname, client, mod.score, reps)
     with client:
-        exp = Experiment(appname, client, mod.score, reps)
-        results, descs = exp.run()
+        exp.run()
+    results, descs = exp.results, exp.descs
 
     optimal, suboptimal, bad = triage_results(results)
     print('{} optimal, {} suboptimal, {} bad'.format(
