@@ -752,6 +752,11 @@ struct ACCEPTPass : public FunctionPass {
     std::set<BasicBlock*> loopBlocks;
     for (Loop::block_iterator bi = loop->block_begin();
          bi != loop->block_end(); ++bi) {
+      if (*bi == loop->getLoopLatch()) {
+        // Even in perforated loops, the latch gets executed every time. So we
+        // don't check it.
+        continue;
+      }
       loopBlocks.insert(*bi);
     }
     std::set<Instruction*> blockers = analysis->preciseEscapeCheck(loopBlocks);
