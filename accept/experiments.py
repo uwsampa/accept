@@ -186,17 +186,17 @@ def dump_config(config, descs):
 class Evaluation(object):
     """The state for the evaluation of a single application.
     """
-    def __init__(self, appname, client, reps):
+    def __init__(self, appdir, client, reps):
         """Set up an experiment. Takes an active CWMemo instance,
         `client`, through which jobs will be submitted and outputs
         collected. `reps` is the number of executions per configuration
         to run.
         """
-        self.appname = appname
+        self.appdir = core.normpath(appdir)
         self.client = client
         self.reps = reps
 
-        self.appdir = core.normpath(os.path.join(APPSDIR, appname))
+        self.appname = os.path.basename(self.appdir)
 
         # Load scoring function from eval.py.
         with core.chdir(self.appdir):
@@ -204,7 +204,7 @@ class Evaluation(object):
                 mod = imp.load_source('evalscript', core.EVALSCRIPT)
             except IOError:
                 raise Exception('no eval.py found in {} directory'.format(
-                    appname
+                    self.appname
                 ))
         self.scorefunc = mod.score
 
@@ -308,7 +308,7 @@ class Evaluation(object):
 
 
 def evaluate(client, appname, verbose=False, reps=1):
-    exp = Evaluation(appname, client, reps)
+    exp = Evaluation(os.path.join(APPSDIR, appname), client, reps)
     with client:
         exp.run()
     results, descs = exp.results, exp.descs
