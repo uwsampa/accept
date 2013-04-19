@@ -183,22 +183,30 @@ def dump_config(config, descs):
     return u', '.join(out)
 
 
-class Experiment(object):
+class Evaluation(object):
     """The state for the evaluation of a single application.
     """
-    def __init__(self, appname, client, scorefunc, reps):
+    def __init__(self, appname, client, reps):
         """Set up an experiment. Takes an active CWMemo instance,
         `client`, through which jobs will be submitted and outputs
-        collected. `scorefunc` is the application's output quality
-        scoring function. `reps` is the number of executions per
-        configuration to run.
+        collected. `reps` is the number of executions per configuration
+        to run.
         """
         self.appname = appname
         self.client = client
-        self.scorefunc = scorefunc
         self.reps = reps
 
         self.appdir = core.normpath(os.path.join(APPSDIR, appname))
+
+        # Load scoring function from eval.py.
+        with core.chdir(self.appdir):
+            try:
+                mod = imp.load_source('evalscript', core.EVALSCRIPT)
+            except IOError:
+                raise Exception('no eval.py found in {} directory'.format(
+                    appname
+                ))
+        self.scorefunc = mod.score
 
         # Results, to be populated later.
         self.ptimes = []
@@ -300,13 +308,7 @@ class Experiment(object):
 
 
 def evaluate(client, appname, verbose=False, reps=1):
-    with core.chdir(os.path.join(APPSDIR, appname)):
-        try:
-            mod = imp.load_source('evalscript', core.EVALSCRIPT)
-        except IOError:
-            assert False, 'no eval.py found in {} directory'.format(appname)
-
-    exp = Experiment(appname, client, mod.score, reps)
+    exp = Evaluation(appname, client, reps)
     with client:
         exp.run()
     results, descs = exp.results, exp.descs
