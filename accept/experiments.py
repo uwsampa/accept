@@ -183,61 +183,106 @@ def dump_config(config, descs):
     return u', '.join(out)
 
 
-def get_results(appname, client, scorefunc, reps):
-    """Get a list of Result objects for a given application along with
-    its location descriptions. Takes an active CWMemo instance,
-    `client`, through which jobs will be submitted and outputs
-    collected. `scorefunc` is the application's output quality scoring
-    function. `reps` is the number of executions per configuration to
-    run.
+class Experiment(object):
+    """The state for the evaluation of a single application.
     """
-    appdir = os.path.join(APPSDIR, appname)
+    def __init__(self, appname, client, scorefunc, reps):
+        """Set up an experiment. Takes an active CWMemo instance,
+        `client`, through which jobs will be submitted and outputs
+        collected. `scorefunc` is the application's output quality
+        scoring function. `reps` is the number of executions per
+        configuration to run.
+        """
+        self.appname = appname
+        self.client = client
+        self.scorefunc = scorefunc
+        self.reps = reps
 
-    # Precise (baseline) execution.
-    for rep in range(reps):
-        client.submit(core.build_and_execute,
-            appdir, None, rep,
-            timeout=None
-        )
+        self.appdir = os.path.join(APPSDIR, appname)
 
-    # Relaxed executions.
-    pout, ptime, _, base_config, descs = client.get(core.build_and_execute,
-                                                    appdir, None, 0)
-    configs = list(core.permute_config(base_config))
-    for config in configs:
-        for rep in range(reps):
-            client.submit(core.build_and_execute,
-                appdir, config, rep,
-                timeout=ptime * TIMEOUT_FACTOR
+        # Precise results, to be populated later.
+        self.ptimes = []
+        self.pout = None
+
+    def submit_approx_runs(self, config, timeout):
+        """Submit the executions for a given configurations.
+        """
+        for rep in range(self.reps):
+            self.client.submit(core.build_and_execute,
+                self.appdir, config, rep,
+                timeout=timeout
             )
 
-    # Get execution times for the precise version.
-    ptimes = []
-    for rep in range(reps):
-        _, dur, _, _, _ = client.get(core.build_and_execute,
-                                     appdir, None, rep)
-        ptimes.append(dur)
-
-    # Gather relaxed executions.
-    results = []
-    for config in configs:
+    def get_approx_result(self, config):
+        """Gather the Result objects from a configuration. Must be
+        called after previously submitting the same configuration.
+        """
         # Get outputs from first execution.
-        aout, _, status, _, _ = client.get(core.build_and_execute,
-                                           appdir, config, 0)
+        aout, _, status, _, _ = self.client.get(core.build_and_execute,
+                                                self.appdir, config, 0)
 
         # Get all execution times.
         atimes = []
-        for rep in range(reps):
-            _, dur, _, _, _ = client.get(core.build_and_execute,
-                                         appdir, config, rep)
+        for rep in range(self.reps):
+            _, dur, _, _, _ = self.client.get(core.build_and_execute,
+                                              self.appdir, config, rep)
             atimes.append(dur)
 
         # Evaluate the result.
-        res = Result(appname, config, atimes, status, aout)
-        res.evaluate(scorefunc, pout, ptimes)
-        results.append(res)
+        res = Result(self.appname, config, atimes, status, aout)
+        res.evaluate(self.scorefunc, self.pout, self.ptimes)
+        return res
 
-    return results, descs
+    def setup(self):
+        """Submit the baseline precise executions and gather some
+        information about the first. Return the precise output, precise
+        execution time, base configuration, and the configuration
+        descriptions.
+        """
+        # Precise (baseline) execution.
+        for rep in range(self.reps):
+            self.client.submit(core.build_and_execute,
+                self.appdir, None, rep,
+                timeout=None
+            )
+
+        # Get information from the first execution. The rest of the
+        # executions are for timing and can finish later.
+        pout, ptime, _, base_config, descs = self.client.get(
+            core.build_and_execute,
+            self.appdir, None, 0
+        )
+        return pout, ptime, base_config, descs
+
+    def precise_times(self):
+        """Generate the durations for the precise executions. Must be
+        called after `setup`.
+        """
+        for rep in range(self.reps):
+            _, dur, _, _, _ = self.client.get(core.build_and_execute,
+                                              self.appdir, None, rep)
+            yield dur
+
+    def run(self):
+        """Execute the experiment, getting a list of Result objects for
+        a given application along with its location descriptions.
+        """
+        self.pout, ptime, base_config, descs = self.setup()
+
+        # Relaxed executions.
+        configs = list(core.permute_config(base_config))
+        for config in configs:
+            self.submit_approx_runs(config, ptime * TIMEOUT_FACTOR)
+
+        # If we don't have the precise times yet, collect them. We need
+        # them to evaluate approximate executions.
+        if not self.ptimes:
+            self.ptimes = list(self.precise_times())
+
+        # Gather relaxed executions.
+        results = [self.get_approx_result(config) for config in configs]
+
+        return results, descs
 
 
 def evaluate(client, appname, verbose=False, reps=1):
@@ -248,7 +293,8 @@ def evaluate(client, appname, verbose=False, reps=1):
             assert False, 'no eval.py found in {} directory'.format(appname)
 
     with client:
-        results, descs = get_results(appname, client, mod.score, reps)
+        exp = Experiment(appname, client, mod.score, reps)
+        results, descs = exp.run()
 
     optimal, suboptimal, bad = triage_results(results)
     print('{} optimal, {} suboptimal, {} bad'.format(
