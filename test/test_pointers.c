@@ -10,7 +10,7 @@ void func(APPROX int *xp) {
     APPROX int i = *xp;
     APPROX int *j = 0;
     j = xp;
-    memcpy(ENDORSE(xp), ENDORSE(j), 2);
+    memcpy(xp, j, 2);
 }
 
 int main() {
@@ -20,7 +20,7 @@ int main() {
     yp = (int*)malloc(2);
     xp = (int*)malloc(2);
     free(yp);
-    free(ENDORSE(xp));
+    free(xp);
 
     // propagation through arithmetic/casts
     xp = xp;
