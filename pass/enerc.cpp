@@ -129,10 +129,20 @@ std::string instDesc(const Module &mod, Instruction *inst) {
   raw_string_ostream ss(out);
   ss << srcPosDesc(mod, inst->getDebugLoc()) << ": ";
 
+  // call and invoke instructions
+  Function *calledFunc = NULL;
+  bool isCall = false;
   if (CallInst *call = dyn_cast<CallInst>(inst)) {
-    Function *func = call->getCalledFunction();
-    if (func) {
-      StringRef name = func->getName();
+    calledFunc = call->getCalledFunction();
+    isCall = true;
+  } else if (InvokeInst *invoke = dyn_cast<InvokeInst>(inst)) {
+    calledFunc = invoke->getCalledFunction();
+    isCall = true;
+  }
+
+  if (isCall) {
+    if (calledFunc) {
+      StringRef name = calledFunc->getName();
       if (!name.empty() && name.front() == '_') {
         // C++ name. An extra leading underscore makes the name legible by
         // c++filt.
@@ -275,20 +285,22 @@ struct ACCEPTAnalysis {
       }
 
       // Calls must be to precise-pure functions.
+      Function *calledFunc = NULL;
       if (CallInst *call = dyn_cast<CallInst>(i->first)) {
         if (!isa<DbgInfoIntrinsic>(call)) {
-
-          Function *func = call->getCalledFunction();
-          if (func && isPrecisePure(func)) {
-            // The call itself is precise-pure, but now we need to make sure
-            // that the uses are also tainted.
-            // Fall through to usage check.
-          } else {
+          calledFunc = call->getCalledFunction();
+          if (!calledFunc)
             continue;
-          }
-
         }
+      } else if (InvokeInst *invoke = dyn_cast<InvokeInst>(i->first)) {
+        calledFunc = invoke->getCalledFunction();
+        if (!calledFunc)
+          continue;
       }
+      if (calledFunc && !isPrecisePure(calledFunc))
+          continue;
+      // Otherwise, the call itself is precise-pure, but now we need to make
+      // sure that the uses are also tainted. Fall through to usage check.
 
       bool allUsesTainted = true;
       for (Value::use_iterator ui = i->first->use_begin();
@@ -334,6 +346,8 @@ struct ACCEPTAnalysis {
   }
 
   bool approxOrLocal(std::set<Instruction*> &insts, Instruction *inst) {
+    Function *calledFunc = NULL;
+
     if (hasPermit(inst)) {
       return true;
     } else if (CallInst *call = dyn_cast<CallInst>(inst)) {
@@ -342,22 +356,31 @@ struct ACCEPTAnalysis {
         return true;
       }
 
-      Function *func = call->getCalledFunction();
-      if (func && isPrecisePure(func)) {
-        if (isApprox(inst)) {
-          return true;
-        }
-        // Otherwise, fall through and check usages for escape.
-      } else {
+      calledFunc = call->getCalledFunction();
+      if (!calledFunc)  // Indirect call.
         return false;
-      }
 
+    } else if (InvokeInst *invoke = dyn_cast<InvokeInst>(inst)) {
+      calledFunc = invoke->getCalledFunction();
+      if (!calledFunc)
+        return false;
     } else if (isApprox(inst)) {
       return true;
     } else if (isa<StoreInst>(inst) ||
                isa<ReturnInst>(inst) ||
                isa<BranchInst>(inst)) {
       return false;  // Never approximate.
+    }
+
+    // For call and invoke instructions, ensure the function is precise-pure.
+    if (calledFunc) {
+      if (!isPrecisePure(calledFunc)) {
+        return false;
+      }
+      if (isApprox(inst)) {
+        return true;
+      }
+      // Otherwise, fall through and check usages for escape.
     }
 
     for (Value::use_iterator ui = inst->use_begin();
