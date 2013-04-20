@@ -17,25 +17,26 @@ APPS = ['streamcluster', 'blackscholes', 'sobel', 'canneal']
 
 
 _client = None
+_reps = 1
 
 def global_config(opts):
     global _client
+    global _reps
     _client = cwmemo.get_client(cluster=opts.cluster, force=opts.force)
+    if opts.reps:
+        _reps = opts.reps
+    else:
+        _reps = CLUSTER_REPS if opts.cluster else LOCAL_REPS
 
 
 # Run the experiments.
 
 @argh.arg('appnames', metavar='NAME', default=APPS, nargs='*', type=unicode,
           help='applications')
-@argh.arg('-r', '--reps', metavar='N', default=None, type=int,
-          help='replications')
-def exp(appnames, verbose=False, cluster=False, reps=None):
-    if not reps:
-        reps = CLUSTER_REPS if cluster else LOCAL_REPS
-
+def exp(appnames, verbose=False):
     for appname in appnames:
         print(appname)
-        experiments.evaluate(_client, appname, verbose, reps)
+        experiments.evaluate(_client, appname, verbose, _reps)
 
 
 # Get the compilation log or compiler output.
@@ -85,44 +86,37 @@ def build(appdir='.'):
 
 @argh.arg('appdir', nargs='?', help='application directory')
 def precise(appdir='.'):
-    appdir = core.normpath(appdir)
+    ev = experiments.Evaluation(appdir, _client, _reps)
     with _client:
-        _client.submit(core.build_and_execute, appdir, None, 0)
-        pout, ptime, _, base_config, descs = \
-                _client.get(core.build_and_execute, appdir, None, 0)
+        ev.setup()
+        times = list(ev.precise_times())
 
-    print('output:', pout)
-    print('time: {:.2f}'.format(ptime))
-    print('sites: {}'.format(len(descs)))
-    for desc in descs.values():
-        print('  ', desc)
+    print('output:', ev.pout)
+    print('time:')
+    for t in times:
+        print('  {:.2f}'.format(t))
+    print('sites: {}'.format(len(ev.descs)))
+    for desc in ev.descs.values():
+        print(' ', desc)
 
 @argh.arg('num', nargs='?', type=int, help='which configuration')
 @argh.arg('appdir', nargs='?', help='application directory')
 def approx(num=None, appdir='.'):
-    appdir = core.normpath(appdir)
+    ev = experiments.Evaluation(appdir, _client, _reps)
     with _client:
-        _client.submit(core.build_and_execute, appdir, None, 0)
-        _, ptime, _, base_config, descs = \
-                _client.get(core.build_and_execute, appdir, None, 0)
+        ev.run()
+    results = ev.results
 
-        # Get configurations (and possibly narrow to only one).
-        configs = list(core.permute_config(base_config))
-        if num is not None:
-            configs = [configs[num]]
-        configs = [configs[num]] if num is not None else configs
+    # Possibly choose a specific result.
+    results = [results[num]] if num is not None else results
 
-        for config in configs:
-            _client.submit(core.build_and_execute,
-                appdir, config, 0,
-                timeout=ptime * experiments.TIMEOUT_FACTOR
-            )
-            aout, atime, _, _, _ = \
-                _client.get(core.build_and_execute, appdir, config, 0)
-
-            print('output:', aout)
-            print('time: {:.2f}'.format(atime))
-            print()
+    for result in results:
+        print(experiments.dump_config(result.config, ev.descs))
+        print('output:', result.output)
+        print('time:')
+        for t in result.durations:
+            print('  {:.2f}'.format(t))
+        print()
 
 
 def main():
@@ -133,6 +127,8 @@ def main():
                         help='execute on Slurm cluster')
     parser.add_argument('--force', '-f', default=False, action='store_true',
                         help='clear memoized results')
+    parser.add_argument('--reps', '-r', type=int,
+                        help='replication runs')
     parser.dispatch(pre_call=global_config)
 
 if __name__ == '__main__':
