@@ -529,7 +529,8 @@ struct ACCEPTPass : public FunctionPass {
   bool isLibraryFunc(Function &F) {
     DIScope scope = debugInfoForFunc(F).getContext();
     if (scope.Verify()) {
-      return scope.getFilename().startswith("/usr/include");
+      return scope.getFilename().startswith("/usr/include/") ||
+             scope.getFilename().startswith("/usr/lib/");
     }
     return false;
   }
