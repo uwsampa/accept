@@ -11,6 +11,7 @@ import tempfile
 import string
 import random
 import locale
+from .uncertain import umean
 
 
 EVALSCRIPT = 'eval.py'
@@ -18,6 +19,8 @@ CONFIGFILE = 'accept_config.txt'
 DESCFILE = 'accept_config_desc.txt'
 BASEDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUTS_DIR = os.path.join(BASEDIR, 'saved_outputs')
+MAX_ERROR = 0.3
+TIMEOUT_FACTOR = 3
 
 
 # Utilities.
@@ -246,3 +249,209 @@ def combine_configs(configs):
         if (mod, ident) in sites:
             out[i] = mod, ident, sites[(mod, ident)]
     return out
+
+
+# Results.
+
+class Result(object):
+    """Represents the result of executing one relaxed configuration of a
+    program.
+    """
+    def __init__(self, app, config, durations, status, output):
+        self.app = app
+        self.config = config
+        self.durations = durations
+        self.status = status
+        self.output = output
+
+        self.duration = umean(self.durations)
+
+    def evaluate(self, scorefunc, precise_output, precise_durations):
+        p_dur = umean(precise_durations)
+
+        if self.status is None:
+            # Timed out.
+            self.good = False
+            self.desc = 'timed out'
+            return
+
+        if self.status:
+            # Error status.
+            self.good = False
+            self.desc = 'exited with status {}'.format(self.status)
+            return
+
+        # Get output error and speedup.
+        self.error = scorefunc(precise_output, self.output)
+        self.speedup = p_dur / self.duration
+
+        if self.error > MAX_ERROR:
+            # Large output error.
+            self.good = False
+            self.desc = 'large error: {:.2%}'.format(self.error)
+            return
+
+        if self.speedup < 1.0:
+            # Slowdown.
+            self.good = False
+            self.desc = 'slowdown: {} vs. {}'.format(self.duration, p_dur)
+            return
+
+        # All good!
+        self.good = True
+        self.desc = 'good'
+
+def triage_results(results):
+    """Given a list of Result objects, splits the data set into three
+    lists: optimal, suboptimal, and bad results.
+    """
+    good = []
+    bad = []
+    for res in results:
+        (good if res.good else bad).append(res)
+
+    optimal = []
+    suboptimal = []
+    for res in good:
+        for other in good:
+            if res == good:
+                continue
+            if other.error < res.error and other.speedup > res.speedup:
+                # other dominates res, so eliminate res from the optimal
+                # set.
+                suboptimal.append(res)
+                break
+        else:
+            # No other result dominates res.
+            optimal.append(res)
+
+    assert len(optimal) + len(suboptimal) + len(bad) == len(results)
+    return optimal, suboptimal, bad
+
+
+# Core relaxation search workflow.
+
+class Evaluation(object):
+    """The state for the evaluation of a single application.
+    """
+    def __init__(self, appdir, client, reps):
+        """Set up an experiment. Takes an active CWMemo instance,
+        `client`, through which jobs will be submitted and outputs
+        collected. `reps` is the number of executions per configuration
+        to run.
+        """
+        self.appdir = normpath(appdir)
+        self.client = client
+        self.reps = reps
+
+        self.appname = os.path.basename(self.appdir)
+
+        # Load scoring function from eval.py.
+        with chdir(self.appdir):
+            try:
+                mod = imp.load_source('evalscript', EVALSCRIPT)
+            except IOError:
+                raise Exception('no eval.py found in {} directory'.format(
+                    self.appname
+                ))
+        self.scorefunc = mod.score
+
+        # Results, to be populated later.
+        self.ptimes = []
+        self.pout = None
+        self.descs = None
+        self.ptime = None
+        self.ptimes = []
+        self.base_config = None
+        self.results = []
+
+    def setup(self):
+        """Submit the baseline precise executions and gather some
+        information about the first. Set the fields `pout` (the precise
+        output), `pout` (precise execution time), `base_config`, and
+        `descs`.
+        """
+        # Precise (baseline) execution.
+        for rep in range(self.reps):
+            self.client.submit(build_and_execute,
+                self.appdir, None, rep,
+                timeout=None
+            )
+
+        # Get information from the first execution. The rest of the
+        # executions are for timing and can finish later.
+        self.pout, self.ptime, _, self.base_config, self.descs = \
+                self.client.get(
+                    build_and_execute,
+                    self.appdir, None, 0
+                )
+
+    def precise_times(self):
+        """Generate the durations for the precise executions. Must be
+        called after `setup`.
+        """
+        for rep in range(self.reps):
+            _, dur, _, _, _ = self.client.get(build_and_execute,
+                                              self.appdir, None, rep)
+            yield dur
+
+    def submit_approx_runs(self, config):
+        """Submit the executions for a given configuration.
+        """
+        for rep in range(self.reps):
+            self.client.submit(build_and_execute,
+                self.appdir, config, rep,
+                timeout=self.ptime * TIMEOUT_FACTOR
+            )
+
+    def get_approx_result(self, config):
+        """Gather the Result objects from a configuration. Must be
+        called after previously submitting the same configuration.
+        """
+        # Get outputs from first execution.
+        aout, _, status, _, _ = self.client.get(build_and_execute,
+                                                self.appdir, config, 0)
+
+        # Get all execution times.
+        atimes = []
+        for rep in range(self.reps):
+            _, dur, _, _, _ = self.client.get(build_and_execute,
+                                              self.appdir, config, rep)
+            atimes.append(dur)
+
+        # Evaluate the result.
+        res = Result(self.appname, config, atimes, status, aout)
+        res.evaluate(self.scorefunc, self.pout, self.ptimes)
+        return res
+
+    def run_approx(self, configs):
+        """Evaluate a set of approximate configurations. Return a list of
+        results and append them to `self.results`.
+        """
+        # Relaxed executions.
+        for config in configs:
+            self.submit_approx_runs(config)
+
+        # If we don't have the precise times yet, collect them. We need
+        # them to evaluate approximate executions.
+        if not self.ptimes:
+            self.ptimes = list(self.precise_times())
+
+        # Gather relaxed executions.
+        res = [self.get_approx_result(config) for config in configs]
+        self.results += res
+        return res
+
+    def run(self):
+        """Execute the experiment.
+        """
+        self.setup()
+        results = self.run_approx(list(permute_config(self.base_config)))
+
+        # Evaluate a configuration that combines all the good ones.
+        config = combine_configs(
+            r.config for r in results if r.good
+        )
+        self.run_approx([config])
+
+

@@ -86,7 +86,7 @@ def build(appdir='.'):
 
 @argh.arg('appdir', nargs='?', help='application directory')
 def precise(appdir='.'):
-    ev = experiments.Evaluation(appdir, _client, _reps)
+    ev = core.Evaluation(appdir, _client, _reps)
     with _client:
         ev.setup()
         times = list(ev.precise_times())
@@ -102,7 +102,7 @@ def precise(appdir='.'):
 @argh.arg('num', nargs='?', type=int, help='which configuration')
 @argh.arg('appdir', nargs='?', help='application directory')
 def approx(num=None, appdir='.'):
-    ev = experiments.Evaluation(appdir, _client, _reps)
+    ev = core.Evaluation(appdir, _client, _reps)
     with _client:
         ev.run()
     results = ev.results
