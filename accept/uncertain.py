@@ -6,7 +6,18 @@ class Uncertain(object):
         self.error = error
 
     def __unicode__(self):
-        return u'{:.2f} +/- {:.2f}'.format(self.value, self.error)
+        if not self.error:
+            return u'{:g}'.format(self.value)
+
+        position = math.log(self.error, 10)
+        # Round away from zero.
+        position = (math.ceil if position > 0.0 else math.floor)(position)
+        position = abs(int(position)) if position < 0.0 else 1
+
+        return u'{value:.{position}f} +/- {error:.{position}f}'.format(
+            value=self.value, error=self.error,
+            position=position
+        )
 
     def __str__(self):
         return str(unicode(self))
