@@ -19,6 +19,7 @@ LLVMLINK := $(BUILTDIR)/bin/llvm-link
 LLVMOPT := $(BUILTDIR)/bin/opt
 LLVMLLC := $(BUILTDIR)/bin/llc
 LLVMLLI := $(BUILTDIR)/bin/lli
+LLVMPROF := $(BUILTDIR)/bin/llvm-prof
 SUMMARY := $(ENERCDIR)/bin/summary.py
 
 ifeq ($(shell uname -s),Darwin)
@@ -56,15 +57,15 @@ endif
 #################################################################
 .PHONY: all build profile clean run
 
-all: build profile
+all: $(TARGET)
 
 build: $(LINKEDBC)
 
 run: build $(TARGET)
 	$(RUNSHIM) ./$(TARGET) $(RUNARGS) || true
 
-profile: run
-	$(SUMMARY)
+profile: $(TARGET).prof.bc llvmprof.out
+	$(LLVMPROF) $^
 #################################################################
 
 # make LLVM bitcode from C/C++ sources
