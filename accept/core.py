@@ -123,8 +123,6 @@ def build(approx=False, require=True):
     then it is built with ACCEPT relaxation enabled. Return the combined
     stderr/stdout from the compilation process.
     """
-    subprocess.check_call(['make', 'clean'] + _make_args())
-
     build_cmd = ['make', 'build_opt' if approx else 'build_orig']
     build_cmd += _make_args()
     clang_args = '-O3 -fcolor-diagnostics'
@@ -184,6 +182,8 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
     """
     with chdir(directory):
         with sandbox(True):
+            # Clean up any residual files.
+            subprocess.check_call(['make', 'clean'] + _make_args())
 
             if relax_config:
                 with open(CONFIGFILE, 'w') as f:
