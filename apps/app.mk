@@ -34,7 +34,6 @@ LIBPROFILERT := $(BUILTDIR)/lib/libprofile_rt.$(LIBEXT)
 
 override CFLAGS += -Xclang -load -Xclang $(ENERCLIB) \
 	-Xclang -add-plugin -Xclang enerc-type-checker \
-	-Xclang -load -Xclang $(PASSLIB) \
 	-g -fno-use-cxa-atexit \
 	-I$(INCLUDEDIR) -emit-llvm
 override CXXFLAGS += $(CFLAGS)
@@ -54,15 +53,20 @@ else
 	LINKER ?= $(CC)
 endif
 
+# The different executable configurations we can build.
+CONFIGS := orig opt prof
+
 #################################################################
-.PHONY: all build profile clean run
+BUILD_TARGETS := $(CONFIGS:%=build_%)
+RUN_TARGETS := $(CONFIGS:%=run_%)
+.PHONY: all clean profile $(BUILD_TARGETS) $(RUN_TARGETS)
 
-all: $(TARGET)
+all: build_orig
 
-build: $(LINKEDBC)
+$(BUILD_TARGETS): build_%: $(TARGET).%
 
-run: build $(TARGET)
-	$(RUNSHIM) ./$(TARGET) $(RUNARGS) || true
+$(RUN_TARGETS): run_%: $(TARGET).%
+	$(RUNSHIM) ./$< $(RUNARGS) || true
 
 profile: $(TARGET).prof.bc llvmprof.out
 	$(LLVMPROF) $^
@@ -81,37 +85,45 @@ profile: $(TARGET).prof.bc llvmprof.out
 $(LINKEDBC): $(BCFILES) $(PROFLIB)
 	$(LLVMLINK) $^ > $@
 
+# Three different transformations of the amalgamated program.
+$(TARGET).prof.bc: $(LINKEDBC)
+	$(LLVMOPT) -insert-edge-profiling $< -o $@
+$(TARGET).orig.bc: $(LINKEDBC)
+	$(LLVMOPT) -load $(PASSLIB) -O3 $< -o $@
+$(TARGET).opt.bc: $(LINKEDBC) accept_config.txt
+	$(LLVMOPT) -load $(PASSLIB) -accept-relax -O3 $< -o $@
+
+# .bc -> .o
 ifeq ($(ARCH),msp430)
 # llc cannot generate object code for msp430, so emit assembly
-.INTERMEDIATE: $(TARGET).s
-$(TARGET).s: $(LINKEDBC)
-	$(LLVMOPT) -strip $^ | \
+.INTERMEDIATE: $(TARGET).%.s
+$(TARGET).%.s: $(TARGET).%.bc
+	$(LLVMOPT) -strip $< | \
 	$(LLVMLLC) -march=msp430 > $@
-$(TARGET).o: $(TARGET).s
+$(TARGET).%.o: $(TARGET).%.s
 	msp430-gcc $(MSPGCC_CFLAGS) -c $<
 else
-$(TARGET).o: $(LINKEDBC)
-	$(LLVMOPT) -strip $^ | \
+$(TARGET).%.o: $(TARGET).%.bc
+	$(LLVMOPT) -strip $< | \
 	$(LLVMLLC) -filetype=obj > $@
 endif
 
-# make the final executable $(TARGET)
-$(TARGET): $(TARGET).o
+# .o -> executable
+$(TARGET).%: $(TARGET).%.o
 	$(LINKER) $(LDFLAGS) -o $@ $<
 
 # LLVM profiling pipeline.
-$(TARGET).prof.bc: $(LINKEDBC)
-	$(LLVMOPT) -insert-edge-profiling $(LINKEDBC) -o $@
-$(TARGET).prof.o: $(TARGET).prof.bc
-	$(LLVMLLC) -filetype=obj $^ > $@
-$(TARGET).prof: $(TARGET).prof.o
-	$(LINKER) -lprofile_rt $(LDFLAGS) -o $@ $<
 llvmprof.out: $(TARGET).prof
 	./$(TARGET).prof $(RUNARGS)
+# Profiling executable requires linking with an additional (native) library.
+.INTERMEDIATE: $(TARGET).prof.o
+$(TARGET).prof: $(TARGET).prof.o
+	$(LINKER) -lprofile_rt $(LDFLAGS) -o $@ $<
 
 clean:
 	$(RM) $(TARGET) $(TARGET).o $(BCFILES) $(LLFILES) $(LINKEDBC) \
 	enerc_static.txt enerc_dynamic.txt \
 	accept_config.txt accept_config_desc.txt accept_log.txt \
-	$(TARGET).prof.bc $(TARGET).prof.o $(TARGET).prof llvmprof.out \
+	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
+	llvmprof.out \
 	$(CLEANMETOO)

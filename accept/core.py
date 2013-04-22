@@ -11,6 +11,7 @@ import tempfile
 import string
 import random
 import locale
+import sys
 from .uncertain import umean
 
 
@@ -105,13 +106,15 @@ class BuildError(Exception):
     """
     pass
 
-def execute(timeout):
+def execute(timeout, approx=False):
     """Run the application in the working directory and return the
     wall-clock duration (in seconds) of the execution and the exit
     status (or None if the process timed out).
     """
+    command = ['make', 'run_opt' if approx else 'run_orig']
+    command += _make_args()
     start_time = time.time()
-    status = run_cmd(['make', 'run'] + _make_args(), timeout)
+    status = run_cmd(command, timeout)
     end_time = time.time()
     return end_time - start_time, status
 
@@ -122,7 +125,8 @@ def build(approx=False, require=True):
     """
     subprocess.check_call(['make', 'clean'] + _make_args())
 
-    build_cmd = ['make', 'build'] + _make_args()
+    build_cmd = ['make', 'build_opt' if approx else 'build_orig']
+    build_cmd += _make_args()
     clang_args = '-O3 -fcolor-diagnostics'
     if approx:
         clang_args += '-mllvm -accept-relax'
@@ -132,6 +136,7 @@ def build(approx=False, require=True):
                             stderr=subprocess.STDOUT)
     output, _ = proc.communicate()
     if require and proc.returncode:
+        sys.stderr.write(output)
         raise BuildError()
     return output
 
@@ -188,8 +193,9 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
             if os.path.exists(DESCFILE):
                 os.remove(DESCFILE)
 
-            build(bool(relax_config))
-            elapsed, status = execute(timeout)
+            approx = bool(relax_config)
+            build(approx)
+            elapsed, status = execute(timeout, approx)
             if elapsed is None or status:
                 # Timeout or error.
                 output = None
