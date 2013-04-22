@@ -101,12 +101,16 @@ $(TARGET): $(TARGET).o
 # LLVM profiling pipeline.
 $(TARGET).prof.bc: $(LINKEDBC)
 	$(LLVMOPT) -insert-edge-profiling $(LINKEDBC) -o $@
-llvmprof.out: $(TARGET).prof.bc
-	$(LLVMLLI) -fake-argv0 $(LINKEDBC) -load $(LIBPROFILERT) $(TARGET).prof.bc $(RUNARGS)
+$(TARGET).prof.o: $(TARGET).prof.bc
+	$(LLVMLLC) -filetype=obj $^ > $@
+$(TARGET).prof: $(TARGET).prof.o
+	$(LINKER) -lprofile_rt $(LDFLAGS) -o $@ $<
+llvmprof.out: $(TARGET).prof
+	./$(TARGET).prof $(RUNARGS)
 
 clean:
 	$(RM) $(TARGET) $(TARGET).o $(BCFILES) $(LLFILES) $(LINKEDBC) \
 	enerc_static.txt enerc_dynamic.txt \
 	accept_config.txt accept_config_desc.txt accept_log.txt \
-	$(TARGET).prof.bc llvmprof.out \
+	$(TARGET).prof.bc $(TARGET).prof.o $(TARGET).prof llvmprof.out \
 	$(CLEANMETOO)
