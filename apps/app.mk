@@ -41,6 +41,7 @@ SOURCES ?= $(wildcard *.c) $(wildcard *.cpp)
 
 BCFILES := $(SOURCES:.c=.bc)
 BCFILES := $(BCFILES:.cpp=.bc)
+LINKEDBC := $(TARGET)_all.bc
 LLFILES := $(BCFILES:.bc=.ll)
 
 # attempt to guess which linker to use
@@ -55,7 +56,7 @@ endif
 
 all: build profile
 
-build: $(BCFILES) $(LLFILES)
+build: $(LINKEDBC)
 
 run: build $(TARGET)
 	$(RUNSHIM) ./$(TARGET) $(RUNARGS) || true
@@ -73,20 +74,22 @@ profile: run
 .bc.ll:
 	$(LLVMDIS) $<
 
+# Link component bitcode files into a single file.
+$(LINKEDBC): $(BCFILES) $(PROFLIB)
+	$(LLVMLINK) $^ > $@
+
 ifeq ($(ARCH),msp430)
 # llc cannot generate object code for msp430, so emit assembly
 .INTERMEDIATE: $(TARGET).s
-$(TARGET).s: $(BCFILES) $(PROFLIB)
-	$(LLVMLINK) $^ | \
-	$(LLVMOPT) -strip | \
+$(TARGET).s: $(LINKEDBC)
+	$(LLVMOPT) -strip $^ | \
 	$(LLVMLLC) -march=msp430 > $@
 $(TARGET).o: $(TARGET).s
 	msp430-gcc $(MSPGCC_CFLAGS) -c $<
 else
-$(TARGET).o: $(BCFILES)
-	$(LLVMLINK) $(PROFLIB) $^ | \
-		$(LLVMOPT) -strip | \
-		$(LLVMLLC) -filetype=obj > $@
+$(TARGET).o: $(LINKEDBC)
+	$(LLVMOPT) -strip $^ | \
+	$(LLVMLLC) -filetype=obj > $@
 endif
 
 # make the final executable $(TARGET)
@@ -94,6 +97,7 @@ $(TARGET): $(TARGET).o
 	$(LINKER) $(LDFLAGS) -o $@ $<
 
 clean:
-	$(RM) $(TARGET) $(TARGET).o $(BCFILES) $(LLFILES) \
+	$(RM) $(TARGET) $(TARGET).o $(BCFILES) $(LLFILES) $(LINKEDBC) \
 	enerc_static.txt enerc_dynamic.txt \
+	accept_config.txt accept_config_desc.txt accept_log.txt \
 	$(CLEANMETOO)
