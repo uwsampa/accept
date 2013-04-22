@@ -18,6 +18,7 @@ LLVMDIS := $(BUILTDIR)/bin/llvm-dis
 LLVMLINK := $(BUILTDIR)/bin/llvm-link
 LLVMOPT := $(BUILTDIR)/bin/opt
 LLVMLLC := $(BUILTDIR)/bin/llc
+LLVMLLI := $(BUILTDIR)/bin/lli
 SUMMARY := $(ENERCDIR)/bin/summary.py
 
 ifeq ($(shell uname -s),Darwin)
@@ -28,6 +29,7 @@ endif
 ENERCLIB ?= $(BUILTDIR)/lib/EnerCTypeChecker.$(LIBEXT)
 PASSLIB ?= $(BUILTDIR)/lib/enerc.$(LIBEXT)
 PROFLIB ?= $(BUILTDIR)/../enerc/rt/enercrt.bc
+LIBPROFILERT := $(BUILTDIR)/lib/libprofile_rt.$(LIBEXT)
 
 override CFLAGS += -Xclang -load -Xclang $(ENERCLIB) \
 	-Xclang -add-plugin -Xclang enerc-type-checker \
@@ -96,8 +98,15 @@ endif
 $(TARGET): $(TARGET).o
 	$(LINKER) $(LDFLAGS) -o $@ $<
 
+# LLVM profiling pipeline.
+$(TARGET).prof.bc: $(LINKEDBC)
+	$(LLVMOPT) -insert-edge-profiling $(LINKEDBC) -o $@
+llvmprof.out: $(TARGET).prof.bc
+	$(LLVMLLI) -fake-argv0 $(LINKEDBC) -load $(LIBPROFILERT) $(TARGET).prof.bc $(RUNARGS)
+
 clean:
 	$(RM) $(TARGET) $(TARGET).o $(BCFILES) $(LLFILES) $(LINKEDBC) \
 	enerc_static.txt enerc_dynamic.txt \
 	accept_config.txt accept_config_desc.txt accept_log.txt \
+	$(TARGET).prof.bc llvmprof.out \
 	$(CLEANMETOO)
