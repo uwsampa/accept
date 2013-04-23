@@ -545,6 +545,11 @@ struct ACCEPTPass : public FunctionPass {
   // multiple compilation units.
   void collectFuncDebug(Module &M) {
     NamedMDNode *cuNodes = module->getNamedMetadata("llvm.dbg.cu");
+    if (!cuNodes) {
+      errs() << "ACCEPT: debug information not available\n";
+      return;
+    }
+
     for (unsigned i = 0; i != cuNodes->getNumOperands(); ++i) {
       DICompileUnit cu(cuNodes->getOperand(i));
 
