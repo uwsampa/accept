@@ -499,6 +499,7 @@ struct ACCEPTPass : public FunctionPass {
   int opportunityId;
   raw_fd_ostream *log;
   ACCEPTAnalysis *analysis;
+  std::map<Function*, DISubprogram> funcDebugInfo;
 
   ACCEPTPass() : FunctionPass(ID) {
     gApproxInsts = 0;
@@ -513,23 +514,16 @@ struct ACCEPTPass : public FunctionPass {
     Info.addRequired<LoopInfo>();
   }
 
-  DISubprogram debugInfoForFunc(Function &F) {
-    DebugInfoFinder finder;
-    finder.processModule(*module);
-    for (DebugInfoFinder::iterator i = finder.subprogram_begin();
-         i != finder.subprogram_end(); ++i) {
-      DISubprogram sp(*i);
-      if (sp.getFunction() == &F) {
-        return sp;
-      }
-    }
-    return DISubprogram();
-  }
-
   bool isLibraryFunc(Function &F) {
     if (F.getName().startswith("enerc_"))
       return true;
-    DIScope scope = debugInfoForFunc(F).getContext();
+
+    // If we're missing debug info for the function, give up.
+    if (!funcDebugInfo.count(&F)) {
+      return false;
+    }
+
+    DIScope scope = funcDebugInfo[&F].getContext();
     if (scope.Verify()) {
       return scope.getFilename().startswith("/usr/include/") ||
              scope.getFilename().startswith("/usr/lib/");
@@ -546,6 +540,45 @@ struct ACCEPTPass : public FunctionPass {
     return optimizeLoops(F);
   }
 
+  // Find the debug info for every "subprogram" (i.e., function).
+  // Inspired by DebugInfoFinder::procuessModule, but actually examines
+  // multiple compilation units.
+  void collectFuncDebug(Module &M) {
+    NamedMDNode *cuNodes = module->getNamedMetadata("llvm.dbg.cu");
+    for (unsigned i = 0; i != cuNodes->getNumOperands(); ++i) {
+      DICompileUnit cu(cuNodes->getOperand(i));
+
+      DIArray spa = cu.getSubprograms();
+      for (unsigned j = 0; j != spa.getNumElements(); ++j) {
+        collectSubprogram(DISubprogram(spa.getElement(j)));
+      }
+
+      DIArray tya = cu.getRetainedTypes();
+      for (unsigned j = 0; j != tya.getNumElements(); ++j) {
+        collectType(DIType(spa.getElement(i)));
+      }
+    }
+  }
+  void collectSubprogram(DISubprogram sp) {
+    if (Function *func = sp.getFunction()) {
+      funcDebugInfo[func] = sp;
+    }
+  }
+  void collectType(DIType ty) {
+    if (ty.isCompositeType()) {
+      DICompositeType cty(ty);
+      collectType(cty.getTypeDerivedFrom());
+      DIArray da = cty.getTypeArray();
+      for (unsigned i = 0; i != da.getNumElements(); ++i) {
+        DIDescriptor d = da.getElement(i);
+        if (d.isType())
+          collectType(DIType(d));
+        else if (d.isSubprogram())
+          collectSubprogram(DISubprogram(d));
+      }
+    }
+  }
+
   virtual bool doInitialization(Module &M) {
     module = &M;
 
@@ -560,6 +593,8 @@ struct ACCEPTPass : public FunctionPass {
                              raw_fd_ostream::F_Append);
 
     analysis = new ACCEPTAnalysis(log);
+
+    collectFuncDebug(M);
 
     return false;
   }
