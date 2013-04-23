@@ -140,31 +140,31 @@ def build(approx=False, require=True):
 
 def parse_relax_config(f):
     """Parse a relaxation configuration from a file-like object.
-    Generates (module, ident, param) tuples.
+    Generates (ident, param) tuples.
     """
     for line in f:
         line = line.strip()
         if line:
-            mod, ident, param = line.split(None, 2)
-            yield mod, int(ident), int(param)
+            ident, param = line.split(None, 2)
+            yield int(ident), int(param)
 
 def dump_relax_config(config, f):
     """Write a relaxation configuration to a file-like object. The
     configuration should be a sequence of tuples.
     """
     for site in config:
-        f.write('{} {} {}\n'.format(*site))
+        f.write('{} {}\n'.format(*site))
 
 def parse_relax_desc(f):
     """Parse a relaxation description map from a file-like object.
-    Return a dict mapping (module, ident) pairs to description strings.
+    Return a dict mapping identifiers to description strings.
     """
     out = {}
     for line in f:
         line = line.strip()
         if line:
-            mod, ident, desc = line.split(None, 2)
-            out[mod, int(ident)] = desc
+            ident, desc = line.split(None, 1)
+            out[int(ident)] = desc
     return out
 
 
@@ -228,9 +228,8 @@ def permute_config(base):
     """
     for i in range(len(base)):
         config = list(base)
-        site = config[i]
-        site = site[0], site[1], 1
-        config[i] = site
+        ident, _ = config[i]
+        config[i] = ident, 1
         yield config
 
 def combine_configs(configs):
@@ -244,15 +243,15 @@ def combine_configs(configs):
     # Combine nonzero parameters in an unordered way.
     sites = {}
     for config in configs:
-        for mod, ident, param in config:
+        for ident, param in config:
             if param:
-                sites[(mod, ident)] = param
+                sites[ident] = param
 
     # Modify the first config with the new parameters.
     out = configs[0]
-    for i, (mod, ident, param) in enumerate(out):
-        if (mod, ident) in sites:
-            out[i] = mod, ident, sites[(mod, ident)]
+    for i, (ident, param) in enumerate(out):
+        if ident in sites:
+            out[i] = ident, sites[ident]
     return out
 
 

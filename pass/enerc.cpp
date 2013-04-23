@@ -666,8 +666,7 @@ struct ACCEPTPass : public FunctionPass {
     std::ofstream configFile("accept_config.txt", std::ios_base::out);
     for (std::map<int, int>::iterator i = relaxConfig.begin();
          i != relaxConfig.end(); ++i) {
-      configFile << module->getModuleIdentifier() << " "
-                 << i->first << " "
+      configFile << i->first << " "
                  << i->second << "\n";
     }
     configFile.close();
@@ -675,8 +674,7 @@ struct ACCEPTPass : public FunctionPass {
     std::ofstream descFile("accept_config_desc.txt", std::ios_base::out);
     for (std::map<int, std::string>::iterator i = configDesc.begin();
          i != configDesc.end(); ++i) {
-      descFile << module->getModuleIdentifier() << " "
-               << i->first << " "
+      descFile << i->first << " "
                << i->second << "\n";
     }
     descFile.close();
@@ -690,12 +688,10 @@ struct ACCEPTPass : public FunctionPass {
     }
 
     while (configFile.good()) {
-      std::string modname;
       int ident;
       int param;
-      configFile >> modname >> ident >> param;
-      if (modname == module->getModuleIdentifier())
-        relaxConfig[ident] = param;
+      configFile >> ident >> param;
+      relaxConfig[ident] = param;
     }
 
     configFile.close();

@@ -9,13 +9,13 @@ def dump_config(config, descs):
     """Given a relaxation configuration and an accompanying description
     map, returning a human-readable string describing it.
     """
-    optimizations = [r for r in config if r[2]]
+    optimizations = [r for r in config if r[1]]
     if not optimizations:
         return u'no optimizations'
 
     out = []
-    for mod, ident, param in optimizations:
-        out.append(u'{} @ {}'.format(descs[mod, ident], param))
+    for ident, param in optimizations:
+        out.append(u'{} @ {}'.format(descs[ident], param))
     return u', '.join(out)
 
 def evaluate(client, appname, verbose=False, reps=1):
