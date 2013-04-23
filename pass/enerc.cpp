@@ -527,6 +527,8 @@ struct ACCEPTPass : public FunctionPass {
   }
 
   bool isLibraryFunc(Function &F) {
+    if (F.getName().startswith("enerc_"))
+      return true;
     DIScope scope = debugInfoForFunc(F).getContext();
     if (scope.Verify()) {
       return scope.getFilename().startswith("/usr/include/") ||
