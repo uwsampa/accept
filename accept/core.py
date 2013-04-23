@@ -99,6 +99,7 @@ def _make_args():
     return [
         'ENERCDIR={}'.format(BASEDIR),
         'APP_MK={}'.format(os.path.join(BASEDIR, 'apps', 'app.mk')),
+        'CLANGARGS=-fcolor-diagnostics',
     ]
 
 class BuildError(Exception):
@@ -125,10 +126,6 @@ def build(approx=False, require=True):
     """
     build_cmd = ['make', 'build_opt' if approx else 'build_orig']
     build_cmd += _make_args()
-    clang_args = '-O3 -fcolor-diagnostics'
-    if approx:
-        clang_args += '-mllvm -accept-relax'
-    build_cmd.append('CLANGARGS={}'.format(clang_args))
 
     proc = subprocess.Popen(build_cmd, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
