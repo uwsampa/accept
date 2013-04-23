@@ -85,6 +85,7 @@ in an SQLite database called `memo.db`. Clear this out or pass the
 For some of the benchmarks, you will need some large input files that are not included in this repository:
 
 * blackscholes: "simlarge" input from PARSEC (`in_64K.txt`)
+* canneal: "native" input (`2500000.nets`)
 
 Run the experiments by typing `accept exp`.
 
