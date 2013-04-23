@@ -663,7 +663,7 @@ struct ACCEPTPass : public FunctionPass {
   } relaxKind;
 
   void dumpRelaxConfig() {
-    std::ofstream configFile("accept_config.txt", std::ios_base::app);
+    std::ofstream configFile("accept_config.txt", std::ios_base::out);
     for (std::map<int, int>::iterator i = relaxConfig.begin();
          i != relaxConfig.end(); ++i) {
       configFile << module->getModuleIdentifier() << " "
@@ -672,7 +672,7 @@ struct ACCEPTPass : public FunctionPass {
     }
     configFile.close();
 
-    std::ofstream descFile("accept_config_desc.txt", std::ios_base::app);
+    std::ofstream descFile("accept_config_desc.txt", std::ios_base::out);
     for (std::map<int, std::string>::iterator i = configDesc.begin();
          i != configDesc.end(); ++i) {
       descFile << module->getModuleIdentifier() << " "
