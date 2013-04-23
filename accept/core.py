@@ -238,6 +238,8 @@ def combine_configs(configs):
     optimizations from the set of configurations.
     """
     configs = list(configs)
+    if not configs:
+        return
 
     # Combine nonzero parameters in an unordered way.
     sites = {}
@@ -455,6 +457,7 @@ class Evaluation(object):
         config = combine_configs(
             r.config for r in results if r.good
         )
-        self.run_approx([config])
+        if config:
+            self.run_approx([config])
 
 
