@@ -5,6 +5,6 @@ curl -O http://llvm.org/releases/3.2/llvm-3.2.src.tar.gz
 tar -xf llvm-3.2.src.tar.gz
 mv llvm-3.2.src llvm
 
-# Get (hacked) Clang.
+# Create a symlink to Clang, which is a subrepository.
 cd llvm/tools
-git clone git@bitbucket.org:sampa/clang-qual.git clang
+ln -s ../../clang .

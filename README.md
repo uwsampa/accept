@@ -15,16 +15,16 @@ whatever your preferred tool is.
 [Ninja]: http://martine.github.com/ninja/
 [CMake]: http://www.cmake.org/
 
-To get all set up, you will need to download and compile LLVM and a
-modified version of Clang that supports type qualifiers. This repository
-contains a couple of scripts that help with this. To get started, `cd`
-to this directory and then run:
+To get all set up, you will need to download (vanilla) LLVM and compile it with
+our modified version of Clang that supports type qualifiers. This repository
+contains a couple of scripts that help with this. To get started, `cd` to this
+directory and then run:
 
     $ ./bin/fetch_llvm.sh
 
-That downloads LLVM 3.2 into a directory called `llvm`. Then it checks
-out our modified Clang from git and places it in the LLVM source tree.
-To build both LLVM and Clang, run:
+That downloads LLVM 3.2 into a directory called `llvm`. Then it symlinks our
+Clang subrepository into `llvm/tools/clang`, which is required for the LLVM
+build process. Then, to build both LLVM and Clang, run:
 
     $ ./bin/build_llvm.sh
 
@@ -107,6 +107,9 @@ This repository includes lots of stuff:
 * `bin/`: Helpful scripts for developing EnerC as well as the front-end
   scripts `enerclang` and `enerclang++`, which act as C and C++ compiler
   executables.
+* `clang/`: This git subrepository contains our version of Clang, which is
+  hacked to support type qualifiers. After running `fetch_llvm.sh`, there will
+  be a symlink to this directory at `llvm/tools/clang`.
 * `checker/`: The Clang plugin that checks the EnerC type system and
   emits annotated LLVM bitcode.
 * `checkerlib/`: This is a subrepository (hosted as a separate git repo
