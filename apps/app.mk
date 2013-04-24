@@ -35,6 +35,8 @@ LIBPROFILERT := $(BUILTDIR)/lib/libprofile_rt.$(LIBEXT)
 override CFLAGS += -Xclang -load -Xclang $(ENERCLIB) \
 	-Xclang -add-plugin -Xclang enerc-type-checker \
 	-g -fno-use-cxa-atexit \
+	-mllvm -relax-basicaa=false \
+	-mllvm -relax-tbaa=false \
 	-I$(INCLUDEDIR) -emit-llvm
 override CXXFLAGS += $(CFLAGS)
 
