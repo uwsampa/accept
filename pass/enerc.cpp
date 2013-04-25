@@ -24,6 +24,8 @@
 #include <iostream>
 #include <string>
 
+#include "accept.h"
+
 #define ECQ_PRECISE 0
 #define ECQ_APPROX 1
 
