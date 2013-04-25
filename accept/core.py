@@ -174,8 +174,8 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
     """Build the application in the given directory (which must contain
     both a Makefile and an eval.py), run it, and collect its output.
     Return the parsed output, the duration of the execution (or None for
-    timeout), the exit status, the relaxation configuration, and the
-    relaxation descriptions.
+    timeout), the exit status (or an exception string), the relaxation
+    configuration, and the relaxation descriptions.
     """
     with chdir(directory):
         with sandbox(True):
@@ -198,7 +198,13 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
                 output = None
             else:
                 mod = imp.load_source('evalscript', EVALSCRIPT)
-                output = mod.load()
+                try:
+                    output = mod.load()
+                except Exception as exc:
+                    # Error reading benchmark output; this is a broken
+                    # execution.
+                    output = None
+                    status = str(exc)
 
             # Sequester filesystem output.
             if isinstance(output, basestring) and output.startswith('file:'):
