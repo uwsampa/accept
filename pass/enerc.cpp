@@ -935,18 +935,8 @@ struct ACCEPTPass : public FunctionPass {
 };
 char ACCEPTPass::ID = 0;
 
-
-/**** PASS REGISTRATION FOOTNOTE ***/
-
-// Register ACCEPT as a "standard pass". This allows the pass to run without
-// running opt explicitly (e.g., as part of running `clang`).
-static void registerACCEPTPass(const PassManagerBuilder &,
-                               PassManagerBase &PM) {
-  PM.add(new LoopInfo());
-  PM.add(new ACCEPTPass());
 }
-static RegisterStandardPasses
-    RegisterACCEPT(PassManagerBuilder::EP_EarlyAsPossible,
-                   registerACCEPTPass);
 
+FunctionPass *llvm::createAcceptTransformPass() {
+  return new ACCEPTPass();
 }

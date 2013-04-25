@@ -1,10 +1,21 @@
 #include "llvm/PassManager.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
+#include "llvm/Analysis/LoopPass.h"
 #include "accept.h"
 
 using namespace llvm;
 
 namespace {
+  // Code transformations.
+  static void registerACCEPT(const PassManagerBuilder &,
+                             PassManagerBase &PM) {
+    PM.add(new LoopInfo());
+    PM.add(createAcceptTransformPass());
+  }
+  static RegisterStandardPasses
+      RegisterACCEPT(PassManagerBuilder::EP_EarlyAsPossible,
+                     registerACCEPT);
+
   // Alias analysis.
   static void registerAA(const PassManagerBuilder &, PassManagerBase &PM) {
     PM.add(createAcceptAAPass());
