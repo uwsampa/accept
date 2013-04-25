@@ -25,8 +25,8 @@ namespace {
     }
 
     virtual AliasResult alias(const Location &LocA, const Location &LocB) {
-      errs() << "alias query\n";
-      return MayAlias;
+      errs() << "ACCEPT alias query\n";
+      return AliasAnalysis::alias(LocA, LocB);
     }
 
     // This required bit works around C++'s multiple inheritance weirdness.
