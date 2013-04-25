@@ -10,6 +10,7 @@ namespace {
   static void registerACCEPT(const PassManagerBuilder &,
                              PassManagerBase &PM) {
     PM.add(new LoopInfo());
+    PM.add(new ApproxInfo());
     PM.add(createAcceptTransformPass());
   }
   static RegisterStandardPasses
