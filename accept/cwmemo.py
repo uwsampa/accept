@@ -44,13 +44,14 @@ class CWMemo(object):
             self.completion_thread_db = None
             self.client = None
             self.jobs = {}
-            self.completion_cond = self.client.jobs_cond
+            self.completion_cond = None
 
     def __enter__(self):
         if not self.local:
             # Create a new thread for each time this memoizing agent is
             # entered. This allows a CWMemo to be reused.
             self.client = cw.client.ClientThread(self.completion, self.host)
+            self.completion_cond = self.client.jobs_cond
             self.client.start()
         self.db = sshelve.open(self.dbname)
         return self
