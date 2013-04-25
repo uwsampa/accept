@@ -32,17 +32,10 @@
 #define FUNC_TRACE "enerc_trace"
 #define PERMIT "ACCEPT_PERMIT"
 
-// I'm not sure why, but I can't seem to enable debug output in the usual way
-// (with command line flags). Here's a hack.
-#undef DEBUG
-#define DEBUG(s) s
-
 using namespace llvm;
 namespace {
 
 // Command-line flags.
-cl::opt<bool> optInstrument ("accept-inst",
-    cl::desc("ACCEPT: enable profiling instrumentation"));
 cl::opt<bool> optRelax ("accept-relax",
     cl::desc("ACCEPT: enable relaxations"));
 
@@ -66,42 +59,6 @@ bool isApprox(Instruction *instr) {
     return false;
   }
 }
-
-// Is it legal to elide this instruction?
-bool elidable_helper(Instruction *instr,
-                     std::set<Instruction*> &seen) {
-  // Check for cycles.
-  if (seen.count(instr)) {
-    llvm::errs() << "CYCLE DETECTED\n";
-    return false;
-  }
-  seen.insert(instr);
-
-  if (isApprox(instr)) {
-    return true;
-  } else if (isa<StoreInst>(instr) ||
-             isa<ReturnInst>(instr) ||
-             isa<BranchInst>(instr)) {
-    // Precise stores, returns, branches: never elidable.
-    return false;
-  } else {
-    // Recursive case: all consumers are elidable.
-    for (Value::use_iterator ui = instr->use_begin();
-          ui != instr->use_end(); ++ui) {
-      Instruction *user = dyn_cast<Instruction>(*ui);
-      if (user && !elidable_helper(user, seen)) {
-        return false;
-      }
-    }
-    return true; // No non-elidable consumers.
-  }
-}
-// Start with an empty "seen" (cycle-detection) set.
-bool elidable(Instruction *instr) {
-  std::set<Instruction*> seen;
-  return elidable_helper(instr, seen);
-}
-
 
 // Format a source position.
 std::string srcPosDesc(const Module &mod, const DebugLoc &dl) {
@@ -492,9 +449,6 @@ struct ACCEPTPass : public FunctionPass {
   static char ID;
 
   Constant *blockCountFunction;
-  unsigned long gApproxInsts;
-  unsigned long gElidableInsts;
-  unsigned long gTotalInsts;
   Module *module;
   std::map<int, int> relaxConfig;  // ident -> param
   std::map<int, std::string> configDesc;  // ident -> description
@@ -504,9 +458,6 @@ struct ACCEPTPass : public FunctionPass {
   std::map<Function*, DISubprogram> funcDebugInfo;
 
   ACCEPTPass() : FunctionPass(ID) {
-    gApproxInsts = 0;
-    gElidableInsts = 0;
-    gTotalInsts = 0;
     module = 0;
     opportunityId = 0;
     log = 0;
@@ -534,8 +485,6 @@ struct ACCEPTPass : public FunctionPass {
   }
 
   virtual bool runOnFunction(Function &F) {
-    countAndInstrument(F);
-
     // Skip optimizing functions that seem to be in standard libraries.
     if (isLibraryFunc(F))
       return false;
@@ -589,9 +538,6 @@ struct ACCEPTPass : public FunctionPass {
   virtual bool doInitialization(Module &M) {
     module = &M;
 
-    if (optInstrument)
-      setUpInstrumentation();
-
     if (optRelax)
       loadRelaxConfig();
 
@@ -607,7 +553,6 @@ struct ACCEPTPass : public FunctionPass {
   }
 
   virtual bool doFinalization(Module &M) {
-    dumpStaticStats();
     if (!optRelax)
       dumpRelaxConfig();
     log->close();
@@ -616,87 +561,10 @@ struct ACCEPTPass : public FunctionPass {
     return false;
   }
 
-
-
-  /**** TRACING AND STATISTICS ****/
-
-  void countAndInstrument(Function &F) {
-    for (Function::iterator bbi = F.begin(); bbi != F.end(); ++bbi) {
-      unsigned int approxInsts = 0;
-      unsigned int elidableInsts = 0;
-      unsigned int totalInsts = 0;
-
-      for (BasicBlock::iterator ii = bbi->begin(); ii != bbi->end();
-            ++ii) {
-        if ((Instruction*)ii == bbi->getTerminator()) {
-          // Terminator instruction is not checked.
-          continue;
-        }
-
-        // Record information about this instruction.
-        bool iApprox = isApprox(ii);
-        bool iElidable = elidable(ii);
-        ++gTotalInsts;
-        ++totalInsts;
-        if (iApprox) {
-          ++gApproxInsts;
-          ++approxInsts;
-        }
-        if (iElidable) {
-          ++gElidableInsts;
-          ++elidableInsts;
-        }
-      }
-
-      // Call the runtime profiling library for this block.
-      if (optInstrument)
-        insertTraceCall(F, bbi, approxInsts, elidableInsts, totalInsts);
-    }
-  }
-
   IntegerType *getNativeIntegerType() {
     DataLayout layout(module->getDataLayout());
     return Type::getIntNTy(module->getContext(),
                            layout.getPointerSizeInBits());
-  }
-
-  void setUpInstrumentation() {
-    LLVMContext &C = module->getContext();
-    IntegerType *nativeInt = getNativeIntegerType();
-    blockCountFunction = module->getOrInsertFunction(
-      FUNC_TRACE,
-      Type::getVoidTy(C), // return type
-      nativeInt, // approx
-      nativeInt, // elidable
-      nativeInt, // total
-      NULL
-    );
-  }
-
-  void insertTraceCall(Function &F, BasicBlock* bb,
-                       unsigned int approx,
-                       unsigned int elidable,
-                       unsigned int total) {
-    std::vector<Value *> args;
-    IntegerType *nativeInt = getNativeIntegerType();
-    args.push_back(ConstantInt::get(nativeInt, approx));
-    args.push_back(ConstantInt::get(nativeInt, elidable));
-    args.push_back(ConstantInt::get(nativeInt, total));
-
-    // For now, we're inserting calls at the end of basic blocks.
-    CallInst::Create(
-      blockCountFunction,
-      args,
-      "",
-      bb->getTerminator()
-    );
-  }
-
-  void dumpStaticStats() {
-    FILE *results_file = fopen("enerc_static.txt", "a");
-    fprintf(results_file,
-            "%lu %lu %lu\n", gApproxInsts, gElidableInsts, gTotalInsts);
-    fclose(results_file);
   }
 
 

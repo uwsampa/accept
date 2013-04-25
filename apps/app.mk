@@ -122,7 +122,6 @@ $(TARGET).prof: $(TARGET).prof.o
 
 clean:
 	$(RM) $(TARGET) $(TARGET).o $(BCFILES) $(LLFILES) $(LINKEDBC) \
-	enerc_static.txt enerc_dynamic.txt \
 	accept_config.txt accept_config_desc.txt accept_log.txt \
 	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
 	llvmprof.out \
