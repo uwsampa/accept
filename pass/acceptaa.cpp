@@ -11,6 +11,7 @@ namespace {
   struct AcceptAA : public ImmutablePass, public AliasAnalysis {
     static char ID;
     AcceptAA() : ImmutablePass(ID) {
+      errs() << "constructing accept aa\n";
       initializeAcceptAAPass(*PassRegistry::getPassRegistry());
     }
 
@@ -39,7 +40,7 @@ namespace {
 }
 
 char AcceptAA::ID = 0;
-INITIALIZE_AG_PASS(AcceptAA, AliasAnalysis, "accept-aa",
+INITIALIZE_AG_PASS(AcceptAA, AliasAnalysis, "acceptaa",
                    "ACCEPT approximate alias analysis",
                    false, true, false)
 
