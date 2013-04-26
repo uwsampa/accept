@@ -11,7 +11,6 @@ namespace {
   struct AcceptAA : public ImmutablePass, public AliasAnalysis {
     static char ID;
     AcceptAA() : ImmutablePass(ID) {
-      errs() << "constructing accept aa\n";
       initializeAcceptAAPass(*PassRegistry::getPassRegistry());
     }
 
@@ -25,7 +24,7 @@ namespace {
     }
 
     virtual AliasResult alias(const Location &LocA, const Location &LocB) {
-      errs() << "ACCEPT alias query\n";
+      // Here's where our approximate-ness check should go.
       return AliasAnalysis::alias(LocA, LocB);
     }
 
