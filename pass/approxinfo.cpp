@@ -10,7 +10,8 @@
 
 using namespace llvm;
 
-// Human-readable description utilities.
+
+/**** DESCRIBE SOURCE INFORMATION ****/
 
 // Format a source position.
 std::string llvm::srcPosDesc(const Module &mod, const DebugLoc &dl) {
@@ -80,6 +81,7 @@ std::string llvm::instDesc(const Module &mod, Instruction *inst) {
 }
 
 
+/**** ANALYSIS HELPERS ****/
 
 // Look at the qualifier metadata on the instruction and determine whether it
 // has approximate semantics.
@@ -132,17 +134,18 @@ const std::set<std::string> funcWhitelist(
 );
 
 
-// Analysis pass workflow.
+
+/**** ANALYSIS PASS WORKFLOW ****/
 
 ApproxInfo::ApproxInfo() : FunctionPass(ID) {
-  log = NULL;
-}
-
-bool ApproxInfo::doInitialization(Module &M) {
   std::string error;
   log = new raw_fd_ostream("accept_log.txt", error,
                            raw_fd_ostream::F_Append);
-  return false;
+}
+
+ApproxInfo::~ApproxInfo() {
+  log->close();
+  delete log;
 }
 
 bool ApproxInfo::runOnFunction(Function &F) {
@@ -150,14 +153,20 @@ bool ApproxInfo::runOnFunction(Function &F) {
   return false;
 }
 
+bool ApproxInfo::doInitialization(Module &M) {
+  // Analyze the purity of each function in the module up-front.
+  for (Module::iterator i = M.begin(); i != M.end(); ++i) {
+    isPrecisePure(&*i);
+  }
+  return false;
+}
+
 bool ApproxInfo::doFinalization(Module &M) {
-  log->close();
-  delete log;
   return false;
 }
 
 
-// Core of the analysis.
+/**** ANALYSIS CORE ****/
 
 void ApproxInfo::successorsOfHelper(BasicBlock *block,
                         std::set<BasicBlock*> &succ) {
@@ -387,7 +396,7 @@ bool ApproxInfo::isPrecisePure(Function *func) {
     return functionPurity[func];
   }
 
-  *log << " - checking function _" << func->getName() << "\n";
+  *log << "checking function _" << func->getName() << "\n";
 
   // LLVM's own nominal purity analysis.
   if (func->onlyReadsMemory()) {

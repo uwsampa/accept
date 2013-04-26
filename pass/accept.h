@@ -31,6 +31,7 @@ class ApproxInfo : public llvm::FunctionPass {
 public:
   static char ID;
   ApproxInfo();
+  virtual ~ApproxInfo();
 
   // Required FunctionPass interface.
   virtual bool doInitialization(llvm::Module &M);
