@@ -85,7 +85,7 @@ std::string llvm::instDesc(const Module &mod, Instruction *inst) {
 
 // Look at the qualifier metadata on the instruction and determine whether it
 // has approximate semantics.
-bool isApprox(Instruction *instr) {
+bool isApprox(const Instruction *instr) {
   MDNode *md = instr->getMetadata("quals");
   if (!md)
     return false;
@@ -149,7 +149,6 @@ ApproxInfo::~ApproxInfo() {
 }
 
 bool ApproxInfo::runOnFunction(Function &F) {
-  errs() << "running on function " << F.getName() << "\n";
   return false;
 }
 

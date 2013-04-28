@@ -59,3 +59,6 @@ private:
   bool approxOrLocal(std::set<llvm::Instruction*> &insts,
                      llvm::Instruction *inst);
 };
+
+// Information about individual instructions is always available.
+bool isApprox(const llvm::Instruction *instr);

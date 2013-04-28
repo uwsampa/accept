@@ -24,7 +24,13 @@ namespace {
     }
 
     virtual AliasResult alias(const Location &LocA, const Location &LocB) {
-      // Here's where our approximate-ness check should go.
+      const Instruction *instA = dyn_cast<Instruction>(LocA.Ptr);
+      const Instruction *instB = dyn_cast<Instruction>(LocB.Ptr);
+      if (instA && instB && isApprox(instA) && isApprox(instB)) {
+        return NoAlias;
+      }
+
+      // Delegate to other alias analyses.
       return AliasAnalysis::alias(LocA, LocB);
     }
 
