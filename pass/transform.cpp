@@ -52,6 +52,8 @@ struct ACCEPTPass : public FunctionPass {
   virtual void getAnalysisUsage(AnalysisUsage &Info) const {
     Info.addRequired<LoopInfo>();
     Info.addRequired<ApproxInfo>();
+    if (acceptUseProfile)
+      Info.addRequired<ProfileInfo>();
   }
 
   bool isLibraryFunc(Function &F) {

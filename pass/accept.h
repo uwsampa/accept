@@ -6,6 +6,7 @@
 #include "llvm/Instructions.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/DebugInfo.h"
+#include "llvm/Analysis/ProfileInfo.h"
 
 #include <set>
 #include <map>
@@ -23,6 +24,8 @@ namespace llvm {
 
   std::string srcPosDesc(const Module &mod, const DebugLoc &dl);
   std::string instDesc(const Module &mod, Instruction *inst);
+
+  extern bool acceptUseProfile;
 }
 
 // This class represents an analysis this determines whether functions and
