@@ -14,6 +14,10 @@ namespace {
       initializeAcceptAAPass(*PassRegistry::getPassRegistry());
     }
 
+    virtual const char *getPassName() const {
+      return "ACCEPT approximate alias analysis";
+    }
+
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       AliasAnalysis::getAnalysisUsage(AU);
       // dependencies?

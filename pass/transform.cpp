@@ -145,6 +145,10 @@ struct ACCEPTPass : public FunctionPass {
                            layout.getPointerSizeInBits());
   }
 
+  virtual const char *getPassName() const {
+    return "ACCEPT relaxation";
+  }
+
 
   /**** RELAXATION CONFIGURATION ***/
 

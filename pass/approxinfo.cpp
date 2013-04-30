@@ -164,6 +164,10 @@ bool ApproxInfo::doFinalization(Module &M) {
   return false;
 }
 
+const char *ApproxInfo::getPassName() const {
+  return "ACCEPT approximateness analysis";
+}
+
 
 /**** ANALYSIS CORE ****/
 

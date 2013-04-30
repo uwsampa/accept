@@ -32,6 +32,7 @@ public:
   static char ID;
   ApproxInfo();
   virtual ~ApproxInfo();
+  virtual const char *getPassName() const;
 
   // Required FunctionPass interface.
   virtual bool doInitialization(llvm::Module &M);
