@@ -1,4 +1,3 @@
-#define DEBUG_TYPE "enerc"
 #include "llvm/Pass.h"
 #include "llvm/Function.h"
 #include "llvm/BasicBlock.h"
@@ -56,9 +55,6 @@ struct ACCEPTPass : public FunctionPass {
   }
 
   bool isLibraryFunc(Function &F) {
-    if (F.getName().startswith("enerc_"))
-      return true;
-
     // If we're missing debug info for the function, give up.
     if (!funcDebugInfo.count(&F)) {
       return false;

@@ -1,5 +1,5 @@
 add_llvm_loadable_module(enerc
-  enerc.cpp
+  transform.cpp
   acceptaa.cpp
   registration.cpp
   approxinfo.cpp
