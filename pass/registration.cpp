@@ -19,8 +19,10 @@ namespace {
   static void registerACCEPT(const PassManagerBuilder &,
                              PassManagerBase &PM) {
     PM.add(new LoopInfo());
+    /*
     if (acceptUseProfile)
       PM.add(createProfileLoaderPass());
+    */
     PM.add(new ApproxInfo());
     PM.add(createAcceptTransformPass());
   }

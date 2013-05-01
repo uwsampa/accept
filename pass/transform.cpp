@@ -241,6 +241,14 @@ struct ACCEPTPass : public FunctionPass {
       return false;
     }
 
+    /*
+    if (acceptUseProfile) {
+      ProfileInfo &PI = getAnalysis<ProfileInfo>();
+      double trips = PI.getExecutionCount(loop->getHeader());
+      *log << "trips: " << trips << "\n";
+    }
+    */
+
     // Check whether the body of this loop is elidable (precise-pure).
     std::set<BasicBlock*> loopBlocks;
     for (Loop::block_iterator bi = loop->block_begin();
