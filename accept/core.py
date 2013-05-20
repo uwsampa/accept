@@ -172,7 +172,7 @@ def parse_relax_desc(f):
 # High-level profiling driver.
 
 Execution = namedtuple('Execution', ['output', 'elapsed', 'status',
-                                     'config', 'desc'])
+                                     'config', 'desc', 'roitime'])
 
 def build_and_execute(directory, relax_config, rep, timeout=None):
     """Build the application in the given directory (which must contain
@@ -198,7 +198,9 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
             if elapsed is None or status:
                 # Timeout or error.
                 output = None
+                roitime = None
             else:
+                # Load benchmark output.
                 mod = imp.load_source('evalscript', EVALSCRIPT)
                 try:
                     output = mod.load()
@@ -206,7 +208,16 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
                     # Error reading benchmark output; this is a broken
                     # execution.
                     output = None
-                    status = str(exc)
+                    status = 'error loading output: ' + str(exc)
+
+                # Load ROI duration.
+                try:
+                    with open('accept_time.txt') as f:
+                        roitime = float(f.read())
+                except Exception as exc:
+                    # Error loading time.
+                    roitime = None
+                    status = 'error loading time: ' + str(exc)
 
             # Sequester filesystem output.
             if isinstance(output, basestring) and output.startswith('file:'):
@@ -225,7 +236,8 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
             else:
                 relax_desc = None
 
-    return Execution(output, elapsed, status, relax_config, relax_desc)
+    return Execution(output, elapsed, status, relax_config,
+                     relax_desc, roitime)
 
 
 # Configuration space exploration.
@@ -372,7 +384,7 @@ class Evaluation(object):
         self.ptimes = []
         self.pout = None
         self.descs = None
-        self.ptime = None
+        self.base_elapsed = None
         self.ptimes = []
         self.base_config = None
         self.results = []
@@ -394,7 +406,7 @@ class Evaluation(object):
         # executions are for timing and can finish later.
         pex = self.client.get(build_and_execute, self.appdir, None, 0)
         self.pout = pex.output
-        self.ptime = pex.elapsed
+        self.base_elapsed = pex.elapsed
         self.base_config = pex.config
         self.descs = pex.desc
 
@@ -404,7 +416,7 @@ class Evaluation(object):
         """
         for rep in range(self.reps):
             ex = self.client.get(build_and_execute, self.appdir, None, rep)
-            yield ex.elapsed
+            yield ex.roitime
 
     def submit_approx_runs(self, config):
         """Submit the executions for a given configuration.
@@ -412,7 +424,7 @@ class Evaluation(object):
         for rep in range(self.reps):
             self.client.submit(build_and_execute,
                 self.appdir, config, rep,
-                timeout=self.ptime * TIMEOUT_FACTOR
+                timeout=self.base_elapsed * TIMEOUT_FACTOR
             )
 
     def get_approx_result(self, config):
@@ -424,7 +436,7 @@ class Evaluation(object):
                for rep in range(self.reps)]
 
         # Evaluate the result.
-        res = Result(self.appname, config, [ex.elapsed for ex in exs],
+        res = Result(self.appname, config, [ex.roitime for ex in exs],
                      exs[0].status, exs[0].output)
         res.evaluate(self.scorefunc, self.pout, self.ptimes)
         return res
