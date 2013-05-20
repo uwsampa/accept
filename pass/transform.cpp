@@ -57,6 +57,10 @@ struct ACCEPTPass : public FunctionPass {
   }
 
   bool isLibraryFunc(Function &F) {
+    if (F.getName().startswith("accept_")) {
+      return true;
+    }
+
     // If we're missing debug info for the function, give up.
     if (!funcDebugInfo.count(&F)) {
       return false;

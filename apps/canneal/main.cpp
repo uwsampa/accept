@@ -110,6 +110,7 @@ int main (int argc, char * const argv[]) {
 #ifdef ENABLE_PARSEC_HOOKS
 	__parsec_roi_begin();
 #endif
+  accept_roi_begin();
 #ifdef ENABLE_THREADS
 	std::vector<pthread_t> threads(num_threads);
 	void* thread_in = static_cast<void*>(&a_thread);
@@ -125,6 +126,7 @@ int main (int argc, char * const argv[]) {
 #ifdef ENABLE_PARSEC_HOOKS
 	__parsec_roi_end();
 #endif
+  accept_roi_end();
 	
   routing_cost_t cost = my_netlist.total_routing_cost();
 	cout << "Final routing is: " << cost << endl;

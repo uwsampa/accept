@@ -27,4 +27,13 @@
                     , (e) \
                    )
 
+// Benchmark instrumentation.
+#ifdef __cplusplus
+extern "C" void accept_roi_begin();
+extern "C" void accept_roi_end();
+#else
+void accept_roi_begin();
+void accept_roi_end();
+#endif
+
 #endif
