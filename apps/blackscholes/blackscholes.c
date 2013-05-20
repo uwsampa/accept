@@ -359,6 +359,7 @@ int main (int argc, char **argv)
 #ifdef ENABLE_PARSEC_HOOKS
     __parsec_roi_begin();
 #endif
+    accept_roi_begin();
 #ifdef ENABLE_THREADS
     int tids[nThreads];
     for(i=0; i<nThreads; i++) {
@@ -395,6 +396,7 @@ int main (int argc, char **argv)
 #ifdef ENABLE_PARSEC_HOOKS
     __parsec_roi_end();
 #endif
+    accept_roi_end();
 
     //Write prices to output file
     file = fopen(outputFile, "w");

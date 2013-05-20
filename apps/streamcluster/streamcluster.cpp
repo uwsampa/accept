@@ -1126,12 +1126,14 @@ int main(int argc, char **argv)
 #ifdef ENABLE_PARSEC_HOOKS
   __parsec_roi_begin();
 #endif
+  accept_roi_begin();
 
   streamCluster(stream, kmin, kmax, dim, chunksize, clustersize, outfilename );
 
 #ifdef ENABLE_PARSEC_HOOKS
   __parsec_roi_end();
 #endif
+  accept_roi_end();
 
   delete stream;
 

@@ -70,7 +70,9 @@ void sobel_filtering( )
 main( )
 {
   load_image_data( );   /* Input of image1 */ 
+  accept_roi_begin();
   sobel_filtering( );   /* Sobel filter is applied to image1 */
+  accept_roi_end();
   save_image_data( );   /* Output of image2 */
   return 0;
 }

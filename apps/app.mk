@@ -122,7 +122,7 @@ $(TARGET).prof: $(TARGET).prof.o
 
 clean:
 	$(RM) $(TARGET) $(TARGET).o $(BCFILES) $(LLFILES) $(LINKEDBC) \
-	accept_config.txt accept_config_desc.txt accept_log.txt \
+	accept_config.txt accept_config_desc.txt accept_log.txt accept_time.txt \
 	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
 	llvmprof.out \
 	$(CLEANMETOO)
