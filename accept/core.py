@@ -13,6 +13,7 @@ import random
 import locale
 import sys
 from .uncertain import umean
+from collections import namedtuple
 
 
 EVALSCRIPT = 'eval.py'
@@ -170,12 +171,13 @@ def parse_relax_desc(f):
 
 # High-level profiling driver.
 
+Execution = namedtuple('Execution', ['output', 'elapsed', 'status',
+                                     'config', 'desc'])
+
 def build_and_execute(directory, relax_config, rep, timeout=None):
     """Build the application in the given directory (which must contain
     both a Makefile and an eval.py), run it, and collect its output.
-    Return the parsed output, the duration of the execution (or None for
-    timeout), the exit status (or an exception string), the relaxation
-    configuration, and the relaxation descriptions.
+    Return an Execution object.
     """
     with chdir(directory):
         with sandbox(True):
@@ -223,7 +225,7 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
             else:
                 relax_desc = None
 
-    return output, elapsed, status, relax_config, relax_desc
+    return Execution(output, elapsed, status, relax_config, relax_desc)
 
 
 # Configuration space exploration.
@@ -390,20 +392,19 @@ class Evaluation(object):
 
         # Get information from the first execution. The rest of the
         # executions are for timing and can finish later.
-        self.pout, self.ptime, _, self.base_config, self.descs = \
-                self.client.get(
-                    build_and_execute,
-                    self.appdir, None, 0
-                )
+        pex = self.client.get(build_and_execute, self.appdir, None, 0)
+        self.pout = pex.output
+        self.ptime = pex.elapsed
+        self.base_config = pex.config
+        self.descs = pex.desc
 
     def precise_times(self):
         """Generate the durations for the precise executions. Must be
         called after `setup`.
         """
         for rep in range(self.reps):
-            _, dur, _, _, _ = self.client.get(build_and_execute,
-                                              self.appdir, None, rep)
-            yield dur
+            ex = self.client.get(build_and_execute, self.appdir, None, rep)
+            yield ex.elapsed
 
     def submit_approx_runs(self, config):
         """Submit the executions for a given configuration.
@@ -418,19 +419,13 @@ class Evaluation(object):
         """Gather the Result objects from a configuration. Must be
         called after previously submitting the same configuration.
         """
-        # Get outputs from first execution.
-        aout, _, status, _, _ = self.client.get(build_and_execute,
-                                                self.appdir, config, 0)
-
-        # Get all execution times.
-        atimes = []
-        for rep in range(self.reps):
-            _, dur, _, _, _ = self.client.get(build_and_execute,
-                                              self.appdir, config, rep)
-            atimes.append(dur)
+        # Collect all executions for the config.
+        exs = [self.client.get(build_and_execute, self.appdir, config, rep)
+               for rep in range(self.reps)]
 
         # Evaluate the result.
-        res = Result(self.appname, config, atimes, status, aout)
+        res = Result(self.appname, config, [ex.elapsed for ex in exs],
+                     exs[0].status, exs[0].output)
         res.evaluate(self.scorefunc, self.pout, self.ptimes)
         return res
 
