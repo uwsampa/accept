@@ -4,3 +4,4 @@
 ^saved_outputs/
 ^memo\.db$
 ^apps/blackscholes/in_\d\d.\.txt$
+^apps/canneal/\d+\.nets$
