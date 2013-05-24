@@ -288,7 +288,8 @@ class Result(object):
         self.status = status
         self.output = output
 
-        self.duration = umean(self.durations)
+        if self.output is not None:
+            self.duration = umean(self.durations)
 
     def evaluate(self, scorefunc, precise_output, precise_durations):
         p_dur = umean(precise_durations)
@@ -302,7 +303,7 @@ class Result(object):
         if self.status:
             # Error status.
             self.good = False
-            self.desc = 'exited with status {}'.format(self.status)
+            self.desc = 'error status: {}'.format(self.status)
             return
 
         # Get output error and speedup.
