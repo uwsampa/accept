@@ -56,7 +56,7 @@ struct ACCEPTPass : public FunctionPass {
       Info.addRequired<ProfileInfo>();
   }
 
-  bool isLibraryFunc(Function &F) {
+  bool shouldSkipFunc(Function &F) {
     if (F.getName().startswith("accept_")) {
       return true;
     }
@@ -68,8 +68,14 @@ struct ACCEPTPass : public FunctionPass {
 
     DIScope scope = funcDebugInfo[&F].getContext();
     if (scope.Verify()) {
-      return scope.getFilename().startswith("/usr/include/") ||
-             scope.getFilename().startswith("/usr/lib/");
+      StringRef filename = scope.getFilename();
+      if (filename.startswith("/usr/include/") ||
+          filename.startswith("/usr/lib/"))
+        return true;
+      if (AI->markerAtLine(filename, funcDebugInfo[&F].getLineNumber())
+          == markerForbid) {
+        return true;
+      }
     }
     return false;
   }
@@ -79,7 +85,7 @@ struct ACCEPTPass : public FunctionPass {
     log = AI->log;
 
     // Skip optimizing functions that seem to be in standard libraries.
-    if (isLibraryFunc(F))
+    if (shouldSkipFunc(F))
       return false;
     return optimizeLoops(F);
   }

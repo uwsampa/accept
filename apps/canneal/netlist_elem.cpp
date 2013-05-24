@@ -49,7 +49,7 @@ netlist_elem::netlist_elem()
 // SYNC: Do i need to make this an atomic operation?  i.e. are there misaligned memoery issues that can cause this to fail
 //       even if I have atomic writes?
 //*****************************************************************************************
-APPROX routing_cost_t netlist_elem::routing_cost_given_loc(location_t loc)
+APPROX routing_cost_t netlist_elem::routing_cost_given_loc(location_t loc) /* ACCEPT_FORBID */
 {
 	APPROX routing_cost_t fanin_cost = 0;
 	APPROX routing_cost_t fanout_cost = 0;
