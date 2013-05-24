@@ -15,7 +15,6 @@
 #define ECQ_PRECISE 0
 #define ECQ_APPROX 1
 
-#define PERMIT "ACCEPT_PERMIT"
 
 namespace llvm {
   ImmutablePass *createAcceptAAPass();
@@ -27,6 +26,14 @@ namespace llvm {
 
   extern bool acceptUseProfile;
 }
+
+#define PERMIT "ACCEPT_PERMIT"
+#define FORBID "ACCEPT_FORBID"
+typedef enum {
+  markerNone,
+  markerPermit,
+  markerForbid
+} LineMarker;
 
 // This class represents an analysis this determines whether functions and
 // chunks are approximate. It is consumed by our various optimizations.
@@ -51,6 +58,10 @@ public:
       std::set<llvm::BasicBlock*> blocks);
   bool isPrecisePure(llvm::Function *func);
 
+  std::map< std::string, std::map<int, LineMarker> > lineMarkers;
+  LineMarker markerAtLine(std::string filename, int line);
+  LineMarker instMarker(llvm::Instruction *inst);
+
 private:
   void successorsOfHelper(llvm::BasicBlock *block,
                           std::set<llvm::BasicBlock*> &succ);
@@ -59,7 +70,6 @@ private:
                     std::set<llvm::Instruction*> insts);
   int preciseEscapeCheckHelper(std::map<llvm::Instruction*, bool> &flags,
                                const std::set<llvm::Instruction*> &insts);
-  bool hasPermit(llvm::Instruction *inst);
   bool approxOrLocal(std::set<llvm::Instruction*> &insts,
                      llvm::Instruction *inst);
 };

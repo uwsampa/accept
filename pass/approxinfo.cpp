@@ -281,36 +281,50 @@ int ApproxInfo::preciseEscapeCheckHelper(std::map<Instruction*, bool> &flags,
   return changes;
 }
 
-bool ApproxInfo::hasPermit(Instruction *inst) {
-  DebugLoc dl = inst->getDebugLoc();
-  DIScope scope(dl.getScope(inst->getContext()));
-  if (!scope.Verify())
-    return false;
+LineMarker ApproxInfo::markerAtLine(std::string filename, int line) {
+  if (!lineMarkers.count(filename)) {
+    // Load markers for the file.
+    std::map<int, LineMarker> markers;
 
-  // Read line N of the file.
-  std::ifstream srcFile(scope.getFilename().data());
-  int lineno = 1;
-  std::string theLine;
-  while (srcFile.good()) {
-    std::string curLine;
-    getline(srcFile, curLine);
-    if (lineno == dl.getLine()) {
-      theLine = curLine;
-      break;
-    } else {
+    std::ifstream srcFile(filename.data());
+    int lineno = 1;
+    std::string theLine;
+    while (srcFile.good()) {
+      std::string curLine;
+      getline(srcFile, curLine);
+      if (curLine.find(PERMIT) != std::string::npos) {
+        markers[lineno] = markerPermit;
+      } else if (curLine.find(FORBID) != std::string::npos) {
+        markers[lineno] = markerForbid;
+      }
       ++lineno;
     }
-  }
-  srcFile.close();
+    srcFile.close();
 
-  return theLine.find(PERMIT) != std::string::npos;
+    lineMarkers[filename] = markers;
+  }
+
+  std::map<int, LineMarker> &fileMarkers = lineMarkers[filename];
+  if (fileMarkers.count(line)) {
+    return fileMarkers[line];
+  } else {
+    return markerNone;
+  }
+}
+
+LineMarker ApproxInfo::instMarker(Instruction *inst) {
+  DebugLoc dl = inst->getDebugLoc();
+  DIScope scope(dl.getScope(inst->getContext()));
+  if (scope.Verify())
+    return markerAtLine(scope.getFilename(), dl.getLine());
+  return markerNone;
 }
 
 bool ApproxInfo::approxOrLocal(std::set<Instruction*> &insts,
                                Instruction *inst) {
   Function *calledFunc = NULL;
 
-  if (hasPermit(inst)) {
+  if (instMarker(inst) == markerPermit) {
     return true;
   } else if (CallInst *call = dyn_cast<CallInst>(inst)) {
 
