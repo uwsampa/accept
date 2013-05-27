@@ -417,7 +417,8 @@ class Evaluation(object):
         """
         for rep in range(self.reps):
             ex = self.client.get(build_and_execute, self.appdir, None, rep)
-            assert ex.roitime, "missing time for precise run"
+            if ex.output is None:
+                raise Exception('precise run failed: {}'.format(ex.status))
             yield ex.roitime
 
     def submit_approx_runs(self, config):
