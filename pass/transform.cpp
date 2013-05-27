@@ -66,16 +66,13 @@ struct ACCEPTPass : public FunctionPass {
       return false;
     }
 
-    DIScope scope = funcDebugInfo[&F].getContext();
-    if (scope.Verify()) {
-      StringRef filename = scope.getFilename();
-      if (filename.startswith("/usr/include/") ||
-          filename.startswith("/usr/lib/"))
-        return true;
-      if (AI->markerAtLine(filename, funcDebugInfo[&F].getLineNumber())
-          == markerForbid) {
-        return true;
-      }
+    DISubprogram funcInfo = funcDebugInfo[&F];
+    StringRef filename = funcInfo.getFilename();
+    if (filename.startswith("/usr/include/") ||
+        filename.startswith("/usr/lib/"))
+      return true;
+    if (AI->markerAtLine(filename, funcInfo.getLineNumber()) == markerForbid) {
+      return true;
     }
     return false;
   }
