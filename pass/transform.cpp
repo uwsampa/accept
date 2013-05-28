@@ -70,7 +70,7 @@ struct ACCEPTPass : public FunctionPass {
     StringRef filename = funcInfo.getFilename();
     if (filename.startswith("/usr/include/") ||
         filename.startswith("/usr/lib/"))
-      return true;
+      return false; // true;
     if (AI->markerAtLine(filename, funcInfo.getLineNumber()) == markerForbid) {
       return true;
     }
