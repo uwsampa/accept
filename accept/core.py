@@ -316,10 +316,10 @@ class Result(object):
             self.desc = 'large error: {:.2%}'.format(self.error)
             return
 
-        if self.speedup < 1.0:
+        if not self.speedup > 1.0:
             # Slowdown.
             self.good = False
-            self.desc = 'slowdown: {} vs. {}'.format(self.duration, p_dur)
+            self.desc = 'no speedup: {} vs. {}'.format(self.duration, p_dur)
             return
 
         # All good!
