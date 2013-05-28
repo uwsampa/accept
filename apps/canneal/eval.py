@@ -5,4 +5,4 @@ def load(fn='output.txt'):
         return float(f.read())
 
 def score(orig, relaxed):
-    return 1.0 - relaxed / orig
+    return relaxed / orig - 1.0
