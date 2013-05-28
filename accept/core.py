@@ -288,7 +288,7 @@ class Result(object):
         self.status = status
         self.output = output
 
-        if self.output is not None:
+        if self.status == 0:
             self.duration = umean(self.durations)
 
     def evaluate(self, scorefunc, precise_output, precise_durations):
@@ -417,7 +417,7 @@ class Evaluation(object):
         """
         for rep in range(self.reps):
             ex = self.client.get(build_and_execute, self.appdir, None, rep)
-            if ex.output is None:
+            if ex.status != 0:
                 raise Exception('precise run failed: {}'.format(ex.status))
             yield ex.roitime
 
