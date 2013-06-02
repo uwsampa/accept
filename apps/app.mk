@@ -82,7 +82,11 @@ profile: $(TARGET).prof.bc llvmprof.out
 	$(LLVMDIS) $<
 
 # Link component bitcode files into a single file.
+ifeq ($(ARCH),msp430)
+$(LINKEDBC): $(BCFILES)
+else
 $(LINKEDBC): $(BCFILES) $(PROFLIB)
+endif
 	$(LLVMLINK) $^ > $@
 
 # Three different transformations of the amalgamated program.
