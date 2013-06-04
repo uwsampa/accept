@@ -268,7 +268,7 @@ def combine_configs(configs):
                 sites[ident] = param
 
     # Modify the first config with the new parameters.
-    out = configs[0]
+    out = list(configs[0])
     for i, (ident, param) in enumerate(out):
         if ident in sites:
             out[i] = ident, sites[ident]
@@ -283,7 +283,7 @@ class Result(object):
     """
     def __init__(self, app, config, durations, status, output):
         self.app = app
-        self.config = config
+        self.config = tuple(config)
         self.durations = durations
         self.status = status
         self.output = output
