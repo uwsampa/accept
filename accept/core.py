@@ -274,6 +274,16 @@ def combine_configs(configs):
             out[i] = ident, sites[ident]
     return out
 
+def increase_config(config, amount=1):
+    """Generate a new configuration that applies the given configuration
+    more aggressively.
+    """
+    out = []
+    for ident, param in config:
+        if param:
+            out.append((ident, param + amount))
+    return out
+
 
 # Results.
 
@@ -294,15 +304,17 @@ class Result(object):
     def evaluate(self, scorefunc, precise_output, precise_durations):
         p_dur = umean(precise_durations)
 
+        self.good = False  # A useful configuration?
+        self.safe = False  # Not useful, but also not harmful?
+        self.desc = 'unknown'  # Why not good?
+
         if self.status is None:
             # Timed out.
-            self.good = False
             self.desc = 'timed out'
             return
 
         if self.status:
             # Error status.
-            self.good = False
             self.desc = 'error status: {}'.format(self.status)
             return
 
@@ -312,13 +324,14 @@ class Result(object):
 
         if self.error > MAX_ERROR:
             # Large output error.
-            self.good = False
             self.desc = 'large error: {:.2%}'.format(self.error)
             return
 
+        # No error or large quality loss.
+        self.safe = True
+
         if not self.speedup > 1.0:
             # Slowdown.
-            self.good = False
             self.desc = 'no speedup: {} vs. {}'.format(self.duration, p_dur)
             return
 
@@ -468,9 +481,27 @@ class Evaluation(object):
         self.setup()
         results = self.run_approx(list(permute_config(self.base_config)))
 
+        # Try increasing the parameter on good configs until they break
+        # the program.
+        survivors = [r for r in results if r.safe]
+        while survivors:
+            # Increase the aggressiveness of each configuration and
+            # evaluate.
+            gen_configs = [increase_config(r.config) for r in survivors]
+            gen_res = self.run_approx(gen_configs)
+
+            # Produce the next generation, eliminating any config that
+            # has too much error or that offers no speedup over its
+            # parent.
+            next_gen = []
+            for res, old_res in zip(gen_res, survivors):
+                if res.safe and res.duration < old_res.duration:
+                    next_gen.append(res)
+            survivors = next_gen
+
         # Evaluate a configuration that combines all the good ones.
         config = combine_configs(
-            r.config for r in results if r.good
+            r.config for r in self.results if r.good
         )
         if config:
             self.run_approx([config])
