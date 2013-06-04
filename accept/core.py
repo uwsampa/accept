@@ -106,7 +106,8 @@ def _make_args():
 class BuildError(Exception):
     """The application failed to build.
     """
-    pass
+    def __str__(self):
+        return self.args[0]
 
 def execute(timeout, approx=False):
     """Run the application in the working directory and return the
@@ -132,8 +133,7 @@ def build(approx=False, require=True):
                             stderr=subprocess.STDOUT)
     output, _ = proc.communicate()
     if require and proc.returncode:
-        sys.stderr.write(output)
-        raise BuildError()
+        raise BuildError(output)
     return output
 
 
