@@ -283,6 +283,8 @@ def increase_config(config, amount=1):
     for ident, param in config:
         if param:
             out.append((ident, param + amount))
+        else:
+            out.append((ident, param))
     return out
 
 
