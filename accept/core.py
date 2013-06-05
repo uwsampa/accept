@@ -11,7 +11,7 @@ import tempfile
 import string
 import random
 import locale
-import sys
+import logging
 from .uncertain import umean
 from collections import namedtuple
 
@@ -480,6 +480,7 @@ class Evaluation(object):
         """Execute the experiment.
         """
         self.setup()
+        logging.info('evaluating base configurations')
         results = self.run_approx(list(permute_config(self.base_config)))
 
         # Try increasing the parameter on good configs until they break
@@ -487,9 +488,13 @@ class Evaluation(object):
         survivors = [r for r in results if r.safe]
         generation = 0
         while survivors and generation <= MAX_GENERATIONS:
+            generation += 1
+            logging.info('evaluating generation {}, population {}'.format(
+                generation, len(survivors)
+            ))
+
             # Increase the aggressiveness of each configuration and
             # evaluate.
-            generation += 1
             gen_configs = [increase_config(r.config) for r in survivors]
             gen_res = self.run_approx(gen_configs)
 
@@ -507,6 +512,7 @@ class Evaluation(object):
             r.config for r in self.results if r.good
         )
         if config:
+            logging.info('evaluating combined config')
             self.run_approx([config])
 
 
