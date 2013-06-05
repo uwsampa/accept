@@ -23,6 +23,7 @@ BASEDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUTS_DIR = os.path.join(BASEDIR, 'saved_outputs')
 MAX_ERROR = 0.3
 TIMEOUT_FACTOR = 3
+MAX_GENERATIONS = 10  # How aggressively to apply each optimization.
 
 
 # Utilities.
@@ -107,7 +108,7 @@ class BuildError(Exception):
     """The application failed to build.
     """
     def __str__(self):
-        return self.args[0]
+        return '\n' + self.args[0]
 
 def execute(timeout, approx=False):
     """Run the application in the working directory and return the
@@ -484,9 +485,11 @@ class Evaluation(object):
         # Try increasing the parameter on good configs until they break
         # the program.
         survivors = [r for r in results if r.safe]
-        while survivors:
+        generation = 0
+        while survivors and generation <= MAX_GENERATIONS:
             # Increase the aggressiveness of each configuration and
             # evaluate.
+            generation += 1
             gen_configs = [increase_config(r.config) for r in survivors]
             gen_res = self.run_approx(gen_configs)
 
