@@ -16,6 +16,7 @@
 #include <pthread.h>
 #include <assert.h>
 #include <float.h>
+#include "enerc.h"
 
 #include "fluid.hpp"
 #include "cellpool.hpp"
@@ -1240,6 +1241,7 @@ int main(int argc, char *argv[])
 #ifdef ENABLE_PARSEC_HOOKS
   __parsec_roi_begin();
 #endif
+  accept_roi_begin();
 #if defined(WIN32)
   thread_args* targs = (thread_args*)alloca(sizeof(thread_args)*threadnum);
 #else
@@ -1262,6 +1264,7 @@ int main(int argc, char *argv[])
 #ifdef ENABLE_PARSEC_HOOKS
   __parsec_roi_end();
 #endif
+  accept_roi_end();
 
   if(argc > 4)
     SaveFile(argv[4]);
