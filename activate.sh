@@ -1,1 +1,1 @@
-export PATH=`pwd`/bin:$PATH
+export PATH=`pwd`/bin:`pwd`/build/built/bin:$PATH
