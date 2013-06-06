@@ -1,6 +1,7 @@
 from __future__ import print_function
 from __future__ import division
 import os
+import logging
 from . import core
 
 APPSDIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'apps')
@@ -20,8 +21,10 @@ def dump_config(config, descs):
 
 def evaluate(client, appname, verbose=False, reps=1):
     exp = core.Evaluation(os.path.join(APPSDIR, appname), client, reps)
+    logging.info('starting experiments')
     with client:
         exp.run()
+    logging.info('all experiments finished')
     results, descs = exp.results, exp.descs
 
     optimal, suboptimal, bad = core.triage_results(results)

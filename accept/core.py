@@ -11,7 +11,7 @@ import tempfile
 import string
 import random
 import locale
-import sys
+import logging
 from .uncertain import umean
 from collections import namedtuple
 
@@ -23,6 +23,7 @@ BASEDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUTS_DIR = os.path.join(BASEDIR, 'saved_outputs')
 MAX_ERROR = 0.3
 TIMEOUT_FACTOR = 3
+MAX_GENERATIONS = 10  # How aggressively to apply each optimization.
 
 
 # Utilities.
@@ -106,7 +107,8 @@ def _make_args():
 class BuildError(Exception):
     """The application failed to build.
     """
-    pass
+    def __str__(self):
+        return '\n' + self.args[0]
 
 def execute(timeout, approx=False):
     """Run the application in the working directory and return the
@@ -132,8 +134,7 @@ def build(approx=False, require=True):
                             stderr=subprocess.STDOUT)
     output, _ = proc.communicate()
     if require and proc.returncode:
-        sys.stderr.write(output)
-        raise BuildError()
+        raise BuildError(output)
     return output
 
 
@@ -268,10 +269,22 @@ def combine_configs(configs):
                 sites[ident] = param
 
     # Modify the first config with the new parameters.
-    out = configs[0]
+    out = list(configs[0])
     for i, (ident, param) in enumerate(out):
         if ident in sites:
             out[i] = ident, sites[ident]
+    return out
+
+def increase_config(config, amount=1):
+    """Generate a new configuration that applies the given configuration
+    more aggressively.
+    """
+    out = []
+    for ident, param in config:
+        if param:
+            out.append((ident, param + amount))
+        else:
+            out.append((ident, param))
     return out
 
 
@@ -283,7 +296,7 @@ class Result(object):
     """
     def __init__(self, app, config, durations, status, output):
         self.app = app
-        self.config = config
+        self.config = tuple(config)
         self.durations = durations
         self.status = status
         self.output = output
@@ -294,15 +307,17 @@ class Result(object):
     def evaluate(self, scorefunc, precise_output, precise_durations):
         p_dur = umean(precise_durations)
 
+        self.good = False  # A useful configuration?
+        self.safe = False  # Not useful, but also not harmful?
+        self.desc = 'unknown'  # Why not good?
+
         if self.status is None:
             # Timed out.
-            self.good = False
             self.desc = 'timed out'
             return
 
         if self.status:
             # Error status.
-            self.good = False
             self.desc = 'error status: {}'.format(self.status)
             return
 
@@ -312,13 +327,14 @@ class Result(object):
 
         if self.error > MAX_ERROR:
             # Large output error.
-            self.good = False
             self.desc = 'large error: {:.2%}'.format(self.error)
             return
 
+        # No error or large quality loss.
+        self.safe = True
+
         if not self.speedup > 1.0:
             # Slowdown.
-            self.good = False
             self.desc = 'no speedup: {} vs. {}'.format(self.duration, p_dur)
             return
 
@@ -466,13 +482,39 @@ class Evaluation(object):
         """Execute the experiment.
         """
         self.setup()
+        logging.info('evaluating base configurations')
         results = self.run_approx(list(permute_config(self.base_config)))
+
+        # Try increasing the parameter on good configs until they break
+        # the program.
+        survivors = [r for r in results if r.safe]
+        generation = 0
+        while survivors and generation <= MAX_GENERATIONS:
+            generation += 1
+            logging.info('evaluating generation {}, population {}'.format(
+                generation, len(survivors)
+            ))
+
+            # Increase the aggressiveness of each configuration and
+            # evaluate.
+            gen_configs = [increase_config(r.config) for r in survivors]
+            gen_res = self.run_approx(gen_configs)
+
+            # Produce the next generation, eliminating any config that
+            # has too much error or that offers no speedup over its
+            # parent.
+            next_gen = []
+            for res, old_res in zip(gen_res, survivors):
+                if res.safe and res.duration < old_res.duration:
+                    next_gen.append(res)
+            survivors = next_gen
 
         # Evaluate a configuration that combines all the good ones.
         config = combine_configs(
-            r.config for r in results if r.good
+            r.config for r in self.results if r.good
         )
         if config:
+            logging.info('evaluating combined config')
             self.run_approx([config])
 
 

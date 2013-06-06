@@ -1,4 +1,5 @@
 import munkres
+import math
 
 def load(fn='output.txt'):
     centers = []
@@ -27,19 +28,30 @@ def euclidean_dist(a, b):
         total += (x - y) ** 2.0
     return total ** 0.5
 
+def _drop_nans(v, repl=0.0):
+    out = []
+    for n in v:
+        if math.isnan(n):
+            out.append(repl)
+        else:
+            out.append(n)
+    return out
+
 def score(orig, relaxed):
     matrix = []
     for _, _, a in orig:
+        a = _drop_nans(a)
         row = []
         for _, _, b in relaxed:
+            b = _drop_nans(b)
             row.append(euclidean_dist(a, b))
         matrix.append(row)
 
     total = 0.0
     indices = munkres.Munkres().compute(matrix)
     for i, j in indices:
-        a = orig[i][2]
-        b = relaxed[j][2]
+        a = _drop_nans(orig[i][2])
+        b = _drop_nans(relaxed[j][2])
         dist = euclidean_dist(a, b)
         dist /= len(a) ** 0.5
         total += dist

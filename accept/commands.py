@@ -27,6 +27,10 @@ def global_config(opts):
         _reps = opts.reps
     else:
         _reps = CLUSTER_REPS if opts.cluster else LOCAL_REPS
+    if opts.verbose >= 2:
+        logging.getLogger().setLevel(logging.DEBUG)
+    elif opts.verbose >= 1:
+        logging.getLogger().setLevel(logging.INFO)
 
 
 # Run the experiments.
@@ -129,6 +133,8 @@ def main():
                         help='clear memoized results')
     parser.add_argument('--reps', '-r', type=int,
                         help='replication runs')
+    parser.add_argument('--verbose', '-v', action='count', default=0,
+                        help='enable verbose logging')
     parser.dispatch(pre_call=global_config)
 
 if __name__ == '__main__':
