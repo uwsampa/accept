@@ -139,8 +139,7 @@ const std::set<std::string> funcWhitelist(
 
 ApproxInfo::ApproxInfo() : FunctionPass(ID) {
   std::string error;
-  log = new raw_fd_ostream("accept_log.txt", error,
-                           raw_fd_ostream::F_Append);
+  log = new raw_fd_ostream("accept_log.txt", error);
 }
 
 ApproxInfo::~ApproxInfo() {

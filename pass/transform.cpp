@@ -262,13 +262,27 @@ struct ACCEPTPass : public FunctionPass {
     }
     */
 
+    // Determine whether this is a for-like or while-like loop. This informs
+    // the heuristic that determines which parts of the loop to perforate.
+    bool isForLike = false;
+    if (loop->getHeader()->getName().startswith("for.cond")) {
+      *log << "for-like loop\n";
+      isForLike = true;
+    } else {
+      *log << "while-like loop\n";
+    }
+
     // Check whether the body of this loop is elidable (precise-pure).
     std::set<BasicBlock*> loopBlocks;
     for (Loop::block_iterator bi = loop->block_begin();
          bi != loop->block_end(); ++bi) {
-      if (*bi == loop->getLoopLatch()) {
-        // Even in perforated loops, the latch gets executed every time. So we
+      if (*bi == loop->getHeader()) {
+        // Even in perforated loops, the header gets executed every time. So we
         // don't check it.
+        continue;
+      } else if (isForLike && *bi == loop->getLoopLatch()) {
+        // When perforating for-like loops, we also execute the latch each
+        // time.
         continue;
       }
       loopBlocks.insert(*bi);
@@ -286,7 +300,7 @@ struct ACCEPTPass : public FunctionPass {
         int param = relaxConfig[id];
         if (param) {
           *log << "perforating with factor 2^" << param << "\n";
-          perforateLoop(loop, param);
+          perforateLoop(loop, param, isForLike);
           transformed = true;
         }
       } else {
@@ -301,7 +315,7 @@ struct ACCEPTPass : public FunctionPass {
   // Transform a loop to skip iterations.
   // The loop should already be validated as perforatable, but checks will be
   // performed nonetheless to ensure safety.
-  void perforateLoop(Loop *loop, int logfactor=1) {
+  void perforateLoop(Loop *loop, int logfactor, bool isForLike) {
     // Check whether this loop is perforatable.
     // First, check for required blocks.
     if (!loop->getHeader() || !loop->getLoopLatch()
@@ -326,6 +340,16 @@ struct ACCEPTPass : public FunctionPass {
     } else {
       errs() << "loop condition does not exit\n";
       return;
+    }
+
+    // Get the shortcut for the destination. In for-like loop perforation, we
+    // shortcut to the latch (increment block). In while-like perforation, we
+    // jump to the header (condition block).
+    BasicBlock *shortcutDest;
+    if (isForLike) {
+      shortcutDest = loop->getLoopLatch();
+    } else {
+      shortcutDest = loop->getHeader();
     }
 
     IRBuilder<> builder(module->getContext());
@@ -400,7 +424,7 @@ struct ACCEPTPass : public FunctionPass {
         loop->getLoopLatch()
     );
 
-    // Change the latch (condition block) to point to our new condition
+    // Change the condition block to point to our new condition
     // instead of the body.
     condBranch->setSuccessor(0, checkBlock);
   }
