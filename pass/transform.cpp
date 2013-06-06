@@ -248,6 +248,12 @@ struct ACCEPTPass : public FunctionPass {
       return false;
     }
 
+    // Skip array constructor loops manufactured by Clang.
+    if (loop->getHeader()->getName().startswith("arrayctor.loop")) {
+      *log << "array constructor\n";
+      return false;
+    }
+
     /*
     if (acceptUseProfile) {
       ProfileInfo &PI = getAnalysis<ProfileInfo>();
