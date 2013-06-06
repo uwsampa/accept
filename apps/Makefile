@@ -1,4 +1,4 @@
-SUBDIRS = blackscholes cpptest jpeg strawman streamcluster sobel canneal
+SUBDIRS = blackscholes cpptest jpeg strawman streamcluster sobel canneal fluidanimate
 CLEANDIRS = $(SUBDIRS:%=clean-%)
 
 .PHONY: subdirs $(SUBDIRS)

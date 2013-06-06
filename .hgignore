@@ -5,3 +5,4 @@
 ^memo\.db$
 ^apps/blackscholes/in_\d\d.\.txt$
 ^apps/canneal/\d+\.nets$
+^apps/fluidanimate/in_\d+.\.fluid$
