@@ -63,7 +63,7 @@ RUN_TARGETS := $(CONFIGS:%=run_%)
 
 all: build_orig
 
-$(BUILD_TARGETS): build_%: $(TARGET).%
+$(BUILD_TARGETS): build_%: $(TARGET).% $(BUILD_EXTRA)
 
 $(RUN_TARGETS): run_%: $(TARGET).%
 	$(RUNSHIM) ./$< $(RUNARGS) || true
