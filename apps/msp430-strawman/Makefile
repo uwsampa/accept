@@ -3,8 +3,6 @@ ARCH := msp430
 CLANGARGS := -O0 -Werror
 LINKER := msp430-gcc
 LDFLAGS := -mmcu=msp430f2618
-PROFLIB := enercrt-msp430.bc
-override CLEANMETOO += $(PROFLIB)
 
 # there is literally no good way to do this without autoconf
 ifndef MSPGCC_ROOT
@@ -19,10 +17,6 @@ CFLAGS := -target msp430 -I$(MSPGCC_ROOT)/lib/gcc/msp430/4.6.3/include -I$(MSPGC
 
 APP_MK := ../app.mk
 include $(APP_MK)
-
-ENERCRT_SRC=$(ENERCDIR)/rt/enercrt.c
-$(PROFLIB): $(ENERCRT_SRC)
-	$(CC) $(CFLAGS) -emit-llvm -c -o $@ $<
 
 # replace with an MSP430 simulator
 RUNSHIM=$(MSPGCC_ROOT)/bin/msp430-objdump -d
