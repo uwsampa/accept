@@ -311,7 +311,9 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
     if (name == "free" || name == "memcpy" || name == "memset" ||
         name == "__builtin_object_size" || name == "__builtin___memcpy_chk" ||
         name == "__inline_memcpy_chk" || name == "__builtin___memset_chk" ||
-        name == "__inline_memset_chk") {
+        name == "__inline_memset_chk" ||
+        name == "__builtin_expect"  // assert
+        ) {
 
       // We want to leave the arguments unchecked, but we have to change each
       // argument expression's type to avoid assertion failures later in the
