@@ -254,6 +254,16 @@ struct ACCEPTPass : public FunctionPass {
       return false;
     }
 
+    // Skip empty-body loops (where perforation would do nothing anyway).
+    if (loop->getNumBlocks() == 2
+        && loop->getHeader() != loop->getLoopLatch()) {
+      BasicBlock *latch = loop->getLoopLatch();
+      if (&(latch->front()) == &(latch->back())) {
+        *log << "empty body\n";
+        return false;
+      }
+    }
+
     /*
     if (acceptUseProfile) {
       ProfileInfo &PI = getAnalysis<ProfileInfo>();
