@@ -333,29 +333,29 @@ public:
 class Vec3
 {
 public:
-  fptype x, y, z;
+  APPROX fptype x, y, z;
 
   Vec3() {}
-  Vec3(fptype _x, fptype _y, fptype _z) : x(_x), y(_y), z(_z) {}
+  Vec3(APPROX fptype _x, APPROX fptype _y, APPROX fptype _z) : x(_x), y(_y), z(_z) {}
 
-  fptype  GetLengthSq() const         { return x*x + y*y + z*z; }
-  fptype  GetLength() const           { return sqrtf(GetLengthSq()); }
+  APPROX fptype  GetLengthSq() const         { return x*x + y*y + z*z; }
+  APPROX fptype  GetLength() const           { return sqrtf(GetLengthSq()); }
   Vec3 &  Normalize()                 { return *this /= GetLength(); }
 
-  bool    operator == (Vec3 const &v) { return (x == v.x) && (y == v.y) && (z += v.z); }
+  bool    operator == (Vec3 const &v) { return ENDORSE((x == v.x) && (y == v.y) && (z += v.z)); }
   Vec3 &  operator += (Vec3 const &v) { x += v.x;  y += v.y; z += v.z; return *this; }
   Vec3 &  operator -= (Vec3 const &v) { x -= v.x;  y -= v.y; z -= v.z; return *this; }
-  Vec3 &  operator *= (fptype s)      { x *= s;  y *= s; z *= s; return *this; }
-  Vec3 &  operator /= (fptype s)      { fptype tmp = 1.f/s; x *= tmp;  y *= tmp; z *= tmp; return *this; }
+  Vec3 &  operator *= (APPROX fptype s)      { x *= s;  y *= s; z *= s; return *this; }
+  Vec3 &  operator /= (APPROX fptype s)      { APPROX fptype tmp = 1.f/s; x *= tmp;  y *= tmp; z *= tmp; return *this; }
 
   Vec3    operator + (Vec3 const &v) const    { return Vec3(x+v.x, y+v.y, z+v.z); }
-  Vec3    operator + (fptype const &f) const  { return Vec3(x+f, y+f, z+f); }
+  Vec3    operator + (APPROX fptype const &f) const  { return Vec3(x+f, y+f, z+f); }
   Vec3    operator - () const                 { return Vec3(-x, -y, -z); }
   Vec3    operator - (Vec3 const &v) const    { return Vec3(x-v.x, y-v.y, z-v.z); }
-  Vec3    operator * (fptype s) const         { return Vec3(x*s, y*s, z*s); }
-  Vec3    operator / (fptype s) const         { fptype tmp = 1.f/s; return Vec3(x*tmp, y*tmp, z*tmp); }
+  Vec3    operator * (APPROX fptype s) const         { return Vec3(x*s, y*s, z*s); }
+  Vec3    operator / (APPROX fptype s) const         { APPROX fptype tmp = 1.f/s; return Vec3(x*tmp, y*tmp, z*tmp); }
 
-  fptype  operator * (Vec3 const &v) const    { return x*v.x + y*v.y + z*v.z; }
+  APPROX fptype  operator * (Vec3 const &v) const    { return x*v.x + y*v.y + z*v.z; }
 };
 
 #endif 
@@ -384,7 +384,7 @@ public:
   Vec3 hv[PARTICLES_PER_CELL]; \
   Vec3 v[PARTICLES_PER_CELL]; \
   Vec3 a[PARTICLES_PER_CELL]; \
-  fptype density[PARTICLES_PER_CELL];
+  APPROX fptype density[PARTICLES_PER_CELL];
 
 //Helper structure for padding calculation, not used directly by the program
 struct Cell_aux {

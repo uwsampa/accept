@@ -179,9 +179,9 @@ void InitSim(char const *fileName, unsigned int threadnum)
   viscosityCoeff = viscosity * coeff3 * particleMass;
 
   Vec3 range = domainMax - domainMin;
-  nx = (int)(range.x / h);
-  ny = (int)(range.y / h);
-  nz = (int)(range.z / h);
+  nx = (int) ENDORSE(range.x / h);
+  ny = (int) ENDORSE(range.y / h);
+  nz = (int) ENDORSE(range.z / h);
   assert(nx >= 1 && ny >= 1 && nz >= 1);
   numCells = nx*ny*nz;
   std::cout << "Number of cells: " << numCells << std::endl;
@@ -338,9 +338,9 @@ void InitSim(char const *fileName, unsigned int threadnum)
       vz  = bswap_float(vz);
     }
 
-    int ci = (int)((px - domainMin.x) / delta.x);
-    int cj = (int)((py - domainMin.y) / delta.y);
-    int ck = (int)((pz - domainMin.z) / delta.z);
+    int ci = (int)(ENDORSE((px - domainMin.x) / delta.x));
+    int cj = (int)(ENDORSE((py - domainMin.y) / delta.y));
+    int ck = (int)(ENDORSE((pz - domainMin.z) / delta.z));
 
     if(ci < 0) ci = 0; else if(ci > (nx-1)) ci = nx-1;
     if(cj < 0) cj = 0; else if(cj > (ny-1)) cj = ny-1;
@@ -420,25 +420,25 @@ void SaveFile(char const *fileName)
       //Always use single precision float variables b/c file format uses single precision
       float px, py, pz, hvx, hvy, hvz, vx,vy, vz;
       if(!isLittleEndian()) {
-        px  = bswap_float((float)(cell->p[j % PARTICLES_PER_CELL].x));
-        py  = bswap_float((float)(cell->p[j % PARTICLES_PER_CELL].y));
-        pz  = bswap_float((float)(cell->p[j % PARTICLES_PER_CELL].z));
-        hvx = bswap_float((float)(cell->hv[j % PARTICLES_PER_CELL].x));
-        hvy = bswap_float((float)(cell->hv[j % PARTICLES_PER_CELL].y));
-        hvz = bswap_float((float)(cell->hv[j % PARTICLES_PER_CELL].z));
-        vx  = bswap_float((float)(cell->v[j % PARTICLES_PER_CELL].x));
-        vy  = bswap_float((float)(cell->v[j % PARTICLES_PER_CELL].y));
-        vz  = bswap_float((float)(cell->v[j % PARTICLES_PER_CELL].z));
+        px  = bswap_float(ENDORSE((float)(cell->p[j % PARTICLES_PER_CELL].x)));
+        py  = bswap_float(ENDORSE((float)(cell->p[j % PARTICLES_PER_CELL].y)));
+        pz  = bswap_float(ENDORSE((float)(cell->p[j % PARTICLES_PER_CELL].z)));
+        hvx = bswap_float(ENDORSE((float)(cell->hv[j % PARTICLES_PER_CELL].x)));
+        hvy = bswap_float(ENDORSE((float)(cell->hv[j % PARTICLES_PER_CELL].y)));
+        hvz = bswap_float(ENDORSE((float)(cell->hv[j % PARTICLES_PER_CELL].z)));
+        vx  = bswap_float(ENDORSE((float)(cell->v[j % PARTICLES_PER_CELL].x)));
+        vy  = bswap_float(ENDORSE((float)(cell->v[j % PARTICLES_PER_CELL].y)));
+        vz  = bswap_float(ENDORSE((float)(cell->v[j % PARTICLES_PER_CELL].z)));
       } else {
-        px  = (float)(cell->p[j % PARTICLES_PER_CELL].x);
-        py  = (float)(cell->p[j % PARTICLES_PER_CELL].y);
-        pz  = (float)(cell->p[j % PARTICLES_PER_CELL].z);
-        hvx = (float)(cell->hv[j % PARTICLES_PER_CELL].x);
-        hvy = (float)(cell->hv[j % PARTICLES_PER_CELL].y);
-        hvz = (float)(cell->hv[j % PARTICLES_PER_CELL].z);
-        vx  = (float)(cell->v[j % PARTICLES_PER_CELL].x);
-        vy  = (float)(cell->v[j % PARTICLES_PER_CELL].y);
-        vz  = (float)(cell->v[j % PARTICLES_PER_CELL].z);
+        px  = ENDORSE((float)(cell->p[j % PARTICLES_PER_CELL].x));
+        py  = ENDORSE((float)(cell->p[j % PARTICLES_PER_CELL].y));
+        pz  = ENDORSE((float)(cell->p[j % PARTICLES_PER_CELL].z));
+        hvx = ENDORSE((float)(cell->hv[j % PARTICLES_PER_CELL].x));
+        hvy = ENDORSE((float)(cell->hv[j % PARTICLES_PER_CELL].y));
+        hvz = ENDORSE((float)(cell->hv[j % PARTICLES_PER_CELL].z));
+        vx  = ENDORSE((float)(cell->v[j % PARTICLES_PER_CELL].x));
+        vy  = ENDORSE((float)(cell->v[j % PARTICLES_PER_CELL].y));
+        vz  = ENDORSE((float)(cell->v[j % PARTICLES_PER_CELL].z));
       }
       file.write((char *)&px,  FILE_SIZE_FLOAT);
       file.write((char *)&py,  FILE_SIZE_FLOAT);
@@ -556,9 +556,9 @@ void RebuildGridMT(int tid)
         for(int j = 0; j < np2; ++j)
         {
           //get destination for source particle
-          int ci = (int)((cell2->p[j % PARTICLES_PER_CELL].x - domainMin.x) / delta.x);
-          int cj = (int)((cell2->p[j % PARTICLES_PER_CELL].y - domainMin.y) / delta.y);
-          int ck = (int)((cell2->p[j % PARTICLES_PER_CELL].z - domainMin.z) / delta.z);
+          int ci = (int) ENDORSE(((cell2->p[j % PARTICLES_PER_CELL].x - domainMin.x) / delta.x));
+          int cj = (int) ENDORSE(((cell2->p[j % PARTICLES_PER_CELL].y - domainMin.y) / delta.y));
+          int ck = (int) ENDORSE(((cell2->p[j % PARTICLES_PER_CELL].z - domainMin.z) / delta.z));
 
           if(ci < 0) ci = 0; else if(ci > (nx-1)) ci = nx-1;
           if(cj < 0) cj = 0; else if(cj > (ny-1)) cj = ny-1;
@@ -722,11 +722,11 @@ void ComputeDensitiesMT(int tid)
               //Check address to make sure densities are computed only once per pair
               if(&neigh->p[iparNeigh % PARTICLES_PER_CELL] < &cell->p[ipar % PARTICLES_PER_CELL])
               {
-                fptype distSq = (cell->p[ipar % PARTICLES_PER_CELL] - neigh->p[iparNeigh % PARTICLES_PER_CELL]).GetLengthSq();
-                if(distSq < hSq)
+                APPROX fptype distSq = (cell->p[ipar % PARTICLES_PER_CELL] - neigh->p[iparNeigh % PARTICLES_PER_CELL]).GetLengthSq();
+                if(ENDORSE(distSq < hSq))
                 {
-                  fptype t = hSq - distSq;
-                  fptype tc = t*t*t;
+                  APPROX fptype t = hSq - distSq;
+                  APPROX fptype tc = t*t*t;
 
                   if(border[index])
                   {
@@ -886,27 +886,27 @@ void ProcessCollisionsMT(int tid)
           Vec3 pos = cell->p[j % PARTICLES_PER_CELL] + cell->hv[j % PARTICLES_PER_CELL] * timeStep;
 
           fptype diff = parSize - (pos.x - domainMin.x);
-          if(diff > epsilon)
+          if(ENDORSE(diff > epsilon))
             cell->a[j % PARTICLES_PER_CELL].x += stiffnessCollisions*diff - damping*cell->v[j % PARTICLES_PER_CELL].x;
 
           diff = parSize - (domainMax.x - pos.x);
-          if(diff > epsilon)
+          if(ENDORSE(diff > epsilon))
             cell->a[j % PARTICLES_PER_CELL].x -= stiffnessCollisions*diff + damping*cell->v[j % PARTICLES_PER_CELL].x;
 
           diff = parSize - (pos.y - domainMin.y);
-          if(diff > epsilon)
+          if(ENDORSE(diff > epsilon))
             cell->a[j % PARTICLES_PER_CELL].y += stiffnessCollisions*diff - damping*cell->v[j % PARTICLES_PER_CELL].y;
 
           diff = parSize - (domainMax.y - pos.y);
-          if(diff > epsilon)
+          if(ENDORSE(diff > epsilon))
             cell->a[j % PARTICLES_PER_CELL].y -= stiffnessCollisions*diff + damping*cell->v[j % PARTICLES_PER_CELL].y;
 
           diff = parSize - (pos.z - domainMin.z);
-          if(diff > epsilon)
+          if(ENDORSE(diff > epsilon))
             cell->a[j % PARTICLES_PER_CELL].z += stiffnessCollisions*diff - damping*cell->v[j % PARTICLES_PER_CELL].z;
 
           diff = parSize - (domainMax.z - pos.z);
-          if(diff > epsilon)
+          if(ENDORSE(diff > epsilon))
             cell->a[j % PARTICLES_PER_CELL].z -= stiffnessCollisions*diff + damping*cell->v[j % PARTICLES_PER_CELL].z;
 
           //move pointer to next cell in list if end of array is reached
@@ -937,38 +937,38 @@ void ProcessCollisionsMT(int tid)
 
 		  if(ix==0)
 		  {
-            fptype diff = parSize - (pos.x - domainMin.x);
-		    if(diff > epsilon)
+            APPROX fptype diff = parSize - (pos.x - domainMin.x);
+		    if(ENDORSE(diff > epsilon))
               cell->a[ji].x += stiffnessCollisions*diff - damping*cell->v[ji].x;
 		  }
 		  if(ix==(nx-1))
 		  {
-            fptype diff = parSize - (domainMax.x - pos.x);
-            if(diff > epsilon)
+            APPROX fptype diff = parSize - (domainMax.x - pos.x);
+            if(ENDORSE(diff > epsilon))
               cell->a[ji].x -= stiffnessCollisions*diff + damping*cell->v[ji].x;
 		  }
 		  if(iy==0)
 		  {
-            fptype diff = parSize - (pos.y - domainMin.y);
-            if(diff > epsilon)
+            APPROX fptype diff = parSize - (pos.y - domainMin.y);
+            if(ENDORSE(diff > epsilon))
               cell->a[ji].y += stiffnessCollisions*diff - damping*cell->v[ji].y;
 		  }
 		  if(iy==(ny-1))
 		  {
-            fptype diff = parSize - (domainMax.y - pos.y);
-            if(diff > epsilon)
+            APPROX fptype diff = parSize - (domainMax.y - pos.y);
+            if(ENDORSE(diff > epsilon))
               cell->a[ji].y -= stiffnessCollisions*diff + damping*cell->v[ji].y;
 		  }
 		  if(iz==0)
 		  {
-            fptype diff = parSize - (pos.z - domainMin.z);
-            if(diff > epsilon)
+            APPROX fptype diff = parSize - (pos.z - domainMin.z);
+            if(ENDORSE(diff > epsilon))
               cell->a[ji].z += stiffnessCollisions*diff - damping*cell->v[ji].z;
 		  }
 		  if(iz==(nz-1))
 		  {
-            fptype diff = parSize - (domainMax.z - pos.z);
-            if(diff > epsilon)
+            APPROX fptype diff = parSize - (domainMax.z - pos.z);
+            if(ENDORSE(diff > epsilon))
               cell->a[ji].z -= stiffnessCollisions*diff + damping*cell->v[ji].z;
 		  }
           //move pointer to next cell in list if end of array is reached
@@ -1010,8 +1010,8 @@ void ProcessCollisions2MT(int tid)
 
 		  if(ix==0)
 		  {
-            fptype diff = pos.x - domainMin.x;
-		    if(diff < Zero)
+            APPROX fptype diff = pos.x - domainMin.x;
+		    if(ENDORSE(diff < Zero))
 			{
 				cell->p[ji].x = domainMin.x - diff;
 				cell->v[ji].x = -cell->v[ji].x;
@@ -1020,8 +1020,8 @@ void ProcessCollisions2MT(int tid)
 		  }
 		  if(ix==(nx-1))
 		  {
-            fptype diff = domainMax.x - pos.x;
- 			if(diff < Zero)
+            APPROX fptype diff = domainMax.x - pos.x;
+ 			if(ENDORSE(diff < Zero))
 			{
 				cell->p[ji].x = domainMax.x + diff;
 				cell->v[ji].x = -cell->v[ji].x;
@@ -1030,8 +1030,8 @@ void ProcessCollisions2MT(int tid)
 		  }
 		  if(iy==0)
 		  {
-            fptype diff = pos.y - domainMin.y;
-		    if(diff < Zero)
+            APPROX fptype diff = pos.y - domainMin.y;
+		    if(ENDORSE(diff < Zero))
 			{
 				cell->p[ji].y = domainMin.y - diff;
 				cell->v[ji].y = -cell->v[ji].y;
@@ -1040,8 +1040,8 @@ void ProcessCollisions2MT(int tid)
 		  }
 		  if(iy==(ny-1))
 		  {
-            fptype diff = domainMax.y - pos.y;
- 			if(diff < Zero)
+            APPROX fptype diff = domainMax.y - pos.y;
+ 			if(ENDORSE(diff < Zero))
 			{
 				cell->p[ji].y = domainMax.y + diff;
 				cell->v[ji].y = -cell->v[ji].y;
@@ -1050,8 +1050,8 @@ void ProcessCollisions2MT(int tid)
 		  }
 		  if(iz==0)
 		  {
-            fptype diff = pos.z - domainMin.z;
-		    if(diff < Zero)
+            APPROX fptype diff = pos.z - domainMin.z;
+		    if(ENDORSE(diff < Zero))
 			{
 				cell->p[ji].z = domainMin.z - diff;
 				cell->v[ji].z = -cell->v[ji].z;
@@ -1060,8 +1060,8 @@ void ProcessCollisions2MT(int tid)
 		  }
 		  if(iz==(nz-1))
 		  {
-            fptype diff = domainMax.z - pos.z;
- 			if(diff < Zero)
+            APPROX fptype diff = domainMax.z - pos.z;
+ 			if(ENDORSE(diff < Zero))
 			{
 				cell->p[ji].z = domainMax.z + diff;
 				cell->v[ji].z = -cell->v[ji].z;
