@@ -10,7 +10,7 @@ CLEANMETOO := fluidcmp out.fluid
 
 # Output evaluation tool. Not approximated.
 fluidcmp: fluidcmp.cpp
-	$(CXX) $< -o $@
+	$(CXX) -I../../include $< -o $@
 BUILD_EXTRA := fluidcmp
 
 APP_MK := ../app.mk

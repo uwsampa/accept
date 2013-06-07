@@ -18,6 +18,7 @@ typedef unsigned __int8 uint8_t;
 #include <stdint.h>
 #endif
 #include <math.h>
+#include "enerc.h"
 
 
 
