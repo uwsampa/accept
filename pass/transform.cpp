@@ -282,8 +282,9 @@ struct ACCEPTPass : public FunctionPass {
       *log << "while-like loop\n";
     }
 
-    // Check whether the body of this loop is elidable (precise-pure).
-    std::set<BasicBlock*> loopBlocks;
+    // Get the body blocks of the loop: those that will not be executed during
+    // some iterations of a perforated loop.
+    std::set<BasicBlock*> bodyBlocks;
     for (Loop::block_iterator bi = loop->block_begin();
          bi != loop->block_end(); ++bi) {
       if (*bi == loop->getHeader()) {
@@ -295,9 +296,21 @@ struct ACCEPTPass : public FunctionPass {
         // time.
         continue;
       }
-      loopBlocks.insert(*bi);
+      bodyBlocks.insert(*bi);
     }
-    std::set<Instruction*> blockers = AI->preciseEscapeCheck(loopBlocks);
+
+    // Check for control flow in the loop body. We don't perforate anything
+    // with a break, continue, return, etc.
+    for (std::set<BasicBlock*>::iterator i = bodyBlocks.begin();
+         i != bodyBlocks.end(); ++i) {
+      if (loop->isLoopExiting(*i)) {
+        *log << "contains loop exit\n";
+        return false;
+      }
+    }
+
+    // Check whether the body of this loop is elidable (precise-pure).
+    std::set<Instruction*> blockers = AI->preciseEscapeCheck(bodyBlocks);
     *log << "blockers: " << blockers.size() << "\n";
     for (std::set<Instruction*>::iterator i = blockers.begin();
          i != blockers.end(); ++i) {
