@@ -109,7 +109,10 @@ struct ACCEPTPass : public llvm::FunctionPass {
   void optimizeLoopsHelper(llvm::Loop *loop, int &perforatedLoops);
   bool tryToOptimizeLoop(llvm::Loop *loop, int id);
   void perforateLoop(llvm::Loop *loop, int logfactor, bool isForLike);
+
   bool optimizeSync(llvm::Function &F);
+  bool optimizeAcquire(llvm::Instruction *inst, int id);
+  bool findCritSec(llvm::Instruction *acq, std::set<llvm::Instruction*> &cs);
 };
 
 // Information about individual instructions is always available.
