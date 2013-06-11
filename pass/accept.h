@@ -86,6 +86,7 @@ struct ACCEPTPass : public llvm::FunctionPass {
   llvm::raw_fd_ostream *log;
   std::map<llvm::Function*, llvm::DISubprogram> funcDebugInfo;
   ApproxInfo *AI;
+  bool relax;
 
   ACCEPTPass();
   virtual void getAnalysisUsage(llvm::AnalysisUsage &Info) const;
