@@ -7,6 +7,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/DebugInfo.h"
 #include "llvm/Analysis/ProfileInfo.h"
+#include "llvm/Analysis/LoopPass.h"
 
 #include <set>
 #include <map>
@@ -72,6 +73,42 @@ private:
                                const std::set<llvm::Instruction*> &insts);
   bool approxOrLocal(std::set<llvm::Instruction*> &insts,
                      llvm::Instruction *inst);
+};
+
+// The pass that actually performs optimizations.
+struct ACCEPTPass : public llvm::FunctionPass {
+  static char ID;
+
+  llvm::Module *module;
+  std::map<int, int> relaxConfig;  // ident -> param
+  std::map<int, std::string> configDesc;  // ident -> description
+  int opportunityId;
+  llvm::raw_fd_ostream *log;
+  std::map<llvm::Function*, llvm::DISubprogram> funcDebugInfo;
+  ApproxInfo *AI;
+
+  ACCEPTPass();
+  virtual void getAnalysisUsage(llvm::AnalysisUsage &Info) const;
+  virtual const char *getPassName() const;
+  virtual bool runOnFunction(llvm::Function &F);
+  virtual bool doInitialization(llvm::Module &M);
+  virtual bool doFinalization(llvm::Module &M);
+
+  bool shouldSkipFunc(llvm::Function &F);
+  llvm::IntegerType *getNativeIntegerType();
+
+  void collectFuncDebug(llvm::Module &M);
+  void collectSubprogram(llvm::DISubprogram sp);
+  void collectType(llvm::DIType ty);
+
+  void dumpRelaxConfig();
+  void loadRelaxConfig();
+
+  bool optimizeLoops(llvm::Function &F);
+  void optimizeLoopsHelper(llvm::Loop *loop, int &perforatedLoops);
+  bool tryToOptimizeLoop(llvm::Loop *loop, int id);
+  void perforateLoop(llvm::Loop *loop, int logfactor, bool isForLike);
+  bool optimizeSync(llvm::Function &F);
 };
 
 // Information about individual instructions is always available.
