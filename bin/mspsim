@@ -1,0 +1,6 @@
+#!/bin/sh
+
+WHEREAMI=$(dirname "$0")
+MSPSIM="$WHEREAMI/../mspsim"
+
+exec "$MSPSIM"/runnocap.sh "$@"
