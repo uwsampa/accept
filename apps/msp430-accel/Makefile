@@ -24,5 +24,4 @@ ENERCRT_SRC=$(ENERCDIR)/rt/enercrt.c
 $(PROFLIB): $(ENERCRT_SRC)
 	$(CC) $(CFLAGS) -emit-llvm -c -o $@ $<
 
-# replace with an MSP430 simulator
-RUNSHIM=$(MSPGCC_ROOT)/bin/msp430-objdump -d
+RUNSHIM=mspsim

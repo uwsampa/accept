@@ -116,6 +116,12 @@ inline void sleep (void) {
     return;
 }
 
+#ifdef __clang__
+// work around a bug wherein clang doesn't know that main() belongs in section
+// .init9 or that it has to be aligned in a certain way (mspgcc4 introduced
+// these things)
+__attribute__((section(".init9"), aligned(2)))
+#endif
 int main (void) {
     accel_reading cur_reading;
     APPROX unsigned max_x, max_y, max_z;
