@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <enerc.h>
 
 #include "datatype.h"
 #include "config.h"
@@ -47,9 +48,11 @@ int main (int argc, const char* argv[]) {
 
 
 	outputBufferPtr = outputBuffer;
+	accept_roi_begin();
 	outputBufferPtr = encodeImage(
 		&srcImage, outputBufferPtr, qualityFactor, imageFormat
 	);
+	accept_roi_end();
 
 
 	freeRgbImage(&srcImage);
