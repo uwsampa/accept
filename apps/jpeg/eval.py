@@ -7,7 +7,7 @@ import itertools
 IMGDIR = 'saved_outputs'
 
 def load():
-    return 'file:data/baboon-220px.rgb.jpg'
+    return 'file:baboon.rgb.jpg'
 
 def score(orig, relaxed):
     print 'Orig: %s' % orig
