@@ -32,7 +32,22 @@ namespace {
       const Instruction *instB = dyn_cast<Instruction>(LocB.Ptr);
       if (instA && instB && isApprox(instA) && isApprox(instB)) {
         return NoAlias;
+      } 
+      /* DEBUG
+      else if (instA && instB) {
+        errs() << "instructions:\n";
+        instA->dump();
+        instB->dump();
+      } else {
+        const GlobalValue *gvA = dyn_cast<GlobalValue>(LocA.Ptr);
+        const GlobalValue *gvB = dyn_cast<GlobalValue>(LocB.Ptr);
+        if (gvA && gvB) {
+          errs() << "global values:\n";
+          gvA->dump();
+          gvB->dump();
+        }
       }
+      */
 
       // Delegate to other alias analyses.
       return AliasAnalysis::alias(LocA, LocB);
