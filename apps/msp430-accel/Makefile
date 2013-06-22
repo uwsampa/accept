@@ -11,7 +11,11 @@ ifndef MSPGCC_ROOT
   ifeq ($(shell which port >/dev/null && echo 1 || echo 0),1)
     MSPGCC_ROOT=/opt/local
   else
-    $(error MSPGCC_ROOT is undefined, and could not detect MacPorts)
+  ifeq ($(shell which brew >/dev/null && echo 1 || echo 0),1)
+    MSPGCC_ROOT=$(shell brew --prefix)/opt/msp430-gcc
+  else
+    $(error MSPGCC_ROOT is undefined, and could not detect MacPorts or Homebrew)
+  endif
   endif
 endif
 
