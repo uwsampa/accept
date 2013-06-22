@@ -28,4 +28,4 @@ ENERCRT_SRC=$(ENERCDIR)/rt/enercrt.c
 $(PROFLIB): $(ENERCRT_SRC)
 	$(CC) $(CFLAGS) -emit-llvm -c -o $@ $<
 
-RUNSHIM=mspsim
+RUNSHIM=../../bin/mspsim
