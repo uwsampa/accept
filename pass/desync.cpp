@@ -25,28 +25,40 @@ bool isRelease(Instruction *inst) {
 }
 
 
+// Given an acquire call, find all the instructions between it and a
+// corresponding release call. The instructions in the critical section are
+// collected into the set supplied. Returns a boolean indicating whether a
+// valid critical section was found.
 bool ACCEPTPass::findCritSec(Instruction *acq, std::set<Instruction*> &cs) {
   bool acquired = false;
-
-  // Start with the remainder of the containing block.
   BasicBlock *bb = acq->getParent();
-  for (BasicBlock::iterator i = bb->begin(); i != bb->end(); ++i) {
-    if (acq == i) {
-      acquired = true;
-    } else if (acquired) {
-      if (isRelease(i)) {
-        return true;
-      } else if (isAcquire(i)) {
-        *log << "nested locks\n";
-        return false;
-      } else if (bb->getTerminator() != i) {
-        cs.insert(i);
-      }
-    }
-  }
 
   // Next, follow jumps until we find the release call.
   while (true) {
+    // Look for acquire and release.
+    for (BasicBlock::iterator i = bb->begin(); i != bb->end(); ++i) {
+      if (acq == i) {
+        acquired = true;
+      } else if (acquired) {
+        if (isRelease(i)) {
+          // TODO check same lock
+          return true;
+        } else if (isAcquire(i)) {
+          *log << "nested locks\n";
+          return false;
+        } else if (bb->getTerminator() != i) {
+          cs.insert(i);
+        }
+      }
+    }
+
+    // Just to check my logic: the lock must be acquired after we look through
+    // the first block (and subsequent blocks).
+    if (!acquired) {
+      errs() << "not acquired! (this should never happen)\n";
+      return false;
+    }
+
     // Follow the jump.
     TerminatorInst *term = bb->getTerminator();
     if (!term) {
@@ -69,18 +81,6 @@ bool ACCEPTPass::findCritSec(Instruction *acq, std::set<Instruction*> &cs) {
         return false;
       }
     }
-
-    // Look for release.
-    for (BasicBlock::iterator i = bb->begin(); i != bb->end(); ++i) {
-      if (isRelease(i)) {
-        return true;
-      } else if (isAcquire(i)) {
-        *log << "nested locks\n";
-        return false;
-      } else if (bb->getTerminator() != i) {
-        cs.insert(i);
-      }
-    }
   }
 }
 
@@ -99,8 +99,16 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq, int id) {
     return false;
   }
 
-  // TODO check same lock
-  // TODO check for approximateness
+  // Check for precise side effects.
+  std::set<Instruction*> blockers = AI->preciseEscapeCheck(critSec);
+  *log << "blockers: " << blockers.size() << "\n";
+  for (std::set<Instruction*>::iterator i = blockers.begin();
+        i != blockers.end(); ++i) {
+    *log << " * " << instDesc(*module, *i) << "\n";
+  }
+  if (blockers.size()) {
+    return false;
+  }
 
   // Success.
   *log << "can elide lock " << id << "\n";
