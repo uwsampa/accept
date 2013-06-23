@@ -4,27 +4,6 @@
 
 using namespace llvm;
 
-// Identification of lock acquire and release calls.
-const char *FUNC_ACQUIRE = "pthread_mutex_lock";
-const char *FUNC_RELEASE = "pthread_mutex_unlock";
-bool isCallOf(Instruction *inst, const char *fname) {
-  CallInst *call = dyn_cast<CallInst>(inst);
-  if (call) {
-    Function *func = call->getCalledFunction();
-    if (func) {
-      return fname == func->getName();
-    }
-  }
-  return false;
-}
-bool isAcquire(Instruction *inst) {
-  return isCallOf(inst, FUNC_ACQUIRE);
-}
-bool isRelease(Instruction *inst) {
-  return isCallOf(inst, FUNC_RELEASE);
-}
-
-
 // Given an acquire call, find all the instructions between it and a
 // corresponding release call. The instructions in the critical section are
 // collected into the set supplied. Returns the release instruction if one is

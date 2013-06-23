@@ -120,3 +120,6 @@ struct ACCEPTPass : public llvm::FunctionPass {
 
 // Information about individual instructions is always available.
 bool isApprox(const llvm::Instruction *instr);
+bool isCallOf(llvm::Instruction *inst, const char *fname);
+bool isAcquire(llvm::Instruction *inst);
+bool isRelease(llvm::Instruction *inst);

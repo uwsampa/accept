@@ -104,6 +104,26 @@ bool isApprox(const Instruction *instr) {
   }
 }
 
+// Identification of lock acquire and release calls.
+const char *FUNC_ACQUIRE = "pthread_mutex_lock";
+const char *FUNC_RELEASE = "pthread_mutex_unlock";
+bool isCallOf(Instruction *inst, const char *fname) {
+  CallInst *call = dyn_cast<CallInst>(inst);
+  if (call) {
+    Function *func = call->getCalledFunction();
+    if (func) {
+      return fname == func->getName();
+    }
+  }
+  return false;
+}
+bool isAcquire(Instruction *inst) {
+  return isCallOf(inst, FUNC_ACQUIRE);
+}
+bool isRelease(Instruction *inst) {
+  return isCallOf(inst, FUNC_RELEASE);
+}
+
 // An internal whitelist for functions considered to be pure.
 char const* _funcWhitelistArray[] = {
   // math.h
@@ -289,6 +309,25 @@ int ApproxInfo::preciseEscapeCheckHelper(std::map<Instruction*, bool> &flags,
         ++changes;
       }
       continue;
+    }
+
+    // Check for balanced synchronization. This is a bit of an ugly hack since
+    // we don't look at where the calls occur or what they lock, but it should
+    // work for most code.
+    if (isAcquire(i->first)) {
+      bool found = false;
+      for (std::map<Instruction*, bool>::iterator j = flags.begin();
+          j != flags.end(); ++j) {
+        if (!j->second && isRelease(j->first)) {
+          // Balanced acquire/release pair.
+          i->second = true;
+          j->second = true;
+          found = true;
+          break;
+        }
+      }
+      if (found)
+        continue;
     }
 
     // Calls must be to precise-pure functions.
