@@ -120,8 +120,10 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq, int id) {
   if (relax) {
     int param = relaxConfig[id];
     if (param) {
+      // Remove the acquire and release calls.
       *log << "eliding lock\n";
-      // TODO remove it
+      acq->eraseFromParent();
+      rel->eraseFromParent();
       return true;
     }
   } else {
@@ -137,8 +139,13 @@ bool ACCEPTPass::optimizeSync(Function &F) {
   for (Function::iterator fi = F.begin(); fi != F.end(); ++fi) {
     for (BasicBlock::iterator bi = fi->begin(); bi != fi->end(); ++bi) {
       if (isAcquire(bi)) {
-        changed |= optimizeAcquire(bi, opportunityId);
+        bool optimized = optimizeAcquire(bi, opportunityId);
+        changed |= optimized;
         ++opportunityId;
+        if (optimized)
+          // Stop iterating over this block, since it changed (and there's
+          // almost certainly not another critical section in here anyway).
+          break;
       }
     }
   }
