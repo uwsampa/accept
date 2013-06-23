@@ -68,7 +68,10 @@ std::string llvm::instDesc(const Module &mod, Instruction *inst) {
   } else if (StoreInst *store = dyn_cast<StoreInst>(inst)) {
     Value *ptr = store->getPointerOperand();
     StringRef name = ptr->getName();
-    if (!name.empty() && name.front() == '_') {
+    if (name.empty()) {
+      ss << "store to intermediate:";
+      inst->print(ss);
+    } else if (name.front() == '_') {
       ss << "store to _" << ptr->getName().data();
     } else {
       ss << "store to " << ptr->getName().data();
@@ -195,11 +198,21 @@ std::set<BasicBlock*> ApproxInfo::successorsOf(BasicBlock *block) {
 bool ApproxInfo::storeEscapes(StoreInst *store, std::set<Instruction*> insts) {
   Value *ptr = store->getPointerOperand();
 
+  // Traverse bitcasts from one pointer type to another.
+  BitCastInst *bitcast = dyn_cast<BitCastInst>(ptr);
+  if (bitcast) {
+    // Check that the the operand (the original pointer) does not escape and,
+    // if that passes, continue checking the cast value.
+    if (!bitcast->getDestTy()->isPointerTy() ||
+        PointerMayBeCaptured(bitcast->getOperand(0), true, true))
+      return true;
+
   // Make sure the pointer was created locally. That is, conservatively assume
   // that pointers coming from arguments or returned from other functions are
   // aliased somewhere else.
-  if (!isa<AllocaInst>(ptr))
+  } else if (!isa<AllocaInst>(ptr)) {
     return true;
+  }
 
   // Give up if the pointer is copied and leaves the function. This could be
   // smarter if it only looked *after* the store (flow-wise).
