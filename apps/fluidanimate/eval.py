@@ -1,6 +1,7 @@
 from __future__ import division
 import subprocess
 import re
+import os
 
 def load():
     return 'file:out.fluid'
@@ -19,7 +20,7 @@ def euclidean_dist(a, b):
 
 def score(orig, relaxed):
     output, _ = subprocess.Popen([
-        './fluidcmp', relaxed, orig,
+        os.path.join(os.path.dirname(__file__), 'fluidcmp'), relaxed, orig,
         '--verbose', '--ptol', '0',
     ], stdout=subprocess.PIPE).communicate()
 

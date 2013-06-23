@@ -400,7 +400,8 @@ class Evaluation(object):
         # Load scoring function from eval.py.
         with chdir(self.appdir):
             try:
-                mod = imp.load_source('evalscript', EVALSCRIPT)
+                mod = imp.load_source('evalscript',
+                                      os.path.abspath(EVALSCRIPT))
             except IOError:
                 raise Exception('no eval.py found in {} directory'.format(
                     self.appname
