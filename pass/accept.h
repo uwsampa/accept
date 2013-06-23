@@ -59,6 +59,8 @@ public:
   std::set<llvm::Instruction*> preciseEscapeCheck(
       std::set<llvm::BasicBlock*> blocks);
   bool isPrecisePure(llvm::Function *func);
+  bool pointerCaptured(const llvm::Value *ptr,
+      std::set<llvm::Instruction*> &region);
 
   std::map< std::string, std::map<int, LineMarker> > lineMarkers;
   LineMarker markerAtLine(std::string filename, int line);

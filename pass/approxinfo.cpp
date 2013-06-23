@@ -193,25 +193,53 @@ std::set<BasicBlock*> ApproxInfo::successorsOf(BasicBlock *block) {
   return successors;
 }
 
+struct ApproxCaptureTracker : public CaptureTracker {
+  bool Captured;
+  std::set<Instruction *> *region;
+  ApproxInfo *ai;
+
+  explicit ApproxCaptureTracker(std::set<Instruction *> *_region,
+                                ApproxInfo *_ai)
+    : Captured(false), region(_region), ai(_ai) {}
+
+  void tooManyUses() {
+    Captured = true;
+  }
+
+  bool captured(Use *U) {
+    // Permit captures by precise-pure functions in the region.
+    CallInst *call = dyn_cast<CallInst>(U->getUser());
+    if (call && region->count(call)) {
+      Function *func = call->getCalledFunction();
+      if (func && ai->isPrecisePure(func)) {
+        return false;
+      }
+    }
+
+    Captured = true;
+    return true;
+  }
+};
+
+bool ApproxInfo::pointerCaptured(const Value *ptr,
+                                 std::set<Instruction*> &region) {
+  ApproxCaptureTracker ct(&region, this);
+  PointerMayBeCaptured(ptr, &ct);
+  return ct.Captured;
+}
+
 // Conservatively check whether a store instruction can be observed by any
 // load instructions *other* than those in the specified set of instructions.
 bool ApproxInfo::storeEscapes(StoreInst *store, std::set<Instruction*> insts) {
   Value *ptr = store->getPointerOperand();
 
-  /*
-  // "ref.tmp" values are just part of invocations in C++.
-  if (ptr->getName().startswith("ref.tmp")) {
-    return false;
-  }
-  */
-
   // Traverse bitcasts from one pointer type to another.
   BitCastInst *bitcast = dyn_cast<BitCastInst>(ptr);
   if (bitcast) {
-    // Check that the the operand (the original pointer) does not escape and,
+    // Check that the operand (the original pointer) does not escape and,
     // if that passes, continue checking the cast value.
     if (!bitcast->getDestTy()->isPointerTy() ||
-        PointerMayBeCaptured(bitcast->getOperand(0), true, true))
+        pointerCaptured(bitcast->getOperand(0), insts))
       return true;
 
   // Make sure the pointer was created locally. That is, conservatively assume
@@ -221,9 +249,8 @@ bool ApproxInfo::storeEscapes(StoreInst *store, std::set<Instruction*> insts) {
     return true;
   }
 
-  // Give up if the pointer is copied and leaves the function. This could be
-  // smarter if it only looked *after* the store (flow-wise).
-  if (PointerMayBeCaptured(ptr, true, true))
+  // Give up if the pointer is copied and leaves the function.
+  if (pointerCaptured(ptr, insts))
     return true;
 
   // Look for loads to the pointer not present in our exclusion set. We
