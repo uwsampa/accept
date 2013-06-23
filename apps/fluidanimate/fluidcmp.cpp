@@ -353,6 +353,7 @@ int main(int argc, char *argv[]) {
     std::cout << "Rest particles per meter values differ (" << fluid.restParticlesPerMeter << " vs. " << rfluid.restParticlesPerMeter << ")." << std::endl;
     return ERROR_FAIL;
   }
+  std::cout << "numParticles: " << rfluid.numParticles << "\n";
   if(fluid.numParticles != rfluid.numParticles)
   {
     std::cout << "Number of particles differ (" << fluid.numParticles << " vs. " << rfluid.numParticles << ")." << std::endl;
