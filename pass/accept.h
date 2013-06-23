@@ -54,7 +54,8 @@ public:
   llvm::raw_fd_ostream *log;
 
   std::set<llvm::Instruction*> preciseEscapeCheck(
-      std::set<llvm::Instruction*> insts);
+      std::set<llvm::Instruction*> insts,
+      std::set<llvm::Instruction*> *blessed=NULL);
   std::set<llvm::Instruction*> preciseEscapeCheck(
       std::set<llvm::BasicBlock*> blocks);
   bool isPrecisePure(llvm::Function *func);
@@ -112,7 +113,7 @@ struct ACCEPTPass : public llvm::FunctionPass {
 
   bool optimizeSync(llvm::Function &F);
   bool optimizeAcquire(llvm::Instruction *inst, int id);
-  bool findCritSec(llvm::Instruction *acq, std::set<llvm::Instruction*> &cs);
+  llvm::Instruction *findCritSec(llvm::Instruction *acq, std::set<llvm::Instruction*> &cs);
 };
 
 // Information about individual instructions is always available.

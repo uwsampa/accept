@@ -369,13 +369,14 @@ bool ApproxInfo::approxOrLocal(std::set<Instruction*> &insts,
 }
 
 std::set<Instruction*> ApproxInfo::preciseEscapeCheck(
-    std::set<Instruction*> insts) {
+    std::set<Instruction*> insts,
+    std::set<Instruction*> *blessed) {
   std::map<Instruction*, bool> flags;
 
   // Mark all approx and non-escaping instructions.
   for (std::set<Instruction*>::iterator i = insts.begin();
         i != insts.end(); ++i) {
-    flags[*i] = approxOrLocal(insts, *i);
+    flags[*i] = approxOrLocal(insts, *i) || (blessed && blessed->count(*i));
   }
 
   // Iterate to a fixed point.

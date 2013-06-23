@@ -27,9 +27,10 @@ bool isRelease(Instruction *inst) {
 
 // Given an acquire call, find all the instructions between it and a
 // corresponding release call. The instructions in the critical section are
-// collected into the set supplied. Returns a boolean indicating whether a
-// valid critical section was found.
-bool ACCEPTPass::findCritSec(Instruction *acq, std::set<Instruction*> &cs) {
+// collected into the set supplied. Returns the release instruction if one is
+// found or NULL otherwise.
+Instruction *ACCEPTPass::findCritSec(Instruction *acq,
+                                     std::set<Instruction*> &cs) {
   bool acquired = false;
   BasicBlock *bb = acq->getParent();
 
@@ -42,10 +43,10 @@ bool ACCEPTPass::findCritSec(Instruction *acq, std::set<Instruction*> &cs) {
       } else if (acquired) {
         if (isRelease(i)) {
           // TODO check same lock
-          return true;
+          return i;
         } else if (isAcquire(i)) {
           *log << "nested locks\n";
-          return false;
+          return NULL;
         } else if (bb->getTerminator() != i) {
           cs.insert(i);
         }
@@ -56,21 +57,21 @@ bool ACCEPTPass::findCritSec(Instruction *acq, std::set<Instruction*> &cs) {
     // the first block (and subsequent blocks).
     if (!acquired) {
       errs() << "not acquired! (this should never happen)\n";
-      return false;
+      return NULL;
     }
 
     // Follow the jump.
     TerminatorInst *term = bb->getTerminator();
     if (!term) {
       *log << "found not-well-formed block\n";
-      return false;
+      return NULL;
     } else if (term->getNumSuccessors() != 1) {
       // This is conservative. As long as the control flow reconverges
       // (diamond), we're cool, but we don't handle that yet.
       *log << "control flow divergence at "
            << srcPosDesc(*module, term->getDebugLoc())
            << "\n";
-      return false;
+      return NULL;
     } else {
       // Conservative for the same reason.
       bb = term->getSuccessor(0);
@@ -78,7 +79,7 @@ bool ACCEPTPass::findCritSec(Instruction *acq, std::set<Instruction*> &cs) {
         *log << "control flow convergence at "
              << srcPosDesc(*module, bb->front().getDebugLoc())
              << "\n";
-        return false;
+        return NULL;
       }
     }
   }
@@ -95,12 +96,16 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq, int id) {
 
   // Find all the instructions between this acquire and the next release.
   std::set<Instruction*> critSec;
-  if (!findCritSec(acq, critSec)) {
+  Instruction *rel = findCritSec(acq, critSec);
+  if (!rel) {
     return false;
   }
 
   // Check for precise side effects.
-  std::set<Instruction*> blockers = AI->preciseEscapeCheck(critSec);
+  std::set<Instruction*> blessed;
+  blessed.insert(rel);
+  critSec.insert(rel);
+  std::set<Instruction*> blockers = AI->preciseEscapeCheck(critSec, &blessed);
   *log << "blockers: " << blockers.size() << "\n";
   for (std::set<Instruction*>::iterator i = blockers.begin();
         i != blockers.end(); ++i) {
