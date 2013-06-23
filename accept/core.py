@@ -227,7 +227,12 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
                 if not os.path.isdir(OUTPUTS_DIR):
                     os.mkdir(OUTPUTS_DIR)
                 output = os.path.join(OUTPUTS_DIR, _random_string() + ext)
-                shutil.copyfile(fn, output)
+                try:
+                    shutil.copyfile(fn, output)
+                except IOError:
+                    # Error copying output file.
+                    roitime = None
+                    status = 'error copying output file'
 
             if not relax_config:
                 with open(CONFIGFILE) as f:
@@ -322,7 +327,12 @@ class Result(object):
             return
 
         # Get output error and speedup.
-        self.error = scorefunc(precise_output, self.output)
+        try:
+            self.error = scorefunc(precise_output, self.output)
+        except Exception as exc:
+            self.error = 1.0
+            self.desc = 'error in scoring function: {}'.format(exc)
+            return
         self.speedup = p_dur / self.duration
 
         if self.error > MAX_ERROR:

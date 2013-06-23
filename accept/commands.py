@@ -13,7 +13,7 @@ from . import cwmemo
 
 LOCAL_REPS = 1
 CLUSTER_REPS = 5
-APPS = ['streamcluster', 'blackscholes', 'sobel', 'canneal']
+APPS = ['streamcluster', 'blackscholes', 'sobel', 'canneal', 'fluidanimate']
 
 
 _client = None
@@ -119,7 +119,10 @@ def approx(num=None, appdir='.'):
         print('output:', result.output)
         print('time:')
         for t in result.durations:
-            print('  {:.2f}'.format(t))
+            if t is None:
+                print('  (error)')
+            else:
+                print('  {:.2f}'.format(t))
         print()
 
 

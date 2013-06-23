@@ -16,7 +16,7 @@
 #include <pthread.h>
 #include <assert.h>
 #include <float.h>
-#include "enerc.h"
+#include <enerc.h>
 
 #include "fluid.hpp"
 #include "cellpool.hpp"
