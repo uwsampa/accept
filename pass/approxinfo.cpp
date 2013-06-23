@@ -198,6 +198,13 @@ std::set<BasicBlock*> ApproxInfo::successorsOf(BasicBlock *block) {
 bool ApproxInfo::storeEscapes(StoreInst *store, std::set<Instruction*> insts) {
   Value *ptr = store->getPointerOperand();
 
+  /*
+  // "ref.tmp" values are just part of invocations in C++.
+  if (ptr->getName().startswith("ref.tmp")) {
+    return false;
+  }
+  */
+
   // Traverse bitcasts from one pointer type to another.
   BitCastInst *bitcast = dyn_cast<BitCastInst>(ptr);
   if (bitcast) {
