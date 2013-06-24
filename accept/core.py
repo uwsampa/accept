@@ -170,6 +170,20 @@ def parse_relax_desc(f):
     return out
 
 
+# Loading the evaluation script.
+
+def load_eval_funcs(appdir):
+    """Read the evaluation script (eval.py) for the application and
+    return the load and score functions.
+    """
+    try:
+        mod = imp.load_source('evalscript',
+                              os.path.join(appdir, EVALSCRIPT))
+    except IOError:
+        raise Exception('no eval.py found in {}'.format(appdir))
+    return mod.load, mod.score
+
+
 # High-level profiling driver.
 
 Execution = namedtuple('Execution', ['output', 'elapsed', 'status',
@@ -202,9 +216,9 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
                 roitime = None
             else:
                 # Load benchmark output.
-                mod = imp.load_source('evalscript', EVALSCRIPT)
+                loadfunc, _ = load_eval_funcs(directory)
                 try:
-                    output = mod.load()
+                    output = loadfunc()
                 except Exception as exc:
                     # Error reading benchmark output; this is a broken
                     # execution.
@@ -398,15 +412,7 @@ class Evaluation(object):
         self.appname = os.path.basename(self.appdir)
 
         # Load scoring function from eval.py.
-        with chdir(self.appdir):
-            try:
-                mod = imp.load_source('evalscript',
-                                      os.path.abspath(EVALSCRIPT))
-            except IOError:
-                raise Exception('no eval.py found in {} directory'.format(
-                    self.appname
-                ))
-        self.scorefunc = mod.score
+        _, self.scorefunc = load_eval_funcs(appdir)
 
         # Results, to be populated later.
         self.ptimes = []
