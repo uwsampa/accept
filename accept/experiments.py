@@ -2,6 +2,7 @@ from __future__ import print_function
 from __future__ import division
 import os
 import logging
+import subprocess
 from . import core
 
 APPSDIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'apps')
@@ -20,7 +21,15 @@ def dump_config(config, descs):
     return u', '.join(out)
 
 def evaluate(client, appname, verbose=False, reps=1):
-    exp = core.Evaluation(os.path.join(APPSDIR, appname), client, reps)
+    appdir = os.path.join(APPSDIR, appname)
+    exp = core.Evaluation(appdir, client, reps)
+    
+    setup_script = os.path.join(appdir, 'setup.sh')
+    if os.path.exists(setup_script):
+        logging.info('running setup script')
+        with core.chdir(appdir):
+            subprocess.check_call(['sh', 'setup.sh'])
+
     logging.info('starting experiments')
     with client:
         exp.run()

@@ -8,8 +8,6 @@ LDFLAGS := -lpthread
 CXXFLAGS += -pthread -D_GNU_SOURCE -D__XOPEN_SOURCE=600 -Wno-invalid-offsetof
 CLEANMETOO := fluidcmp out.fluid
 
-BUILD_EXTRA := fluidcmp
-
 APP_MK := ../app.mk
 include $(APP_MK)
 
