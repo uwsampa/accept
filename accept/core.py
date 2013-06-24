@@ -243,10 +243,10 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
                 output = os.path.join(OUTPUTS_DIR, _random_string() + ext)
                 try:
                     shutil.copyfile(fn, output)
-                except IOError:
+                except IOError as exc:
                     # Error copying output file.
                     roitime = None
-                    status = 'error copying output file'
+                    status = 'error copying output file: {}'.format(exc)
 
             if not relax_config:
                 with open(CONFIGFILE) as f:
