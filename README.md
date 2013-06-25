@@ -87,6 +87,7 @@ For some of the benchmarks, you will need some large input files that are not in
 * blackscholes: "simlarge" input from PARSEC (`in_64K.txt`)
 * canneal: "native" input (`2500000.nets`)
 * fluidanimate: "simlarge" input (`in_300K.fluid`)
+* x264: "simmedium" input (`eledream_640x360_32.y4m`)
 
 Run the experiments by typing `accept exp`.
 
