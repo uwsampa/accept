@@ -73,12 +73,11 @@ profile: $(TARGET).prof.bc llvmprof.out
 #################################################################
 
 # make LLVM bitcode from C/C++ sources
-.SUFFIXES: .bc .ll
-.c.bc:
+%.bc: %.c $(HEADERS)
 	$(CC) $(CFLAGS) $(CLANGARGS) -c -o $@ $<
-.cpp.bc:
+%.bc: %.cpp $(HEADERS)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CLANGARGS) -c -o $@ $<
-.bc.ll:
+%.ll: %.bc
 	$(LLVMDIS) $<
 
 # Link component bitcode files into a single file.

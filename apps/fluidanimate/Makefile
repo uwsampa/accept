@@ -4,6 +4,7 @@ TARGET := fluidanimate
 RUNARGS := 4 5 in_300K.fluid out.fluid  # simlarge
 
 SOURCES := pthreads.cpp cellpool.cpp parsec_barrier.cpp
+HEADERS := cellpool.hpp fluid.hpp parsec_barrier.hpp
 LDFLAGS := -lpthread
 CXXFLAGS += -pthread -D_GNU_SOURCE -D__XOPEN_SOURCE=600 -Wno-invalid-offsetof
 CLEANMETOO := fluidcmp out.fluid
