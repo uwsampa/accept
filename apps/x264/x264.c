@@ -47,6 +47,8 @@
 #include <hooks.h>
 #endif
 
+#include <enerc.h>
+
 uint8_t *mux_buffer = NULL;
 int mux_buffer_size = 0;
 
@@ -851,6 +853,7 @@ static int  Encode( x264_param_t *param, cli_opt_t *opt )
 #ifdef ENABLE_PARSEC_HOOKS
     __parsec_roi_begin();
 #endif
+    accept_roi_begin();
 
     /* Encode frames */
     for( i_frame = 0, i_file = 0; b_ctrl_c == 0 && (i_frame < i_frame_total || i_frame_total == 0); )
@@ -904,6 +907,7 @@ static int  Encode( x264_param_t *param, cli_opt_t *opt )
 #ifdef ENABLE_PARSEC_HOOKS
     __parsec_roi_end();
 #endif
+    accept_roi_end();
 
     i_end = x264_mdate();
     x264_picture_clean( &pic );

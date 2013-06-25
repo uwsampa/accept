@@ -45,6 +45,12 @@ bool ACCEPTPass::tryToOptimizeLoop(Loop *loop, int id) {
 
   *log << "---\n" << loopName << "\n";
 
+  // Look for ACCEPT_FORBID marker.
+  if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {
+    *log << "optimization forbidden\n";
+    return false;
+  }
+
   // We only consider loops for which there is a header (condition), a
   // latch (increment, in "for"), and a preheader (initialization).
   if (!loop->getHeader() || !loop->getLoopLatch()

@@ -585,7 +585,7 @@ static int x264_validate_parameters( x264_t *h )
     if( h->param.i_log_level < X264_LOG_INFO )
     {
         h->param.analyse.b_psnr = 0;
-        h->param.analyse.b_ssim = 0;
+        // h->param.analyse.b_ssim = 0;
     }
 
     /* ensure the booleans are 0 or 1 so they can be used in math */
@@ -2052,9 +2052,14 @@ void    x264_encoder_close  ( x264_t *h )
 
         if( h->param.analyse.b_ssim )
         {
+            double ssim = SUM3( h->stat.f_ssim_mean_y ) / i_count;
             x264_log( h, X264_LOG_INFO,
                       "SSIM Mean Y:%.7f\n",
-                      SUM3( h->stat.f_ssim_mean_y ) / i_count );
+                      ssim );
+
+            FILE *accept_output = fopen("output.txt", "w");
+            fprintf(accept_output, "%f", ssim);
+            fclose(accept_output);
         }
         if( h->param.analyse.b_psnr )
         {

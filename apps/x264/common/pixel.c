@@ -498,15 +498,15 @@ float x264_pixel_ssim_wxh( x264_pixel_function_t *pf,
     width >>= 2;
     height >>= 2;
     z = 0;
-    for( y = 1; y < height; y++ )
+    for( y = 1; y < height; y++ ) // ACCEPT_FORBID
     {
-        for( ; z <= y; z++ )
+        for( ; z <= y; z++ ) // ACCEPT_FORBID
         {
             XCHG( void*, sum0, sum1 );
-            for( x = 0; x < width; x+=2 )
+            for( x = 0; x < width; x+=2 ) // ACCEPT_FORBID
                 pf->ssim_4x4x2_core( &pix1[4*(x+z*stride1)], stride1, &pix2[4*(x+z*stride2)], stride2, &sum0[x] );
         }
-        for( x = 0; x < width-1; x += 4 )
+        for( x = 0; x < width-1; x += 4 ) // ACCEPT_FORBID
             ssim += pf->ssim_end4( sum0+x, sum1+x, X264_MIN(4,width-x-1) );
     }
     x264_free(sum0);
