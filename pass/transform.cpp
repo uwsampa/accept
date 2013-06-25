@@ -41,7 +41,13 @@ void ACCEPTPass::getAnalysisUsage(AnalysisUsage &Info) const {
 }
 
 bool ACCEPTPass::shouldSkipFunc(Function &F) {
+  // ACCEPT internal functions.
   if (F.getName().startswith("accept_")) {
+    return true;
+  }
+
+  // LLVM intrinsics.
+  if (F.isIntrinsic()) {
     return true;
   }
 
