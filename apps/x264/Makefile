@@ -9,6 +9,8 @@ HEADERS := $(wildcard *.h) $(wildcard common/*.h) $(wildcard common/x86/*.h) \
 #  http://llvm.org/bugs/show_bug.cgi?id=12818
 # ... and some configuration defines.
 CFLAGS := -I. -Wno-array-bounds -DHAVE_STDINT_H -DHAVE_PTHREAD
+LDFLAGS := -lm -lmx -lpthread
+
 RUNARGS := XXX
 
 APP_MK := ../app.mk
