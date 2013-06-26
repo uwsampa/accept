@@ -281,7 +281,22 @@ bool ApproxInfo::storeEscapes(StoreInst *store, std::set<Instruction*> insts) {
   // only look for loads in successors to this block. This could be made
   // more precise by detecting anti-dependencies (i.e., stores that shadow
   // this store).
-  std::set<BasicBlock*> successors = successorsOf(store->getParent());
+  // First, check the current block.
+  BasicBlock *parent = store->getParent();
+  bool sawStore = false;
+  for (BasicBlock::iterator ii = parent->begin(); ii != parent->end(); ++ii) {
+    if (sawStore) {
+      if (LoadInst *load = dyn_cast<LoadInst>(ii)) {
+        if (load->getPointerOperand() == ptr && !insts.count(load)) {
+          return true;
+        }
+      }
+    } else if (store == ii) {
+      sawStore = true;
+    }
+  }
+  // Next, check all the successors of the current block.
+  std::set<BasicBlock*> successors = successorsOf(parent);
   for (std::set<BasicBlock*>::iterator bi = successors.begin();
         bi != successors.end(); ++bi) {
     for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii) {
