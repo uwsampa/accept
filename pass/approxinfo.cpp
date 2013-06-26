@@ -258,8 +258,12 @@ bool ApproxInfo::storeEscapes(StoreInst *store, std::set<Instruction*> insts) {
   if (bitcast) {
     // Check that the operand (the original pointer) does not escape and,
     // if that passes, continue checking the cast value.
-    if (!bitcast->getDestTy()->isPointerTy() ||
-        pointerCaptured(bitcast->getOperand(0), insts))
+    if (!bitcast->getDestTy()->isPointerTy())
+      return true;
+    Value *innerPtr = bitcast->getOperand(0);
+    // We should probably recurse into the value here (e.g., through multiple
+    // bitcasts), but for now we just do a shallow escape check.
+    if (!isa<AllocaInst>(innerPtr) || pointerCaptured(innerPtr, insts))
       return true;
 
   // Make sure the pointer was created locally. That is, conservatively assume
