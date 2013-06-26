@@ -21,6 +21,8 @@
 #ifndef X264_MC_H
 #define X264_MC_H
 
+#include <enerc.h>
+
 /* Do the MC
  * XXX: Only width = 4, 8 or 16 are valid
  * width == 4 -> height == 4 or 8
@@ -66,7 +68,7 @@ typedef struct
     void *(*memcpy_aligned)( void *dst, const void *src, size_t n );
     void (*memzero_aligned)( void *dst, int n );
 
-    void (*frame_init_lowres_core)( uint8_t *src0, uint8_t *dst0, uint8_t *dsth, uint8_t *dstv, uint8_t *dstc,
+    void (*frame_init_lowres_core)( APPROX uint8_t *src0, APPROX uint8_t *dst0, APPROX uint8_t *dsth, APPROX uint8_t *dstv, APPROX uint8_t *dstc,
                                     int src_stride, int dst_stride, int width, int height );
 } x264_mc_functions_t;
 

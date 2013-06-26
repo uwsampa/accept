@@ -271,7 +271,7 @@ static void memzero_aligned( void * dst, int n )
 
 void x264_frame_init_lowres( x264_t *h, x264_frame_t *frame )
 {
-    uint8_t *src = frame->plane[0];
+    APPROX uint8_t *src = frame->plane[0];
     int i_stride = frame->i_stride[0];
     int i_height = frame->i_lines[0];
     int i_width  = frame->i_width[0];
@@ -296,14 +296,14 @@ void x264_frame_init_lowres( x264_t *h, x264_frame_t *frame )
             frame->lowres_mvs[y][x][0][0] = 0x7FFF;
 }
 
-static void frame_init_lowres_core( uint8_t *src0, uint8_t *dst0, uint8_t *dsth, uint8_t *dstv, uint8_t *dstc,
+static void frame_init_lowres_core( APPROX uint8_t *src0, APPROX uint8_t *dst0, APPROX uint8_t *dsth, APPROX uint8_t *dstv, APPROX uint8_t *dstc,
                                     int src_stride, int dst_stride, int width, int height )
 {
     int x,y;
     for( y=0; y<height; y++ )
     {
-        uint8_t *src1 = src0+src_stride;
-        uint8_t *src2 = src1+src_stride;
+        APPROX uint8_t *src1 = src0+src_stride;
+        APPROX uint8_t *src2 = src1+src_stride;
         for( x=0; x<width; x++ )
         {
             // slower than naive bilinear, but matches asm

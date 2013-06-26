@@ -23,6 +23,7 @@
  *****************************************************************************/
 
 #include "common.h"
+#include <enerc.h>
 
 #define ALIGN(x,a) (((x)+((a)-1))&~((a)-1))
 
@@ -213,7 +214,7 @@ int x264_frame_copy_picture( x264_t *h, x264_frame_t *dst, x264_picture_t *src )
 
 
 
-static void plane_expand_border( uint8_t *pix, int i_stride, int i_width, int i_height, int i_padh, int i_padv, int b_pad_top, int b_pad_bottom )
+static void plane_expand_border( APPROX uint8_t *pix, int i_stride, int i_width, int i_height, int i_padh, int i_padv, int b_pad_top, int b_pad_bottom )
 {
 #define PPIXEL(x, y) ( pix + (x) + (y)*i_stride )
     int y;
@@ -249,7 +250,7 @@ void x264_frame_expand_border( x264_t *h, x264_frame_t *frame, int mb_y, int b_e
         int padh = PADH >> !!i;
         int padv = PADV >> !!i;
         // buffer: 2 chroma, 3 luma (rounded to 4) because deblocking goes beyond the top of the mb
-        uint8_t *pix = frame->plane[i] + X264_MAX(0, (16*mb_y-4)*stride >> !!i);
+        APPROX uint8_t *pix = frame->plane[i] + X264_MAX(0, (16*mb_y-4)*stride >> !!i);
         if( b_end && !b_start )
             height += 4 >> (!!i + h->sh.b_mbaff);
         if( h->sh.b_mbaff )
@@ -503,17 +504,17 @@ static void deblock_h_chroma_c( uint8_t *pix, int stride, int alpha, int beta, i
     deblock_chroma_c( pix, 1, stride, alpha, beta, tc0 );
 }
 
-static inline void deblock_luma_intra_c( uint8_t *pix, int xstride, int ystride, int alpha, int beta )
+static inline void deblock_luma_intra_c( APPROX uint8_t *pix, int xstride, int ystride, APPROX int alpha, APPROX int beta )
 {
     int d;
     for( d = 0; d < 16; d++ )
     {
-        const int p2 = pix[-3*xstride];
-        const int p1 = pix[-2*xstride];
-        const int p0 = pix[-1*xstride];
-        const int q0 = pix[ 0*xstride];
-        const int q1 = pix[ 1*xstride];
-        const int q2 = pix[ 2*xstride];
+        APPROX const int p2 = pix[-3*xstride];
+        APPROX const int p1 = pix[-2*xstride];
+        APPROX const int p0 = pix[-1*xstride];
+        APPROX const int q0 = pix[ 0*xstride];
+        APPROX const int q1 = pix[ 1*xstride];
+        APPROX const int q2 = pix[ 2*xstride];
 
         if( abs( p0 - q0 ) < alpha && abs( p1 - p0 ) < beta && abs( q1 - q0 ) < beta )
         {
@@ -547,24 +548,24 @@ static inline void deblock_luma_intra_c( uint8_t *pix, int xstride, int ystride,
         pix += ystride;
     }
 }
-static void deblock_v_luma_intra_c( uint8_t *pix, int stride, int alpha, int beta )
+static void deblock_v_luma_intra_c( APPROX uint8_t *pix, int stride, APPROX int alpha, APPROX int beta )
 {
     deblock_luma_intra_c( pix, stride, 1, alpha, beta );
 }
-static void deblock_h_luma_intra_c( uint8_t *pix, int stride, int alpha, int beta )
+static void deblock_h_luma_intra_c( APPROX uint8_t *pix, int stride, APPROX int alpha, APPROX int beta )
 {
     deblock_luma_intra_c( pix, 1, stride, alpha, beta );
 }
 
-static inline void deblock_chroma_intra_c( uint8_t *pix, int xstride, int ystride, int alpha, int beta )
+static inline void deblock_chroma_intra_c( APPROX uint8_t *pix, int xstride, int ystride, APPROX int alpha, APPROX int beta )
 {
     int d;
     for( d = 0; d < 8; d++ )
     {
-        const int p1 = pix[-2*xstride];
-        const int p0 = pix[-1*xstride];
-        const int q0 = pix[ 0*xstride];
-        const int q1 = pix[ 1*xstride];
+        APPROX const int p1 = pix[-2*xstride];
+        APPROX const int p0 = pix[-1*xstride];
+        APPROX const int q0 = pix[ 0*xstride];
+        APPROX const int q1 = pix[ 1*xstride];
 
         if( abs( p0 - q0 ) < alpha && abs( p1 - p0 ) < beta && abs( q1 - q0 ) < beta )
         {
@@ -574,21 +575,21 @@ static inline void deblock_chroma_intra_c( uint8_t *pix, int xstride, int ystrid
         pix += ystride;
     }
 }
-static void deblock_v_chroma_intra_c( uint8_t *pix, int stride, int alpha, int beta )
+static void deblock_v_chroma_intra_c( APPROX uint8_t *pix, int stride, APPROX int alpha, APPROX int beta )
 {
     deblock_chroma_intra_c( pix, stride, 1, alpha, beta );
 }
-static void deblock_h_chroma_intra_c( uint8_t *pix, int stride, int alpha, int beta )
+static void deblock_h_chroma_intra_c( APPROX uint8_t *pix, int stride, APPROX int alpha, APPROX int beta )
 {
     deblock_chroma_intra_c( pix, 1, stride, alpha, beta );
 }
 
-static inline void deblock_edge( x264_t *h, uint8_t *pix1, uint8_t *pix2, int i_stride, uint8_t bS[4], int i_qp, int b_chroma, x264_deblock_inter_t pf_inter )
+static inline void deblock_edge( x264_t *h, APPROX uint8_t *pix1, APPROX uint8_t *pix2, int i_stride, uint8_t bS[4], int i_qp, APPROX int b_chroma, x264_deblock_inter_t pf_inter )
 {
     const int index_a = i_qp + h->sh.i_alpha_c0_offset;
-    const int alpha = alpha_table(index_a);
-    const int beta  = beta_table(i_qp + h->sh.i_beta_offset);
-    int8_t tc[4];
+    APPROX const int alpha = alpha_table(index_a);
+    APPROX const int beta  = beta_table(i_qp + h->sh.i_beta_offset);
+    APPROX int8_t tc[4];
 
     if( !alpha || !beta )
         return;

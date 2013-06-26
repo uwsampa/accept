@@ -28,6 +28,8 @@
 #define PADH 32
 #define PADV 32
 
+#include <enerc.h>
+
 typedef struct
 {
     /* */
@@ -49,9 +51,9 @@ typedef struct
     int     i_stride_lowres;
     int     i_width_lowres;
     int     i_lines_lowres;
-    uint8_t *plane[3];
-    uint8_t *filtered[4]; /* plane[0], H, V, HV */
-    uint8_t *lowres[4]; /* half-size copy of input frame: Orig, H, V, HV */
+    APPROX uint8_t *plane[3];
+    APPROX uint8_t *filtered[4]; /* plane[0], H, V, HV */
+    APPROX uint8_t *lowres[4]; /* half-size copy of input frame: Orig, H, V, HV */
     uint16_t *integral;
 
     /* for unrestricted mv we allocate more data than needed
