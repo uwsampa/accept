@@ -109,6 +109,10 @@ bool ACCEPTPass::tryToOptimizeLoop(Loop *loop, int id) {
     }
     bodyBlocks.insert(*bi);
   }
+  if (bodyBlocks.empty()) {
+    *log << "empty body\n";
+    return false;
+  }
 
   // Check for control flow in the loop body. We don't perforate anything
   // with a break, continue, return, etc.
