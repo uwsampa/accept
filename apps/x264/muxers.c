@@ -101,9 +101,9 @@ int read_frame_yuv( x264_picture_t *p_pic, hnd_t handle, int i_frame )
         if( fseek( h->fh, (uint64_t)i_frame * h->width * h->height * 3 / 2, SEEK_SET ) )
             return -1;
 
-    if( fread( p_pic->img.plane[0], 1, h->width * h->height, h->fh ) <= 0
-            || fread( p_pic->img.plane[1], 1, h->width * h->height / 4, h->fh ) <= 0
-            || fread( p_pic->img.plane[2], 1, h->width * h->height / 4, h->fh ) <= 0 )
+    if( fread( ENDORSE(p_pic->img.plane[0]), 1, h->width * h->height, h->fh ) <= 0
+            || fread( ENDORSE(p_pic->img.plane[1]), 1, h->width * h->height / 4, h->fh ) <= 0
+            || fread( ENDORSE(p_pic->img.plane[2]), 1, h->width * h->height / 4, h->fh ) <= 0 )
         return -1;
 
     h->next_frame = i_frame+1;
@@ -305,9 +305,9 @@ int read_frame_y4m( x264_picture_t *p_pic, hnd_t handle, int i_frame )
     }
     h->frame_header_len = i+slen+1;
 
-    if( fread(p_pic->img.plane[0], 1, h->width*h->height, h->fh) <= 0
-        || fread(p_pic->img.plane[1], 1, h->width * h->height / 4, h->fh) <= 0
-        || fread(p_pic->img.plane[2], 1, h->width * h->height / 4, h->fh) <= 0)
+    if( fread(ENDORSE(p_pic->img.plane[0]), 1, h->width*h->height, h->fh) <= 0
+        || fread(ENDORSE(p_pic->img.plane[1]), 1, h->width * h->height / 4, h->fh) <= 0
+        || fread(ENDORSE(p_pic->img.plane[2]), 1, h->width * h->height / 4, h->fh) <= 0)
         return -1;
 
     h->next_frame = i_frame+1;

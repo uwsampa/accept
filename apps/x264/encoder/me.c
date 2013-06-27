@@ -65,7 +65,7 @@ static void refine_subpel( x264_t *h, x264_me_t *m, int hpel_iters, int qpel_ite
 #define COST_MV_HPEL( mx, my ) \
 { \
     int stride = 16; \
-    uint8_t *src = h->mc.get_ref( pix, &stride, m->p_fref, m->i_stride[0], mx, my, bw, bh ); \
+    APPROX uint8_t *src = DEDORSE(h->mc.get_ref( pix, &stride, m->p_fref, m->i_stride[0], mx, my, bw, bh )); \
     int cost = h->pixf.fpelcmp[i_pixel]( m->p_fenc[0], FENC_STRIDE, src, stride ) \
              + p_cost_mvx[ mx ] + p_cost_mvy[ my ]; \
     COPY3_IF_LT( bpred_cost, cost, bpred_mx, mx, bpred_my, my ); \
@@ -73,7 +73,7 @@ static void refine_subpel( x264_t *h, x264_me_t *m, int hpel_iters, int qpel_ite
 
 #define COST_MV_X3_DIR( m0x, m0y, m1x, m1y, m2x, m2y, costs )\
 {\
-    uint8_t *pix_base = p_fref + bmx + bmy*m->i_stride[0];\
+    APPROX uint8_t *pix_base = p_fref + bmx + bmy*m->i_stride[0];\
     h->pixf.fpelcmp_x3[i_pixel]( m->p_fenc[0],\
         pix_base + (m0x) + (m0y)*m->i_stride[0],\
         pix_base + (m1x) + (m1y)*m->i_stride[0],\
@@ -86,7 +86,7 @@ static void refine_subpel( x264_t *h, x264_me_t *m, int hpel_iters, int qpel_ite
 
 #define COST_MV_X4( m0x, m0y, m1x, m1y, m2x, m2y, m3x, m3y )\
 {\
-    uint8_t *pix_base = p_fref + omx + omy*m->i_stride[0];\
+    APPROX uint8_t *pix_base = p_fref + omx + omy*m->i_stride[0];\
     h->pixf.fpelcmp_x4[i_pixel]( m->p_fenc[0],\
         pix_base + (m0x) + (m0y)*m->i_stride[0],\
         pix_base + (m1x) + (m1y)*m->i_stride[0],\
@@ -162,8 +162,8 @@ void x264_me_search_ref( x264_t *h, x264_me_t *m, int16_t (*mvc)[2], int i_mvc, 
     int bmx, bmy, bcost;
     int bpred_mx = 0, bpred_my = 0, bpred_cost = COST_MAX;
     int omx, omy, pmx, pmy;
-    uint8_t *p_fref = m->p_fref[0];
-    DECLARE_ALIGNED_16( uint8_t pix[16*16] );
+    APPROX uint8_t *p_fref = m->p_fref[0];
+    DECLARE_ALIGNED_16( APPROX uint8_t pix[16*16] );
 
     int i, j;
     int dir;
@@ -466,7 +466,7 @@ me_hex2:
             /* successive elimination by comparing DC before a full SAD,
              * because sum(abs(diff)) >= abs(diff(sum)). */
             const int stride = m->i_stride[0];
-            uint16_t *sums_base = m->integral;
+            APPROX uint16_t *sums_base = m->integral;
             /* due to a GCC bug on some platforms (win32?), zero[] may not actually be aligned.
              * unlike the similar case in ratecontrol.c, this is not a problem because it is not used for any
              * SSE instructions and the only loss is a tiny bit of performance. */
@@ -511,7 +511,7 @@ me_hex2:
                                                cost_fpel_mvx+min_x, xs, width, bsad*17/16 );
                     for( i=0; i<xn-2; i+=3 )
                     {
-                        uint8_t *ref = p_fref+min_x+my*stride;
+                        APPROX uint8_t *ref = p_fref+min_x+my*stride;
                         int sads[3];
                         h->pixf.sad_x3[i_pixel]( m->p_fenc[0], ref+xs[i], ref+xs[i+1], ref+xs[i+2], stride, sads );
                         for( j=0; j<3; j++ )

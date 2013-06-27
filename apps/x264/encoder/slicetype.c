@@ -58,8 +58,8 @@ static int x264_slicetype_mb_cost( x264_t *h, x264_mb_analysis_t *a,
     int16_t (*fenc_mvs[2])[2] = { &frames[b]->lowres_mvs[0][b-p0-1][i_mb_xy], &frames[b]->lowres_mvs[1][p1-b-1][i_mb_xy] };
     int (*fenc_costs[2]) = { &frames[b]->lowres_mv_costs[0][b-p0-1][i_mb_xy], &frames[b]->lowres_mv_costs[1][p1-b-1][i_mb_xy] };
 
-    DECLARE_ALIGNED_8( uint8_t pix1[9*FDEC_STRIDE] );
-    uint8_t *pix2 = pix1+8;
+    DECLARE_ALIGNED_8( APPROX uint8_t pix1[9*FDEC_STRIDE] );
+    APPROX uint8_t *pix2 = pix1+8;
     x264_me_t m[2];
     int i_bcost = COST_MAX;
     int i_cost_bak;
@@ -191,9 +191,9 @@ lowres_intra_mb:
         int i_icost, b_intra;
         if( !fenc->b_intra_calculated )
         {
-            DECLARE_ALIGNED_16( uint8_t edge[33] );
-            uint8_t *pix = &pix1[8+FDEC_STRIDE - 1];
-            uint8_t *src = &fenc->lowres[0][i_pel_offset - 1];
+            DECLARE_ALIGNED_16( APPROX uint8_t edge[33] );
+            APPROX uint8_t *pix = &pix1[8+FDEC_STRIDE - 1];
+            APPROX uint8_t *src = &fenc->lowres[0][i_pel_offset - 1];
             const int intra_penalty = 5;
             int satds[4];
 

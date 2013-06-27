@@ -24,6 +24,8 @@
 #ifndef X264_X264_H
 #define X264_X264_H
 
+#include <enerc.h>
+
 #if !defined(_STDINT_H) && !defined(_STDINT_H_) && \
     !defined(_INTTYPES_H) && !defined(_INTTYPES_H_)
 # ifdef _MSC_VER
@@ -336,7 +338,7 @@ typedef struct
 
     int     i_plane;
     int     i_stride[4];
-    uint8_t *plane[4];
+    APPROX uint8_t *plane[4];
 } x264_image_t;
 
 typedef struct

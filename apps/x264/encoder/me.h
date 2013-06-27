@@ -35,9 +35,9 @@ typedef struct
     int      i_ref_cost;
     int      i_ref;
 
-    uint8_t *p_fref[6];
-    uint8_t *p_fenc[3];
-    uint16_t *integral;
+    APPROX uint8_t *p_fref[6];
+    APPROX uint8_t *p_fenc[3];
+    APPROX uint16_t *integral;
     int      i_stride[2];
 
     DECLARE_ALIGNED_4( int16_t mvp[2] );

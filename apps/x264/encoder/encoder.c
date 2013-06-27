@@ -70,7 +70,7 @@ static void x264_frame_dump( x264_t *h )
     fseek( f, h->fdec->i_frame * h->param.i_height * h->param.i_width * 3/2, SEEK_SET );
     for( i = 0; i < h->fdec->i_plane; i++ )
         for( y = 0; y < h->param.i_height >> !!i; y++ )
-            fwrite( &h->fdec->plane[i][y*h->fdec->i_stride[i]], 1, h->param.i_width >> !!i, f );
+            fwrite( ENDORSE(&h->fdec->plane[i][y*h->fdec->i_stride[i]]), 1, h->param.i_width >> !!i, f );
     fclose( f );
 }
 
@@ -1030,8 +1030,8 @@ static void x264_fdec_filter_row( x264_t *h, int mb_y )
         for( i=0; i<3; i++ )
             h->stat.frame.i_ssd[i] +=
                 x264_pixel_ssd_wxh( &h->pixf,
-                    h->fdec->plane[i] + (min_y>>!!i) * h->fdec->i_stride[i], h->fdec->i_stride[i],
-                    h->fenc->plane[i] + (min_y>>!!i) * h->fenc->i_stride[i], h->fenc->i_stride[i],
+                    ENDORSE(h->fdec->plane[i]) + (min_y>>!!i) * h->fdec->i_stride[i], h->fdec->i_stride[i],
+                    ENDORSE(h->fenc->plane[i]) + (min_y>>!!i) * h->fenc->i_stride[i], h->fenc->i_stride[i],
                     h->param.i_width >> !!i, (max_y-min_y) >> !!i );
     }
 
@@ -1043,8 +1043,8 @@ static void x264_fdec_filter_row( x264_t *h, int mb_y )
         min_y += min_y == 0 ? 2 : -6;
         h->stat.frame.f_ssim +=
             x264_pixel_ssim_wxh( &h->pixf,
-                h->fdec->plane[0] + 2+min_y*h->fdec->i_stride[0], h->fdec->i_stride[0],
-                h->fenc->plane[0] + 2+min_y*h->fenc->i_stride[0], h->fenc->i_stride[0],
+                ENDORSE(h->fdec->plane[0]) + 2+min_y*h->fdec->i_stride[0], h->fdec->i_stride[0],
+                ENDORSE(h->fenc->plane[0]) + 2+min_y*h->fenc->i_stride[0], h->fenc->i_stride[0],
                 h->param.i_width-2, max_y-min_y );
     }
 }
@@ -1069,8 +1069,8 @@ static inline void x264_reference_update( x264_t *h )
     /* move lowres copy of the image to the ref frame */
     for( i = 0; i < 4; i++)
     {
-        XCHG( uint8_t*, h->fdec->lowres[i], h->fenc->lowres[i] );
-        XCHG( uint8_t*, h->fdec->buffer_lowres[i], h->fenc->buffer_lowres[i] );
+        XCHG( APPROX uint8_t*, h->fdec->lowres[i], h->fenc->lowres[i] );
+        XCHG( APPROX uint8_t*, h->fdec->buffer_lowres[i], h->fenc->buffer_lowres[i] );
     }
 
     /* adaptive B decision needs a pointer, since it can't use the ref lists */
