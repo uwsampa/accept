@@ -132,17 +132,13 @@ bool EnerCTyper::qualsEqual(clang::QualType lhs, clang::QualType rhs) {
 
 void EnerCTyper::assertFlow(clang::QualType type, clang::Expr *expr) {
   // Special-case some function calls (malloc and math).
-  clang::Expr *innerExpr = expr->IgnoreImplicit();
-  if (clang::CastExpr *castExpr = llvm::dyn_cast<clang::CastExpr>(innerExpr)) {
-    innerExpr = castExpr->getSubExpr();
-    innerExpr = innerExpr->IgnoreImplicit();
-  }
+  clang::Expr *innerExpr = expr->IgnoreParenCasts();
   if (clang::CallExpr *callExpr = llvm::dyn_cast<clang::CallExpr>(innerExpr))
     if (clang::FunctionDecl *fdecl = callExpr->getDirectCallee())
       if (fdecl->getNameAsString() == "malloc")
         return;
 
-  // Special-case literals (APPROX int* p = 0;).
+  // Special-case literals (APPROX int* p = 0;), even through casts.
   if (llvm::isa<clang::IntegerLiteral>(innerExpr))
     return;
 

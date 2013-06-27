@@ -27,6 +27,7 @@ int main() {
     xp = (int*)xp;
     xp = xp + 2;
     xp = (int*)(xp + 2);
+    xp = ((int*)0);
 
     // array-to-pointer demotion
     APPROX int arr[10];

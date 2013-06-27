@@ -604,7 +604,7 @@ static inline void deblock_edge( x264_t *h, APPROX uint8_t *pix1, APPROX uint8_t
         pf_inter( pix2, i_stride, alpha, beta, tc );
 }
 
-static inline void deblock_edge_intra( x264_t *h, uint8_t *pix1, uint8_t *pix2, int i_stride, uint8_t bS[4], int i_qp, int b_chroma, x264_deblock_intra_t pf_intra )
+static inline void deblock_edge_intra( x264_t *h, APPROX uint8_t *pix1, APPROX uint8_t *pix2, int i_stride, uint8_t bS[4], int i_qp, int b_chroma, x264_deblock_intra_t pf_intra )
 {
     const int alpha = alpha_table(i_qp + h->sh.i_alpha_c0_offset);
     const int beta  = beta_table(i_qp + h->sh.i_beta_offset);
@@ -642,9 +642,9 @@ void x264_frame_deblock_row( x264_t *h, int mb_y )
         const int b_8x8_transform = h->mb.mb_transform_size[mb_xy];
         const int i_qp = h->mb.qp[mb_xy];
         int i_edge_end = (h->mb.type[mb_xy] == P_SKIP) ? 1 : 4;
-        uint8_t *pixy = h->fdec->plane[0] + 16*mb_y*stridey  + 16*mb_x;
-        uint8_t *pixu = h->fdec->plane[1] +  8*mb_y*strideuv +  8*mb_x;
-        uint8_t *pixv = h->fdec->plane[2] +  8*mb_y*strideuv +  8*mb_x;
+        APPROX uint8_t *pixy = h->fdec->plane[0] + 16*mb_y*stridey  + 16*mb_x;
+        APPROX uint8_t *pixu = h->fdec->plane[1] +  8*mb_y*strideuv +  8*mb_x;
+        APPROX uint8_t *pixv = h->fdec->plane[2] +  8*mb_y*strideuv +  8*mb_x;
         if( b_interlaced && (mb_y&1) )
         {
             pixy -= 15*stridey;
