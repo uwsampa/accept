@@ -461,14 +461,14 @@ struct x264_t
             /* space for p_fenc and p_fdec */
 #define FENC_STRIDE 16
 #define FDEC_STRIDE 32
-            DECLARE_ALIGNED_16( uint8_t fenc_buf[24*FENC_STRIDE] );
-            DECLARE_ALIGNED_16( uint8_t fdec_buf[27*FDEC_STRIDE] );
+            DECLARE_ALIGNED_16( APPROX uint8_t fenc_buf[24*FENC_STRIDE] );
+            DECLARE_ALIGNED_16( APPROX uint8_t fdec_buf[27*FDEC_STRIDE] );
 
             /* i4x4 and i8x8 backup data, for skipping the encode stage when possible */
-            DECLARE_ALIGNED_16( uint8_t i4x4_fdec_buf[16*16] );
-            DECLARE_ALIGNED_16( uint8_t i8x8_fdec_buf[16*16] );
-            DECLARE_ALIGNED_16( int16_t i8x8_dct_buf[3][64] );
-            DECLARE_ALIGNED_16( int16_t i4x4_dct_buf[15][16] );
+            DECLARE_ALIGNED_16( APPROX uint8_t i4x4_fdec_buf[16*16] );
+            DECLARE_ALIGNED_16( APPROX uint8_t i8x8_fdec_buf[16*16] );
+            DECLARE_ALIGNED_16( APPROX int16_t i8x8_dct_buf[3][64] );
+            DECLARE_ALIGNED_16( APPROX int16_t i4x4_dct_buf[15][16] );
 
             /* Psy trellis DCT data */
             DECLARE_ALIGNED_16( int16_t fenc_dct8[4][64] );
@@ -481,16 +481,16 @@ struct x264_t
             int fenc_sa8d_sum;
 
             /* pointer over mb of the frame to be compressed */
-            uint8_t *p_fenc[3];
+            APPROX uint8_t *p_fenc[3];
             /* pointer to the actual source frame, not a block copy */
-            uint8_t *p_fenc_plane[3];
+            APPROX uint8_t *p_fenc_plane[3];
 
             /* pointer over mb of the frame to be reconstructed  */
-            uint8_t *p_fdec[3];
+            APPROX uint8_t *p_fdec[3];
 
             /* pointer over mb of the references */
             int i_fref[2];
-            uint8_t *p_fref[2][32][4+2]; /* last: lN, lH, lV, lHV, cU, cV */
+            APPROX uint8_t *p_fref[2][32][4+2]; /* last: lN, lH, lV, lHV, cU, cV */
             uint16_t *p_integral[2][16];
 
             /* fref stride */

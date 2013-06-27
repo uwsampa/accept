@@ -920,7 +920,7 @@ void x264_prefetch_fenc( x264_t *h, x264_frame_t *fenc, int i_mb_x, int i_mb_y )
                          fenc->plane[1+(i_mb_x&1)]+off_uv, stride_uv, i_mb_x );
 }
 
-static NOINLINE void copy_column8( uint8_t *dst, uint8_t *src )
+static NOINLINE void copy_column8( APPROX uint8_t *dst, APPROX uint8_t *src )
 {
     int i;
     for(i=0; i<8; i++)
@@ -948,7 +948,7 @@ static void ALWAYS_INLINE x264_macroblock_load_pic_pointers( x264_t *h, int i_mb
     memcpy( &h->mb.pic.p_fdec[i][-1-FDEC_STRIDE], intra_fdec-1, w*3/2+1 );
     if( h->mb.b_interlaced )
     {
-        const uint8_t *plane_fdec = &h->fdec->plane[i][i_pix_offset];
+        APPROX const uint8_t *plane_fdec = &h->fdec->plane[i][i_pix_offset];
         for( j = 0; j < w; j++ )
             h->mb.pic.p_fdec[i][-1+j*FDEC_STRIDE] = plane_fdec[-1+j*i_stride2];
     }

@@ -401,7 +401,7 @@ void x264_frame_filter( x264_t *h, x264_frame_t *frame, int mb_y, int b_end )
             height += PADV-8;
         for( y = start; y < height; y++ )
         {
-            uint8_t  *ref  = frame->plane[0] + y * stride - PADH;
+            APPROX uint8_t  *ref  = frame->plane[0] + y * stride - PADH;
             uint16_t *line = frame->integral + (y+1) * stride - PADH + 1;
             uint16_t v = line[0] = 0;
             for( x = 1; x < stride-1; x++ )

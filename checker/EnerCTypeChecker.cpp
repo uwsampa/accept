@@ -131,7 +131,7 @@ bool EnerCTyper::qualsEqual(clang::QualType lhs, clang::QualType rhs) {
 }
 
 void EnerCTyper::assertFlow(clang::QualType type, clang::Expr *expr) {
-  // Special-case malloc on the RHS.
+  // Special-case some function calls (malloc and math).
   clang::Expr *innerExpr = expr->IgnoreImplicit();
   if (clang::CastExpr *castExpr = llvm::dyn_cast<clang::CastExpr>(innerExpr)) {
     innerExpr = castExpr->getSubExpr();
@@ -324,6 +324,16 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
       }
 
       return CL_LEAVE_UNCHANGED;
+    }
+
+    // Special cases for standard unary math functions.
+    if (name == "abs" || name == "cos") {
+      Expr *arg = call->getArg(0);
+      // Parametric-esque: return qualifier is the argument qualifier.
+      uint32_t outType = typeOf(arg);
+      // Ignore type errors on the argument.
+      arg->setType(withQuals(arg->getType(), ecPrecise));
+      return outType;
     }
 
     // Check parameters.
