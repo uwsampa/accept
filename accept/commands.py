@@ -13,7 +13,8 @@ from . import cwmemo
 
 LOCAL_REPS = 1
 CLUSTER_REPS = 5
-APPS = ['streamcluster', 'blackscholes', 'sobel', 'canneal', 'fluidanimate']
+APPS = ['streamcluster', 'blackscholes', 'sobel', 'canneal', 'fluidanimate',
+        'x264']
 
 
 _client = None
