@@ -54,7 +54,7 @@ typedef struct
     APPROX uint8_t *plane[3];
     APPROX uint8_t *filtered[4]; /* plane[0], H, V, HV */
     APPROX uint8_t *lowres[4]; /* half-size copy of input frame: Orig, H, V, HV */
-    uint16_t *integral;
+    APPROX uint16_t *integral;
 
     /* for unrestricted mv we allocate more data than needed
      * allocated data are stored in buffer */

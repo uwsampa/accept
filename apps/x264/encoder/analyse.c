@@ -495,7 +495,7 @@ static void inline x264_psy_trellis_init( x264_t *h, int do_both_dct )
 static inline void x264_mb_cache_fenc_satd( x264_t *h )
 {
     DECLARE_ALIGNED_16(uint8_t zero[16]) = {0};
-    uint8_t *fenc;
+    APPROX uint8_t *fenc;
     int x, y, satd_sum = 0, sa8d_sum = 0;
     if( h->param.analyse.i_trellis == 2 && h->mb.i_psy_trellis )
         x264_psy_trellis_init( h, h->param.analyse.b_transform_8x8 );
@@ -528,7 +528,7 @@ static void x264_mb_analyse_intra_chroma( x264_t *h, x264_mb_analysis_t *a )
     int i_max;
     int predict_mode[4];
 
-    uint8_t *p_dstc[2], *p_srcc[2];
+    APPROX uint8_t *p_dstc[2], *p_srcc[2];
 
     if( a->i_satd_i8x8chroma < COST_MAX )
         return;
@@ -597,8 +597,8 @@ static void x264_mb_analyse_intra_chroma( x264_t *h, x264_mb_analysis_t *a )
 static void x264_mb_analyse_intra( x264_t *h, x264_mb_analysis_t *a, int i_satd_inter )
 {
     const unsigned int flags = h->sh.i_type == SLICE_TYPE_I ? h->param.analyse.intra : h->param.analyse.inter;
-    uint8_t  *p_src = h->mb.pic.p_fenc[0];
-    uint8_t  *p_dst = h->mb.pic.p_fdec[0];
+    APPROX uint8_t  *p_src = h->mb.pic.p_fenc[0];
+    APPROX uint8_t  *p_dst = h->mb.pic.p_fdec[0];
 
     int i, idx;
     int i_max;
@@ -664,8 +664,8 @@ static void x264_mb_analyse_intra( x264_t *h, x264_mb_analysis_t *a, int i_satd_
         {
             int x = idx&1;
             int y = idx>>1;
-            uint8_t *p_src_by = p_src + 8*x + 8*y*FENC_STRIDE;
-            uint8_t *p_dst_by = p_dst + 8*x + 8*y*FDEC_STRIDE;
+            APPROX uint8_t *p_src_by = p_src + 8*x + 8*y*FENC_STRIDE;
+            APPROX uint8_t *p_dst_by = p_dst + 8*x + 8*y*FDEC_STRIDE;
             int i_best = COST_MAX;
             int i_pred_mode = x264_mb_predict_intra4x4_mode( h, 4*idx );
 
@@ -846,8 +846,8 @@ static void x264_intra_rd( x264_t *h, x264_mb_analysis_t *a, int i_satd_thresh )
 
 static void x264_intra_rd_refine( x264_t *h, x264_mb_analysis_t *a )
 {
-    uint8_t  *p_src = h->mb.pic.p_fenc[0];
-    uint8_t  *p_dst = h->mb.pic.p_fdec[0];
+    APPROX uint8_t  *p_src = h->mb.pic.p_fenc[0];
+    APPROX uint8_t  *p_dst = h->mb.pic.p_fdec[0];
 
     int i, j, idx, x, y;
     int i_max, i_mode, i_thresh;

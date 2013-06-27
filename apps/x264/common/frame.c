@@ -280,7 +280,7 @@ void x264_frame_expand_border_filtered( x264_t *h, x264_frame_t *frame, int mb_y
     for( i = 1; i < 4; i++ )
     {
         // buffer: 8 luma, to match the hpel filter
-        uint8_t *pix = frame->filtered[i] + (16*mb_y - (8 << h->sh.b_mbaff)) * stride - 4;
+        APPROX uint8_t *pix = frame->filtered[i] + (16*mb_y - (8 << h->sh.b_mbaff)) * stride - 4;
         if( h->sh.b_mbaff )
         {
             plane_expand_border( pix, stride*2, width, height, padh, padv, b_start, b_end );
@@ -516,22 +516,22 @@ static inline void deblock_luma_intra_c( APPROX uint8_t *pix, int xstride, int y
         APPROX const int q1 = pix[ 1*xstride];
         APPROX const int q2 = pix[ 2*xstride];
 
-        if( abs( p0 - q0 ) < alpha && abs( p1 - p0 ) < beta && abs( q1 - q0 ) < beta )
+        if( ENDORSE(abs( p0 - q0 ) < alpha && abs( p1 - p0 ) < beta && abs( q1 - q0 ) < beta) )
         {
-            if(abs( p0 - q0 ) < ((alpha >> 2) + 2) )
+            if ENDORSE((abs( p0 - q0 ) < ((alpha >> 2) + 2)) )
             {
-                if( abs( p2 - p0 ) < beta ) /* p0', p1', p2' */
+                if( ENDORSE(abs( p2 - p0 ) < beta) ) /* p0', p1', p2' */
                 {
-                    const int p3 = pix[-4*xstride];
+                    APPROX const int p3 = pix[-4*xstride];
                     pix[-1*xstride] = ( p2 + 2*p1 + 2*p0 + 2*q0 + q1 + 4 ) >> 3;
                     pix[-2*xstride] = ( p2 + p1 + p0 + q0 + 2 ) >> 2;
                     pix[-3*xstride] = ( 2*p3 + 3*p2 + p1 + p0 + q0 + 4 ) >> 3;
                 }
                 else /* p0' */
                     pix[-1*xstride] = ( 2*p1 + p0 + q1 + 2 ) >> 2;
-                if( abs( q2 - q0 ) < beta ) /* q0', q1', q2' */
+                if( ENDORSE(abs( q2 - q0 ) < beta) ) /* q0', q1', q2' */
                 {
-                    const int q3 = pix[3*xstride];
+                    APPROX const int q3 = pix[3*xstride];
                     pix[0*xstride] = ( p1 + 2*p0 + 2*q0 + 2*q1 + q2 + 4 ) >> 3;
                     pix[1*xstride] = ( p0 + q0 + q1 + q2 + 2 ) >> 2;
                     pix[2*xstride] = ( 2*q3 + 3*q2 + q1 + q0 + p0 + 4 ) >> 3;
@@ -567,7 +567,7 @@ static inline void deblock_chroma_intra_c( APPROX uint8_t *pix, int xstride, int
         APPROX const int q0 = pix[ 0*xstride];
         APPROX const int q1 = pix[ 1*xstride];
 
-        if( abs( p0 - q0 ) < alpha && abs( p1 - p0 ) < beta && abs( q1 - q0 ) < beta )
+        if( ENDORSE(abs( p0 - q0 ) < alpha && abs( p1 - p0 ) < beta && abs( q1 - q0 ) < beta ))
         {
             pix[-1*xstride] = (2*p1 + p0 + q1 + 2) >> 2;   /* p0' */
             pix[ 0*xstride] = (2*q1 + q0 + p1 + 2) >> 2;   /* q0' */
@@ -591,7 +591,7 @@ static inline void deblock_edge( x264_t *h, APPROX uint8_t *pix1, APPROX uint8_t
     APPROX const int beta  = beta_table(i_qp + h->sh.i_beta_offset);
     APPROX int8_t tc[4];
 
-    if( !alpha || !beta )
+    if( ENDORSE(!alpha || !beta) )
         return;
 
     tc[0] = tc0_table(index_a)[bS[0]] + b_chroma;
@@ -600,7 +600,7 @@ static inline void deblock_edge( x264_t *h, APPROX uint8_t *pix1, APPROX uint8_t
     tc[3] = tc0_table(index_a)[bS[3]] + b_chroma;
 
     pf_inter( pix1, i_stride, alpha, beta, tc );
-    if( b_chroma )
+    if( ENDORSE(b_chroma) )
         pf_inter( pix2, i_stride, alpha, beta, tc );
 }
 

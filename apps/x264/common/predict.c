@@ -496,7 +496,7 @@ static void predict_4x4_hu( uint8_t *src )
 #define PT(x) \
     edge[16+x] = F2(SRC(x-1,-1), SRC(x,-1), SRC(x+1,-1));
 
-void x264_predict_8x8_filter( uint8_t *src, uint8_t edge[33], int i_neighbor, int i_filters )
+void x264_predict_8x8_filter( APPROX uint8_t *src, APPROX uint8_t edge[33], int i_neighbor, int i_filters )
 {
     /* edge[7..14] = l7..l0
      * edge[15] = lt

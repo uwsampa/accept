@@ -24,6 +24,8 @@
 #ifndef X264_PREDICT_H
 #define X264_PREDICT_H
 
+#include <enerc.h>
+
 typedef void (*x264_predict_t)( uint8_t *src );
 typedef void (*x264_predict8x8_t)( uint8_t *src, uint8_t edge[33] );
 
@@ -106,7 +108,7 @@ enum intra8x8_pred_e
 };
 
 // FIXME enforce edge alignment via uint64_t ?
-void x264_predict_8x8_filter( uint8_t *src, uint8_t edge[33], int i_neighbor, int i_filters );
+void x264_predict_8x8_filter( APPROX uint8_t *src, APPROX uint8_t edge[33], int i_neighbor, int i_filters );
 
 void x264_predict_16x16_init ( int cpu, x264_predict_t pf[7] );
 void x264_predict_8x8c_init  ( int cpu, x264_predict_t pf[7] );

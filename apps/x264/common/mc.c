@@ -402,14 +402,14 @@ void x264_frame_filter( x264_t *h, x264_frame_t *frame, int mb_y, int b_end )
         for( y = start; y < height; y++ )
         {
             APPROX uint8_t  *ref  = frame->plane[0] + y * stride - PADH;
-            uint16_t *line = frame->integral + (y+1) * stride - PADH + 1;
-            uint16_t v = line[0] = 0;
+            APPROX uint16_t *line = frame->integral + (y+1) * stride - PADH + 1;
+            APPROX uint16_t v = line[0] = 0;
             for( x = 1; x < stride-1; x++ )
                 line[x] = v += ref[x] + line[x-stride] - line[x-stride-1];
             line -= 8*stride;
             if( y >= 9-PADV )
             {
-                uint16_t *sum4 = line + stride * (frame->i_lines[0] + PADV*2);
+                APPROX uint16_t *sum4 = line + stride * (frame->i_lines[0] + PADV*2);
                 for( x = 1; x < stride-8; x++, line++, sum4++ )
                 {
                     sum4[0] =  line[4+4*stride] - line[4] - line[4*stride] + line[0];

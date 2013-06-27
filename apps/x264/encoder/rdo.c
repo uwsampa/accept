@@ -107,8 +107,8 @@ static inline int ssd_plane( x264_t *h, int size, int p, int x, int y )
 {
     DECLARE_ALIGNED_16(static uint8_t zero[16]);
     int satd = 0;
-    uint8_t *fdec = h->mb.pic.p_fdec[p] + x + y*FDEC_STRIDE;
-    uint8_t *fenc = h->mb.pic.p_fenc[p] + x + y*FENC_STRIDE;
+    APPROX uint8_t *fdec = h->mb.pic.p_fdec[p] + x + y*FDEC_STRIDE;
+    APPROX uint8_t *fenc = h->mb.pic.p_fenc[p] + x + y*FENC_STRIDE;
     if( p == 0 && h->mb.i_psy_rd )
     {
         /* If the plane is smaller than 8x8, we can't do an SA8D; this probably isn't a big problem. */
