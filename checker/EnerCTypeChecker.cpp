@@ -135,7 +135,7 @@ void EnerCTyper::assertFlow(clang::QualType type, clang::Expr *expr) {
   clang::Expr *innerExpr = expr->IgnoreParenCasts();
   if (clang::CallExpr *callExpr = llvm::dyn_cast<clang::CallExpr>(innerExpr))
     if (clang::FunctionDecl *fdecl = callExpr->getDirectCallee())
-      if (fdecl->getNameAsString() == "malloc")
+      if (fdecl->getName().endswith("malloc"))
         return;
 
   // Special-case literals (APPROX int* p = 0;), even through casts.
@@ -308,7 +308,8 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
         name == "__builtin_object_size" || name == "__builtin___memcpy_chk" ||
         name == "__inline_memcpy_chk" || name == "__builtin___memset_chk" ||
         name == "__inline_memset_chk" ||
-        name == "__builtin_expect"  // assert
+        name == "__builtin_expect" || // assert
+        callee->getName().endswith("free")
         ) {
 
       // We want to leave the arguments unchecked, but we have to change each

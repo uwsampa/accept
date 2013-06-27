@@ -58,8 +58,8 @@ typedef struct
 
     /* for unrestricted mv we allocate more data than needed
      * allocated data are stored in buffer */
-    uint8_t *buffer[4];
-    uint8_t *buffer_lowres[4];
+    APPROX uint8_t *buffer[4];
+    APPROX uint8_t *buffer_lowres[4];
 
     /* motion data */
     int8_t  *mb_type;

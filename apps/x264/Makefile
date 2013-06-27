@@ -13,8 +13,9 @@ HEADERS := $(wildcard *.h) $(wildcard common/*.h) $(wildcard common/x86/*.h) \
 # -I. : Prioritize local x264.h over system.
 # -Wno-array-bounds : Work around a Clang bug.
 #  http://llvm.org/bugs/show_bug.cgi?id=12818
+# -Wno-incompatible-pointer-types : enerc deficiency
 # ... and some configuration defines.
-CFLAGS := -I. -Wno-array-bounds -DHAVE_STDINT_H -DHAVE_PTHREAD
+CFLAGS := -I. -Wno-array-bounds -Wno-incompatible-pointer-types -DHAVE_STDINT_H -DHAVE_PTHREAD
 LDFLAGS := -lm -lmx -lpthread
 
 # simmedium
