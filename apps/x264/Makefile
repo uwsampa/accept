@@ -16,7 +16,7 @@ HEADERS := $(wildcard *.h) $(wildcard common/*.h) $(wildcard common/x86/*.h) \
 # -Wno-incompatible-pointer-types : enerc deficiency
 # ... and some configuration defines.
 CFLAGS := -I. -Wno-array-bounds -Wno-incompatible-pointer-types -DHAVE_STDINT_H -DHAVE_PTHREAD
-LDFLAGS := -lm -lmx -lpthread
+LDFLAGS := -lm -lpthread
 
 # simmedium
 RUNARGS := --quiet --qp 20 --partitions b8x8,i4x4 --ref 5 --direct auto --b-pyramid --weightb --mixed-refs --no-fast-pskip --me umh --subme 7 --analyse b8x8,i4x4 --threads 4 -o eledream.264 eledream_640x360_32.y4m
