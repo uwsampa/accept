@@ -135,7 +135,8 @@ void EnerCTyper::assertFlow(clang::QualType type, clang::Expr *expr) {
   clang::Expr *innerExpr = expr->IgnoreParenCasts();
   if (clang::CallExpr *callExpr = llvm::dyn_cast<clang::CallExpr>(innerExpr))
     if (clang::FunctionDecl *fdecl = callExpr->getDirectCallee())
-      if (fdecl->getName().endswith("malloc"))
+      if (fdecl->getDeclName().isIdentifier() &&
+          fdecl->getName().endswith("malloc"))
         return;
 
   // Special-case literals (APPROX int* p = 0;), even through casts.
@@ -300,37 +301,43 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
       return ecPrecise;
     }
 
-    // Special cases for certain pointer-related library functions.
-    // The funny-looking names below are functions hidden in macro expansions
-    // of the standard names.
-    std::string name = callee->getNameAsString();
-    if (name == "free" || name == "memcpy" || name == "memset" ||
-        name == "__builtin_object_size" || name == "__builtin___memcpy_chk" ||
-        name == "__inline_memcpy_chk" || name == "__builtin___memset_chk" ||
-        name == "__inline_memset_chk" ||
-        name == "__builtin_expect" || // assert
-        callee->getName().endswith("free")
-        ) {
+    // Special cases based on name.
+    if (callee->getDeclName().isIdentifier()) {
+      StringRef name = callee->getName();
 
-      // We want to leave the arguments unchecked, but we have to change each
-      // argument expression's type to avoid assertion failures later in the
-      // Clang pipeline.
-      for (clang::CallExpr::arg_iterator ai = call->arg_begin();
-           ai != call->arg_end(); ++ai) {
-        (*ai)->setType(withQuals((*ai)->getType(), ecPrecise));
+      // Special cases for certain pointer-related library functions.
+      // The funny-looking names below are functions hidden in macro expansions
+      // of the standard names.
+      if (name.endswith("free") || name.equals("memcpy") ||
+          name.equals("memset") ||
+          name.equals("__builtin_object_size") ||
+          name.equals("__builtin___memcpy_chk") ||
+          name.equals("__inline_memcpy_chk") ||
+          name.equals("__builtin___memset_chk") ||
+          name.equals("__inline_memset_chk") ||
+          name.equals("__builtin_expect") // assert
+          ) {
+
+        // We want to leave the arguments unchecked, but we have to change each
+        // argument expression's type to avoid assertion failures later in the
+        // Clang pipeline.
+        for (clang::CallExpr::arg_iterator ai = call->arg_begin();
+            ai != call->arg_end(); ++ai) {
+          (*ai)->setType(withQuals((*ai)->getType(), ecPrecise));
+        }
+
+        return CL_LEAVE_UNCHANGED;
       }
 
-      return CL_LEAVE_UNCHANGED;
-    }
-
-    // Special cases for standard unary math functions.
-    if (name == "abs" || name == "cos") {
-      Expr *arg = call->getArg(0);
-      // Parametric-esque: return qualifier is the argument qualifier.
-      uint32_t outType = typeOf(arg);
-      // Ignore type errors on the argument.
-      arg->setType(withQuals(arg->getType(), ecPrecise));
-      return outType;
+      // Special cases for standard unary math functions.
+      if (name.equals("abs") || name.equals("cos")) {
+        Expr *arg = call->getArg(0);
+        // Parametric-esque: return qualifier is the argument qualifier.
+        uint32_t outType = typeOf(arg);
+        // Ignore type errors on the argument.
+        arg->setType(withQuals(arg->getType(), ecPrecise));
+        return outType;
+      }
     }
 
     // Check parameters.
