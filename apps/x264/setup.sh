@@ -1,1 +1,1 @@
-./configure --enable-pthread
+./configure --enable-pthread --disable-asm
