@@ -470,6 +470,12 @@ class Evaluation(object):
         # Collect all executions for the config.
         exs = [self.client.get(build_and_execute, self.appdir, config, rep)
                for rep in range(self.reps)]
+        for ex in exs:
+            if ex.roitime is None:
+                raise Exception(
+                    'timing not available for config {}, rep {}: {}'.format(
+                        config, exs.index(ex), ex.status
+                    ))
 
         # Evaluate the result.
         res = Result(self.appname, config, [ex.roitime for ex in exs],
