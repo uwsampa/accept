@@ -35,6 +35,12 @@ int main() {
     APPROX int a[5];
     y = a[2];
 
+    // CHECK: %f = getelementptr inbounds %struct.anon* %s, i32 0, i32 0, !quals !2
+    struct {
+        APPROX int f;
+    } s;
+    y = s.f;
+
     return x;
 }
 
