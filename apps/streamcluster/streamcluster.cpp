@@ -21,11 +21,6 @@
 #include "parsec_barrier.hpp"
 #endif
 
-// EnerC: Trickery to enable compilation without barriers (we just want a
-// sequential version).
-#define pthread_barrier_t int
-
-
 // EnerC language constructs.
 #include <enerc.h>
 
