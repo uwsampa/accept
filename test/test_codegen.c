@@ -31,8 +31,13 @@ int main() {
     // CHECK: store i32 %add, i32* %y, align 4, !quals !1
     y += x;
 
+    // CHECK: %arrayidx = getelementptr inbounds [5 x i32]* %a, i32 0, i64 2, !quals !2
+    APPROX int a[5];
+    y = a[2];
+
     return x;
 }
 
 // CHECK: !0 = metadata !{i32 0}
 // CHECK: !1 = metadata !{i32 1}
+// CHECK: !2 = metadata !{i32 2}
