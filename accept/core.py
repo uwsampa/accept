@@ -37,6 +37,21 @@ def chdir(d):
     yield
     os.chdir(olddir)
 
+def symlink_all(src, dst):
+    """Recursively symlink a file or a directory's contents.
+    (Directories themselves are not symlinked.
+    """
+    if os.path.isdir(src):
+        # A directory. Create the destination directory and symlink its
+        # contents.
+        os.mkdir(dst)
+        for fn in os.listdir(src):
+            symlink_all(os.path.join(src, fn), os.path.join(dst, fn))
+
+    else:
+        # A file. Just symlink the file itself.
+        os.symlink(src, dst)
+
 @contextmanager
 def sandbox(symlink=False):
     """Create a temporary sandbox directory, copy (or symlink)
@@ -49,7 +64,7 @@ def sandbox(symlink=False):
         src = os.path.join(os.getcwd(), name)
         dst = os.path.join(sandbox_dir, name)
         if symlink:
-            os.symlink(src, dst)
+            symlink_all(src, dst)
         else:
             if os.path.isdir(src):
                 shutil.copytree(src, dst)
