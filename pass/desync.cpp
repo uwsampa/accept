@@ -101,25 +101,35 @@ Instruction *ACCEPTPass::findCritSec(Instruction *acq,
         // Candidate pair.
         if (domTree.dominates(acq, bi) &&
             postDomTree.dominates(bi->getParent(), acq->getParent())) {
+
+          // Evaluate the candidate critical section.
+          bool good = true;
           rel = bi;
-          break;
+          cs.clear();
+          instructionsBetween(acq, rel, cs);
+          for (std::set<Instruction *>::iterator i = cs.begin();
+                i != cs.end(); ++i) {
+            if (isAcquire(*i) || isRelease(*i) || isBarrier(*i)) {
+              good = false;
+              break;
+            }
+          }
+
+          if (good)
+            break;
+          else
+            rel = NULL;
+
         }
       }
     }
+    if (rel)
+      break;
   }
 
   if (rel == NULL) {
     *log << "no matching sync found\n";
     return NULL;
-  }
-
-  instructionsBetween(acq, rel, cs);
-  for (std::set<Instruction *>::iterator i = cs.begin();
-        i != cs.end(); ++i) {
-    if (isAcquire(*i) || isRelease(*i) || isBarrier(*i)) {
-      *log << "nested sync\n";
-      return NULL;
-    }
   }
 
   return rel;
