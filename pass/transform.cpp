@@ -12,6 +12,8 @@
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/DebugInfo.h"
 #include "llvm/DataLayout.h"
+#include "llvm/Analysis/Dominators.h"
+#include "llvm/Analysis/PostDominators.h"
 
 #include <set>
 #include <cstdio>
@@ -35,6 +37,8 @@ ACCEPTPass::ACCEPTPass() : FunctionPass(ID) {
 
 void ACCEPTPass::getAnalysisUsage(AnalysisUsage &Info) const {
   Info.addRequired<LoopInfo>();
+  Info.addRequired<DominatorTree>();
+  Info.addRequired<PostDominatorTree>();
   Info.addRequired<ApproxInfo>();
   if (acceptUseProfile)
     Info.addRequired<ProfileInfo>();

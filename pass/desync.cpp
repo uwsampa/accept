@@ -1,4 +1,6 @@
 #include "accept.h"
+#include "llvm/Analysis/Dominators.h"
+#include "llvm/Analysis/PostDominators.h"
 
 #include <sstream>
 
@@ -8,6 +10,63 @@ const char *FUNC_BARRIER = "pthread_barrier_wait";
 const char *FUNC_PARSEC_BARRIER = "_Z19parsec_barrier_waitP16parsec_barrier_t";
 bool isBarrier(Instruction *inst) {
   return isCallOf(inst, FUNC_BARRIER) || isCallOf(inst, FUNC_PARSEC_BARRIER);
+}
+
+void instructionsBetweenHelper(Instruction *end,
+    std::set<Instruction *> &instrs, BasicBlock *curBB,
+    std::set<BasicBlock *> &visited) {
+  // Mark visit.
+  if (visited.count(curBB))
+    return;
+  visited.insert(curBB);
+
+  // Collect instructions.
+  for (BasicBlock::iterator i = curBB->begin(); i != curBB->end(); ++i) {
+    if (end == i) {
+      return;
+    } else if (curBB->getTerminator() != i) {
+      instrs.insert(i);
+    }
+  }
+
+  // Recurse into successors.
+  TerminatorInst *term = curBB->getTerminator();
+  if (term->getNumSuccessors() == 0) {
+    errs() << "found exit in begin/end chain!\n";
+    return;
+  }
+  for (unsigned i = 0; i < term->getNumSuccessors(); ++i) {
+    instructionsBetweenHelper(end, instrs, term->getSuccessor(i), visited);
+  }
+}
+
+void instructionsBetween(Instruction *start, Instruction *end,
+                         std::set<Instruction *> &instrs) {
+  // Handle the first basic block.
+  BasicBlock *startBB = start->getParent();
+  bool entered;
+  for (BasicBlock::iterator i = startBB->begin(); i != startBB->end(); ++i) {
+    if (!entered && start == i) {
+      entered = true;
+    } else if (entered && end == i) {
+      return;
+    } else if (entered && start != i) {
+      if (startBB->getTerminator() != i)
+        instrs.insert(i);
+    }
+  }
+
+  // Recurse into successors.
+  std::set<BasicBlock *> visited;
+  visited.insert(startBB);
+  TerminatorInst *term = startBB->getTerminator();
+  if (term->getNumSuccessors() == 0) {
+    errs() << "found exit in begin/end chain!\n";
+    return;
+  }
+  for (unsigned i = 0; i < term->getNumSuccessors(); ++i) {
+    instructionsBetweenHelper(end, instrs, term->getSuccessor(i), visited);
+  }
 }
 
 // Given an acquire call or a barrier call, find all the instructions between
@@ -29,57 +88,41 @@ Instruction *ACCEPTPass::findCritSec(Instruction *acq,
     return NULL;
   }
 
-  // Next, follow jumps until we find the release call.
-  while (true) {
-    // Look for acquire and release.
-    for (BasicBlock::iterator i = bb->begin(); i != bb->end(); ++i) {
-      if (acq == i) {
-        acquired = true;
-      } else if (acquired) {
-        if (isLock && isRelease(i)) {
-          // TODO check same lock
-          return i;
-        } else if (!isLock && isBarrier(i)) {
-          return i;
-        } else if (isAcquire(i)) {
-          *log << "nested locks\n";
-          return NULL;
-        } else if (bb->getTerminator() != i) {
-          cs.insert(i);
+  // Look for a release call that is dominated by the acquire and
+  // post-dominates the acquire.
+  DominatorTree &domTree = getAnalysis<DominatorTree>();
+  PostDominatorTree &postDomTree = getAnalysis<PostDominatorTree>();
+  Function *func = acq->getParent()->getParent();
+  Instruction *rel = NULL;
+  for (Function::iterator fi = func->begin(); fi != func->end(); ++fi) {
+    for (BasicBlock::iterator bi = fi->begin(); bi != fi->end(); ++bi) {
+      if ((isLock && isRelease(bi)) ||
+          (!isLock && acq != bi && isBarrier(bi))) {
+        // Candidate pair.
+        if (domTree.dominates(acq, bi) &&
+            postDomTree.dominates(bi->getParent(), acq->getParent())) {
+          rel = bi;
+          break;
         }
       }
     }
+  }
 
-    // Just to check my logic: the lock must be acquired after we look through
-    // the first block (and subsequent blocks).
-    if (!acquired) {
-      errs() << "not acquired! (this should never happen)\n";
-      return NULL;
-    }
+  if (rel == NULL) {
+    *log << "no matching sync found\n";
+    return NULL;
+  }
 
-    // Follow the jump.
-    TerminatorInst *term = bb->getTerminator();
-    if (!term) {
-      *log << "found not-well-formed block\n";
+  instructionsBetween(acq, rel, cs);
+  for (std::set<Instruction *>::iterator i = cs.begin();
+        i != cs.end(); ++i) {
+    if (isAcquire(*i) || isRelease(*i) || isBarrier(*i)) {
+      *log << "nested sync\n";
       return NULL;
-    } else if (term->getNumSuccessors() != 1) {
-      // This is conservative. As long as the control flow reconverges
-      // (diamond), we're cool, but we don't handle that yet.
-      *log << "control flow divergence at "
-           << srcPosDesc(*module, term->getDebugLoc())
-           << "\n";
-      return NULL;
-    } else {
-      // Conservative for the same reason.
-      bb = term->getSuccessor(0);
-      if (!bb->getUniquePredecessor()) {
-        *log << "control flow convergence at "
-             << srcPosDesc(*module, bb->front().getDebugLoc())
-             << "\n";
-        return NULL;
-      }
     }
   }
+
+  return rel;
 }
 
 
