@@ -104,6 +104,24 @@ bool isApprox(const Instruction *instr) {
   }
 }
 
+// Global names list used by isApproxPtr.
+std::set<std::string> _approx_vars;
+bool _read_file;
+void _parse_globals() {
+  if (!_read_file) {
+    _read_file = true;
+    std::ifstream f("accept-globals-info.txt");
+    if (f.is_open()) {
+      while (f.good()) {
+        std::string line;
+        std::getline(f, line);
+        if (!line.empty()) _approx_vars.insert(line);
+      }
+      f.close();
+    }
+  }
+}
+
 bool isApproxPtr(const Value *value) {
   if (const Instruction *instr = dyn_cast<Instruction>(value)) {
     MDNode *md = instr->getMetadata("quals");
@@ -113,8 +131,10 @@ bool isApproxPtr(const Value *value) {
     ConstantInt *ci = cast<ConstantInt>(val);
     if (ci)
       return ci->getValue() == ECQ_APPROX_PTR;
-  } else {
-    // XXX read globals file
+  } else if (const GlobalVariable *gv = dyn_cast<GlobalVariable>(value)) {
+    // Use the global names list.
+    _parse_globals();
+    return _approx_vars.count(gv->getName());
   }
   return false;
 }
