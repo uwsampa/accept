@@ -14,6 +14,7 @@ import locale
 import logging
 from .uncertain import umean
 from collections import namedtuple
+import itertools
 
 
 EVALSCRIPT = 'eval.py'
@@ -339,6 +340,73 @@ def cap_config(config, descs):
         out.append((ident, param))
     return tuple(out)
 
+def _ratsum(vals):
+    """Reciprocal of the sum or the reciprocal. Suitable for composing
+    speedups, etc.
+    """
+    total = 0.0
+    num = 0
+    for v in vals:
+        if v:
+            total += v ** -1.0
+            num += 1
+    if num:
+        return (total - (num - 1)) ** -1.0
+    else:
+        return 0.0
+
+def _powerset(iterable, minsize=0):
+    """From the itertools recipes."""
+    s = list(iterable)
+    return itertools.chain.from_iterable(
+        itertools.combinations(s, r) for r in range(minsize, len(s)+1)
+    )
+
+def best_combined_configs(results):
+    """Given a set of results, generate new configurations that compose
+    the configurations used in the results. A heuristic chooses
+    combinations that "should" give good results. Specifically, it
+    generates the Pareto-optimal set of quality/performance under a
+    linear combination hypothesis.
+
+    Return a list of (config, expected speedup, expected error) tuples.
+    """
+    # Get flat tuples for efficient search. Note that we currently strip
+    # away the uncertainty of the speedup for efficiency.
+    components = [(r.config, r.speedup.value, r.error) for r in results]
+
+    # Find all viable composed configurations.
+    candidates = []
+    for comps in _powerset(components, 2):
+        component_configs = [c[0] for c in comps]
+        config = combine_configs(component_configs)
+        if config in component_configs:
+            continue
+
+        speedup = _ratsum(c[1] for c in comps)
+        if speedup <= 0.0:
+            continue
+
+        error = sum(c[2] for c in comps)
+        if error > MAX_ERROR:
+            continue
+
+        candidates.append((config, speedup, error))
+
+    logging.info('combination candidates: {}'.format(len(candidates)))
+
+    # Prune to Pareto-optimal configs.
+    optimal = []
+    for config, speedup, error in candidates:
+        for _, other_speedup, other_error in candidates:
+            if other_speedup >= speedup and other_error < error:
+                break
+        else:
+            optimal.append((config, speedup, error))
+
+    logging.info('optimal combinations: {}'.format(len(optimal)))
+    return [o[0] for o in optimal]
+
 
 # Results.
 
@@ -563,12 +631,8 @@ class Evaluation(object):
                     next_gen.append(res)
             survivors = next_gen
 
-        # Evaluate a configuration that combines all the good ones.
-        config = combine_configs(
-            r.config for r in self.results if r.good
+        # Evaluate configurations that combines good ones.
+        logging.info('evaluating combined configs')
+        self.run_approx(
+            best_combined_configs(r for r in self.results if r.good)
         )
-        if config:
-            logging.info('evaluating combined config')
-            self.run_approx([config])
-
-
