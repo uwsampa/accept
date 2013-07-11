@@ -136,7 +136,8 @@ void EnerCTyper::assertFlow(clang::QualType type, clang::Expr *expr) {
   if (clang::CallExpr *callExpr = llvm::dyn_cast<clang::CallExpr>(innerExpr))
     if (clang::FunctionDecl *fdecl = callExpr->getDirectCallee())
       if (fdecl->getDeclName().isIdentifier() &&
-          fdecl->getName().endswith("malloc"))
+          (fdecl->getName().endswith("malloc") ||
+           fdecl->getName().endswith("calloc")))
         return;
 
   // Special-case literals (APPROX int* p = 0;), even through casts.
