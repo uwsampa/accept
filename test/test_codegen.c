@@ -2,6 +2,9 @@
 
 #include <enerc.h>
 
+int *gpp;
+APPROX int *gpa;
+
 int main() {
     // CHECK: %x = alloca i32, align 4, !quals !0
     int x;
@@ -40,6 +43,15 @@ int main() {
         APPROX int f;
     } s;
     y = s.f;
+
+    // CHECK: %7 = load i32** @gpp, align 8, !quals !0
+    // CHECK: %arrayidx1 = getelementptr inbounds i32* %7, i64 0, !quals !0
+    // CHECK: store i32 5, i32* %arrayidx1, align 4, !quals !0
+    gpp[0] = 5;
+    // CHECK: %8 = load i32** @gpa, align 8, !quals !2
+    // CHECK: %arrayidx2 = getelementptr inbounds i32* %8, i64 0, !quals !2
+    // CHECK: store i32 7, i32* %arrayidx2, align 4, !quals !1
+    gpa[0] = 7;
 
     return x;
 }
