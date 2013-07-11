@@ -123,6 +123,9 @@ void _parse_globals() {
 }
 
 bool isApproxPtr(const Value *value) {
+  if (const BitCastInst *cast = dyn_cast<BitCastInst>(value)) {
+    return isApproxPtr(cast->getOperand(0));
+  }
   if (const Instruction *instr = dyn_cast<Instruction>(value)) {
     MDNode *md = instr->getMetadata("quals");
     if (!md)
