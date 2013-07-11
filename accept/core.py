@@ -24,6 +24,11 @@ OUTPUTS_DIR = os.path.join(BASEDIR, 'saved_outputs')
 MAX_ERROR = 0.3
 TIMEOUT_FACTOR = 3
 MAX_GENERATIONS = 10  # How aggressively to apply each optimization.
+PARAM_MAX = {
+    'loop': 10,
+    'lock': 1,
+    'barrier': 1,
+}
 
 
 # Utilities.
@@ -319,7 +324,20 @@ def increase_config(config, amount=1):
             out.append((ident, param + amount))
         else:
             out.append((ident, param))
-    return out
+    return tuple(out)
+
+def cap_config(config, descs):
+    """Reduce configuration parameters that exceed their maxima,
+    returning a new configuration. `descs` describes each optimization
+    site and dictates the maxima.
+    """
+    out = []
+    for ident, param in config:
+        max_param = PARAM_MAX[descs[ident].split()[0]]
+        if param > max_param:
+            param = max_param
+        out.append((ident, param))
+    return tuple(out)
 
 
 # Results.
@@ -529,7 +547,11 @@ class Evaluation(object):
 
             # Increase the aggressiveness of each configuration and
             # evaluate.
-            gen_configs = [increase_config(r.config) for r in survivors]
+            gen_configs = []
+            for res in survivors:
+                increased = cap_config(increase_config(res.config), self.descs)
+                if increased != res.config:
+                    gen_configs.append(increased)
             gen_res = self.run_approx(gen_configs)
 
             # Produce the next generation, eliminating any config that
