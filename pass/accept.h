@@ -15,6 +15,7 @@
 
 #define ECQ_PRECISE 0
 #define ECQ_APPROX 1
+#define ECQ_APPROX_PTR 2
 
 
 namespace llvm {
@@ -123,6 +124,7 @@ struct ACCEPTPass : public llvm::FunctionPass {
 
 // Information about individual instructions is always available.
 bool isApprox(const llvm::Instruction *instr);
+bool isApproxPtr(const llvm::Value *value);
 bool isCallOf(llvm::Instruction *inst, const char *fname);
 bool isAcquire(llvm::Instruction *inst);
 bool isRelease(llvm::Instruction *inst);

@@ -104,6 +104,21 @@ bool isApprox(const Instruction *instr) {
   }
 }
 
+bool isApproxPtr(const Value *value) {
+  if (const Instruction *instr = dyn_cast<Instruction>(value)) {
+    MDNode *md = instr->getMetadata("quals");
+    if (!md)
+      return false;
+    Value *val = md->getOperand(0);
+    ConstantInt *ci = cast<ConstantInt>(val);
+    if (ci)
+      return ci->getValue() == ECQ_APPROX_PTR;
+  } else {
+    // XXX read globals file
+  }
+  return false;
+}
+
 // Identification of lock acquire and release calls.
 const char *FUNC_ACQUIRE = "pthread_mutex_lock";
 const char *FUNC_RELEASE = "pthread_mutex_unlock";
@@ -454,6 +469,16 @@ bool ApproxInfo::approxOrLocal(std::set<Instruction*> &insts,
 
   // For call and invoke instructions, ensure the function is precise-pure.
   if (calledFunc) {
+    // Special case: out-parameters for memset and memcpy.
+    StringRef funcName = calledFunc->getName();
+    if (funcName.startswith("llvm.memset.") ||
+        funcName.equals("llvm.memcpy.")) {
+      CallInst *call = cast<CallInst>(inst);
+      if (isApproxPtr(call->getArgOperand(0)))
+        return true;
+    }
+
+    // General case: check for precise purity.
     if (!isPrecisePure(calledFunc)) {
       return false;
     }
