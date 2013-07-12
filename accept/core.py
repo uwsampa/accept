@@ -327,6 +327,20 @@ def increase_config(config, amount=1):
             out.append((ident, param))
     return tuple(out)
 
+def config_subsumes(a, b):
+    """Given two configurations with the same sites, determine whether
+    the first subsumes the second (all parameters in a are greater than
+    or equal to those in b).
+    """
+    a_dict = dict(a)
+    b_dict = dict(b)
+    assert a_dict.keys() == b_dict.keys()
+
+    for ident, a_param in a_dict.items():
+        if a_param < b_dict[ident]:
+            return False
+    return True
+
 def cap_config(config, descs):
     """Reduce configuration parameters that exceed their maxima,
     returning a new configuration. `descs` describes each optimization
@@ -368,8 +382,6 @@ def best_combined_configs(results):
     combinations that "should" give good results. Specifically, it
     generates the Pareto-optimal set of quality/performance under a
     linear combination hypothesis.
-
-    Return a list of (config, expected speedup, expected error) tuples.
     """
     # Get flat tuples for efficient search. Note that we currently strip
     # away the uncertainty of the speedup for efficiency.
@@ -406,6 +418,47 @@ def best_combined_configs(results):
 
     logging.info('optimal combinations: {}'.format(len(optimal)))
     return [o[0] for o in optimal]
+
+def bce_greedy(results, max_error=MAX_ERROR):
+    """Given a set of results and a maximum error constraint, choose a
+    good combined configuration that composes the component
+    configurations. Uses a greedy approximation to the Knapsack Problem.
+    """
+    components = [(r.config, r.speedup.value, r.error) for r in results]
+
+    # Sort components by "value per unit weight".
+    scored = []
+    for i, (_, speedup, error) in enumerate(components):
+        # Linear-combining performance score: 1 - s^-1
+        value = 1.0 - speedup ** -1.0
+        scored.append((value / error, i))
+    scored.sort(reverse=True)
+
+    # Greedily choose top-scoring components.
+    knapsack = []  # Indices of chosen components.
+    cur_combined = None  # Current merged config.
+    cur_error = 0.0
+    for _, i in scored:
+        config, _, error = components[i]
+
+        if cur_combined is None:
+            # Add first item to knapsack.
+            knapsack.append(i)
+            cur_combined = config
+            cur_error = error
+        elif config_subsumes(cur_combined, config):
+            # Don't bother trying to add configurations that are
+            # subsumed by the current knapsack contents.
+            continue
+        elif cur_error + error <= max_error:
+            # Add to knapsack.
+            knapsack.append(i)
+            cur_combined = combine_configs([cur_combined, config])
+            cur_error += error
+
+    # Here, we could predict the speedup for validation.
+
+    return cur_combined
 
 
 # Results.
@@ -633,6 +686,12 @@ class Evaluation(object):
 
         # Evaluate configurations that combines good ones.
         logging.info('evaluating combined configs')
-        self.run_approx(
-            best_combined_configs(r for r in self.results if r.good)
-        )
+        good_results = [r for r in self.results if r.good]
+        self.run_approx([
+            bce_greedy(good_results, 0.3),
+            bce_greedy(good_results, 0.2),
+            bce_greedy(good_results, 0.1),
+            bce_greedy(good_results, 0.075),
+            bce_greedy(good_results, 0.05),
+            bce_greedy(good_results, 0.01),
+        ])
