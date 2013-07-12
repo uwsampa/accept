@@ -87,6 +87,9 @@ else
 $(LINKEDBC): $(BCFILES) $(PROFLIB)
 endif
 	$(LLVMLINK) $^ > $@
+	for f in $(BCFILES); do \
+		$(LLVMDIS) $$f; \
+	done
 
 # Three different transformations of the amalgamated program.
 $(TARGET).prof.bc: $(LINKEDBC)
