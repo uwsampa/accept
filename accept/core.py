@@ -38,6 +38,8 @@ SEARCH_MAX_ERRORS = [
     0.05,
     0.01,
 ]
+EPSILON_ERROR = 0.001
+EPSILON_SPEEDUP = 0.01
 
 # Utilities.
 
@@ -539,11 +541,13 @@ def triage_results(results):
     """Given a list of Result objects, splits the data set into three
     lists: optimal, suboptimal, and bad results.
     """
+    # Partition bad from good.
     good = []
     bad = []
     for res in results:
         (good if res.good else bad).append(res)
 
+    # Partition good into optimal and suboptimal.
     optimal = []
     suboptimal = []
     for res in good:
@@ -555,9 +559,20 @@ def triage_results(results):
                 # set.
                 suboptimal.append(res)
                 break
+            elif other in optimal and \
+                    abs(other.error - res.error) < EPSILON_ERROR and \
+                    abs(other.speedup.value - res.speedup.value) < \
+                    EPSILON_SPEEDUP:
+                # other and res are too similar, and other is already
+                # optimal. Reduce noise by including only one.
+                suboptimal.append(res)
+                break
         else:
             # No other result dominates res.
             optimal.append(res)
+
+    # Sort optimal by speedup.
+    optimal.sort(key=lambda r: r.speedup.value, reverse=True)
 
     assert len(optimal) + len(suboptimal) + len(bad) == len(results)
     return optimal, suboptimal, bad
