@@ -39,6 +39,13 @@ namespace {
           if (isApproxPtr(V)) return NoAlias;
 
 
+      if (const Instruction *inst = dyn_cast<Instruction>(LocA.Ptr))
+        if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(inst))
+          if (isApproxPtr(GEP)) return NoAlias;
+      if (const Instruction *inst = dyn_cast<Instruction>(LocB.Ptr))
+        if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(inst))
+          if (isApproxPtr(GEP)) return NoAlias;
+
       // In case of a precise store, we can check whether it's to
       // an APPROX global variable. In this case, the store is also approx
       // and we can return NoAlias.
