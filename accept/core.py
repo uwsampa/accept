@@ -291,7 +291,7 @@ def permute_config(base):
         config = list(base)
         ident, _ = config[i]
         config[i] = ident, 1
-        yield config
+        yield tuple(config)
 
 def combine_configs(configs):
     """Generate a new configuration that superimposes all the
@@ -313,7 +313,7 @@ def combine_configs(configs):
     for i, (ident, param) in enumerate(out):
         if ident in sites:
             out[i] = ident, sites[ident]
-    return out
+    return tuple(out)
 
 def increase_config(config, amount=1):
     """Generate a new configuration that applies the given configuration
@@ -692,11 +692,11 @@ class Evaluation(object):
         # Evaluate configurations that combines good ones.
         logging.info('evaluating combined configs')
         good_results = [r for r in self.results if r.good]
-        self.run_approx([
+        self.run_approx(set([
             bce_greedy(good_results, 0.3),
             bce_greedy(good_results, 0.2),
             bce_greedy(good_results, 0.1),
             bce_greedy(good_results, 0.075),
             bce_greedy(good_results, 0.05),
             bce_greedy(good_results, 0.01),
-        ])
+        ]))
