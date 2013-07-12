@@ -2,6 +2,8 @@
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Analysis/Dominators.h"
+#include "llvm/Analysis/PostDominators.h"
 #include "accept.h"
 
 using namespace llvm;
@@ -19,6 +21,8 @@ namespace {
   static void registerACCEPT(const PassManagerBuilder &,
                              PassManagerBase &PM) {
     PM.add(new LoopInfo());
+    PM.add(new DominatorTree());
+    PM.add(new PostDominatorTree());
     /*
     if (acceptUseProfile)
       PM.add(createProfileLoaderPass());

@@ -21,11 +21,6 @@
 #include "parsec_barrier.hpp"
 #endif
 
-// EnerC: Trickery to enable compilation without barriers (we just want a
-// sequential version).
-#define pthread_barrier_t int
-
-
 // EnerC language constructs.
 #include <enerc.h>
 
@@ -65,9 +60,9 @@ typedef struct {
   Point *p; /* the array itself */
 } Points;
 
-static bool *switch_membership; //whether to switch membership in pgain
-static bool* is_center; //whether a point is a center
-static int* center_table; //index table of centers
+APPROX static bool *switch_membership; //whether to switch membership in pgain
+APPROX static bool* is_center; //whether a point is a center
+APPROX static int* center_table; //index table of centers
 
 static int nproc; //# of threads
 
@@ -335,7 +330,7 @@ APPROX double pgain(long x, Points *points, APPROX double z, long int *numcenter
 
   int count = 0;
   for( int i = k1; i < k2; i++ ) {
-    if( is_center[i] ) {
+    if( ENDORSE(is_center[i]) ) {
       center_table[i] = count++;
     }
   }
@@ -359,7 +354,7 @@ APPROX double pgain(long x, Points *points, APPROX double z, long int *numcenter
 #endif
 
   for( int i = k1; i < k2; i++ ) {
-    if( is_center[i] ) {
+    if( ENDORSE(is_center[i]) ) {
       center_table[i] += (int)work_mem[pid*stride];
     }
   }
@@ -402,7 +397,7 @@ APPROX double pgain(long x, Points *points, APPROX double z, long int *numcenter
       // would save z by closing; now we have to subtract from the savings
       // the extra cost of reassigning that median and its members 
       int assign = points->p[i].assign;
-      lower[center_table[assign]] += current_cost - x_cost;
+      lower[ENDORSE(center_table[assign])] += current_cost - x_cost;
     }
   }
 
@@ -414,13 +409,13 @@ APPROX double pgain(long x, Points *points, APPROX double z, long int *numcenter
   // at x; if it is negative, we'll go through with opening it
 
   for ( int i = k1; i < k2; i++ ) {
-    if( is_center[i] ) {
+    if( ENDORSE(is_center[i]) ) {
       APPROX double low = z;
       //aggregate from all threads
       for( int p = 0; p < nproc; p++ ) {
-	low += work_mem[center_table[i]+p*stride];
+	low += work_mem[ENDORSE(center_table[i])+p*stride];
       }
-      gl_lower[center_table[i]] = low;
+      gl_lower[ENDORSE(center_table[i])] = low;
       if ( ENDORSE(low > 0) ) {
 	// i is a median, and
 	// if we were to open x (which we still may not) we'd close i
@@ -457,8 +452,8 @@ APPROX double pgain(long x, Points *points, APPROX double z, long int *numcenter
   if ( ENDORSE(gl_cost_of_opening_x < 0) ) {
     //  we'd save money by opening x; we'll do it
     for ( int i = k1; i < k2; i++ ) {
-      bool close_center = ENDORSE(gl_lower[center_table[points->p[i].assign]] > 0) ;
-      if ( switch_membership[i] || close_center ) {
+      bool close_center = ENDORSE(gl_lower[ENDORSE(center_table[points->p[i].assign])] > 0) ;
+      if ( ENDORSE(switch_membership[i]) || close_center ) {
 	// Either i's median (which may be i itself) is closing,
 	// or i is closer to x than to its current median
 	points->p[i].cost = points->p[i].weight *
@@ -467,7 +462,7 @@ APPROX double pgain(long x, Points *points, APPROX double z, long int *numcenter
       }
     }
     for( int i = k1; i < k2; i++ ) {
-      if( is_center[i] && ENDORSE(gl_lower[center_table[i]] > 0) ) {
+      if( ENDORSE(is_center[i]) && ENDORSE(gl_lower[ENDORSE(center_table[i])] > 0) ) {
 	is_center[i] = false;
       }
     }
@@ -539,7 +534,7 @@ APPROX double pgain(long x, Points *points, APPROX double z, long int *numcenter
     // http://code-perforation.blogspot.com/2009/11/streamcluster-perforated-loops.html
     for (i=0;i<iter;i++) {
       x = i%numfeasible;
-      change += pgain(feasible[x], points, z, k, pid, barrier); // ACCEPT_PERMIT
+      change += pgain(feasible[x], points, z, k, pid, barrier);
     }
 
     cost -= change;

@@ -20,30 +20,6 @@ namespace {
       initializeAcceptAAPass(*PassRegistry::getPassRegistry());
     }
 
-    static bool read_file;
-    static std::vector<std::string> approx_vars;
-
-    void parse_globals() {
-      if (!read_file) {
-        read_file = true;
-        std::ifstream f("accept-globals-info.txt");
-        if (f.is_open()) {
-          while (f.good()) {
-            std::string line;
-            std::getline(f, line);
-            if (!line.empty()) approx_vars.push_back(line);
-          }
-          f.close();
-        }
-      }
-    }
-
-    bool is_gv_approx(std::string name) const {
-      for (int i = 0; i < approx_vars.size(); ++i)
-        if ((approx_vars[i] == name) && !approx_vars[i].empty() && !name.empty()) return true;
-      return false;
-    }
-
     virtual const char *getPassName() const {
       return "ACCEPT approximate alias analysis";
     }
@@ -58,13 +34,12 @@ namespace {
     }
 
     virtual AliasResult alias(const Location &LocA, const Location &LocB) {
-      parse_globals();
       if (const GlobalValue *GV = dyn_cast<GlobalValue>(LocA.Ptr))
         if (const GlobalVariable *V = dyn_cast<GlobalVariable>(GV))
-          if (is_gv_approx(V->getName().str())) return NoAlias;
+          if (isApproxPtr(V)) return NoAlias;
       if (const GlobalValue *GV = dyn_cast<GlobalValue>(LocB.Ptr))
         if (const GlobalVariable *V = dyn_cast<GlobalVariable>(GV))
-          if (is_gv_approx(V->getName().str())) return NoAlias;
+          if (isApproxPtr(V)) return NoAlias;
 
 
       // In case of a precise store, we can check whether it's to
@@ -129,8 +104,6 @@ namespace {
       return this;
     }
   };
-  bool AcceptAA::read_file = false;
-  std::vector<std::string> AcceptAA::approx_vars;
 }
 
 char AcceptAA::ID = 0;

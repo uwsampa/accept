@@ -14,6 +14,7 @@ import locale
 import logging
 from .uncertain import umean
 from collections import namedtuple
+import itertools
 
 
 EVALSCRIPT = 'eval.py'
@@ -24,6 +25,11 @@ OUTPUTS_DIR = os.path.join(BASEDIR, 'saved_outputs')
 MAX_ERROR = 0.3
 TIMEOUT_FACTOR = 3
 MAX_GENERATIONS = 10  # How aggressively to apply each optimization.
+PARAM_MAX = {
+    'loop': 10,
+    'lock': 1,
+    'barrier': 1,
+}
 
 
 # Utilities.
@@ -37,6 +43,21 @@ def chdir(d):
     yield
     os.chdir(olddir)
 
+def symlink_all(src, dst):
+    """Recursively symlink a file or a directory's contents.
+    (Directories themselves are not symlinked.
+    """
+    if os.path.isdir(src):
+        # A directory. Create the destination directory and symlink its
+        # contents.
+        os.mkdir(dst)
+        for fn in os.listdir(src):
+            symlink_all(os.path.join(src, fn), os.path.join(dst, fn))
+
+    else:
+        # A file. Just symlink the file itself.
+        os.symlink(src, dst)
+
 @contextmanager
 def sandbox(symlink=False):
     """Create a temporary sandbox directory, copy (or symlink)
@@ -49,7 +70,7 @@ def sandbox(symlink=False):
         src = os.path.join(os.getcwd(), name)
         dst = os.path.join(sandbox_dir, name)
         if symlink:
-            os.symlink(src, dst)
+            symlink_all(src, dst)
         else:
             if os.path.isdir(src):
                 shutil.copytree(src, dst)
@@ -304,7 +325,87 @@ def increase_config(config, amount=1):
             out.append((ident, param + amount))
         else:
             out.append((ident, param))
-    return out
+    return tuple(out)
+
+def cap_config(config, descs):
+    """Reduce configuration parameters that exceed their maxima,
+    returning a new configuration. `descs` describes each optimization
+    site and dictates the maxima.
+    """
+    out = []
+    for ident, param in config:
+        max_param = PARAM_MAX[descs[ident].split()[0]]
+        if param > max_param:
+            param = max_param
+        out.append((ident, param))
+    return tuple(out)
+
+def _ratsum(vals):
+    """Reciprocal of the sum or the reciprocal. Suitable for composing
+    speedups, etc.
+    """
+    total = 0.0
+    num = 0
+    for v in vals:
+        if v:
+            total += v ** -1.0
+            num += 1
+    if num:
+        return (total - (num - 1)) ** -1.0
+    else:
+        return 0.0
+
+def _powerset(iterable, minsize=0):
+    """From the itertools recipes."""
+    s = list(iterable)
+    return itertools.chain.from_iterable(
+        itertools.combinations(s, r) for r in range(minsize, len(s)+1)
+    )
+
+def best_combined_configs(results):
+    """Given a set of results, generate new configurations that compose
+    the configurations used in the results. A heuristic chooses
+    combinations that "should" give good results. Specifically, it
+    generates the Pareto-optimal set of quality/performance under a
+    linear combination hypothesis.
+
+    Return a list of (config, expected speedup, expected error) tuples.
+    """
+    # Get flat tuples for efficient search. Note that we currently strip
+    # away the uncertainty of the speedup for efficiency.
+    components = [(r.config, r.speedup.value, r.error) for r in results]
+
+    # Find all viable composed configurations.
+    candidates = []
+    for comps in _powerset(components, 2):
+        component_configs = [c[0] for c in comps]
+        config = combine_configs(component_configs)
+        if config in component_configs:
+            continue
+
+        speedup = _ratsum(c[1] for c in comps)
+        if speedup <= 0.0:
+            continue
+
+        error = sum(c[2] for c in comps)
+        if error > MAX_ERROR:
+            continue
+
+        candidates.append((config, speedup, error))
+
+    logging.info('combination candidates: {}'.format(len(candidates)))
+
+    # Prune to Pareto-optimal configs.
+    optimal = []
+    for config, speedup, error in candidates:
+        for _, other_speedup, other_error in candidates:
+            if other_speedup >= speedup and other_error < error:
+                break
+        else:
+            optimal.append((config, speedup, error))
+
+    logging.info('optimal combinations: {}'.format(len(optimal)))
+    return [o[0] for o in optimal]
 
 
 # Results.
@@ -514,7 +615,11 @@ class Evaluation(object):
 
             # Increase the aggressiveness of each configuration and
             # evaluate.
-            gen_configs = [increase_config(r.config) for r in survivors]
+            gen_configs = []
+            for res in survivors:
+                increased = cap_config(increase_config(res.config), self.descs)
+                if increased != res.config:
+                    gen_configs.append(increased)
             gen_res = self.run_approx(gen_configs)
 
             # Produce the next generation, eliminating any config that
@@ -526,12 +631,8 @@ class Evaluation(object):
                     next_gen.append(res)
             survivors = next_gen
 
-        # Evaluate a configuration that combines all the good ones.
-        config = combine_configs(
-            r.config for r in self.results if r.good
+        # Evaluate configurations that combines good ones.
+        logging.info('evaluating combined configs')
+        self.run_approx(
+            best_combined_configs(r for r in self.results if r.good)
         )
-        if config:
-            logging.info('evaluating combined config')
-            self.run_approx([config])
-
-

@@ -15,6 +15,7 @@
 
 #define ECQ_PRECISE 0
 #define ECQ_APPROX 1
+#define ECQ_APPROX_PTR 2
 
 
 namespace llvm {
@@ -100,6 +101,7 @@ struct ACCEPTPass : public llvm::FunctionPass {
 
   bool shouldSkipFunc(llvm::Function &F);
   llvm::IntegerType *getNativeIntegerType();
+  std::string siteName(std::string kind, llvm::Instruction *at);
 
   void collectFuncDebug(llvm::Module &M);
   void collectSubprogram(llvm::DISubprogram sp);
@@ -115,11 +117,14 @@ struct ACCEPTPass : public llvm::FunctionPass {
 
   bool optimizeSync(llvm::Function &F);
   bool optimizeAcquire(llvm::Instruction *inst, int id);
+  bool optimizeBarrier(llvm::Instruction *bar1, int id);
   llvm::Instruction *findCritSec(llvm::Instruction *acq, std::set<llvm::Instruction*> &cs);
+  llvm::Instruction *findApproxCritSec(llvm::Instruction *acq);
 };
 
 // Information about individual instructions is always available.
 bool isApprox(const llvm::Instruction *instr);
+bool isApproxPtr(const llvm::Value *value);
 bool isCallOf(llvm::Instruction *inst, const char *fname);
 bool isAcquire(llvm::Instruction *inst);
 bool isRelease(llvm::Instruction *inst);
