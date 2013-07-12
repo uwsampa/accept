@@ -38,6 +38,48 @@ namespace {
         if (const GlobalVariable *V = dyn_cast<GlobalVariable>(GV))
           if (isApproxPtr(V)) return NoAlias;
 
+
+      if (const Instruction *inst = dyn_cast<Instruction>(LocA.Ptr))
+        if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(inst))
+          if (isApproxPtr(GEP)) return NoAlias;
+      if (const Instruction *inst = dyn_cast<Instruction>(LocB.Ptr))
+        if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(inst))
+          if (isApproxPtr(GEP)) return NoAlias;
+
+      // In case of a precise store, we can check whether it's to
+      // an APPROX global variable. In this case, the store is also approx
+      // and we can return NoAlias.
+      if (const Instruction *inst = dyn_cast<Instruction>(LocA.Ptr))
+        if (const BitCastInst *BC = dyn_cast<BitCastInst>(inst)) {
+          std::string type_str;
+          llvm::raw_string_ostream rso(type_str);
+          rso << *(inst->getOperand(0));
+          if (rso.str().find("malloc") != std::string::npos) {
+            for (Value::const_use_iterator ui = inst->use_begin();
+                  ui != inst->use_end();
+                  ++ui) {
+              const Instruction *user = dyn_cast<Instruction>(*ui);
+              if (const StoreInst *st = dyn_cast<StoreInst>(user))
+                if (isApprox(st)) return NoAlias;
+            }
+          }
+        }
+      if (const Instruction *inst = dyn_cast<Instruction>(LocB.Ptr))
+        if (const BitCastInst *BC = dyn_cast<BitCastInst>(inst)) {
+          std::string type_str;
+          llvm::raw_string_ostream rso(type_str);
+          rso << *(inst->getOperand(0));
+          if (rso.str().find("malloc") != std::string::npos) {
+            for (Value::const_use_iterator ui = inst->use_begin();
+                  ui != inst->use_end();
+                  ++ui) {
+              const Instruction *user = dyn_cast<Instruction>(*ui);
+              if (const StoreInst *st = dyn_cast<StoreInst>(user))
+                if (isApprox(st)) return NoAlias;
+            }
+          }
+        }
+
       /* DEBUG
       else if (instA && instB) {
         errs() << "instructions:\n";
