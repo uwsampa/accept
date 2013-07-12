@@ -30,7 +30,14 @@ PARAM_MAX = {
     'lock': 1,
     'barrier': 1,
 }
-
+SEARCH_MAX_ERRORS = [
+    0.3,
+    0.2,
+    0.1,
+    0.075,
+    0.05,
+    0.01,
+]
 
 # Utilities.
 
@@ -465,6 +472,9 @@ def bce_greedy(results, max_error=MAX_ERROR):
 
     return cur_combined
 
+def bce_greedy_all(results, max_errors=SEARCH_MAX_ERRORS):
+    return [bce_greedy(results, m) for m in max_errors]
+
 
 # Results.
 
@@ -691,12 +701,6 @@ class Evaluation(object):
 
         # Evaluate configurations that combines good ones.
         logging.info('evaluating combined configs')
-        good_results = [r for r in self.results if r.good]
-        self.run_approx(set([
-            bce_greedy(good_results, 0.3),
-            bce_greedy(good_results, 0.2),
-            bce_greedy(good_results, 0.1),
-            bce_greedy(good_results, 0.075),
-            bce_greedy(good_results, 0.05),
-            bce_greedy(good_results, 0.01),
-        ]))
+        self.run_approx(bce_greedy_all(
+            [r for r in self.results if r.good]
+        ))
