@@ -431,7 +431,12 @@ def bce_greedy(results, max_error=MAX_ERROR):
     for i, (_, speedup, error) in enumerate(components):
         # Linear-combining performance score: 1 - s^-1
         value = 1.0 - speedup ** -1.0
-        scored.append((value / error, i))
+        if error:
+            score = value / error
+        else:
+            # Avoid divide-by-zero.
+            score = 'max'
+        scored.append((score, i))
     scored.sort(reverse=True)
 
     # Greedily choose top-scoring components.
