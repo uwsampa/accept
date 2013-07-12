@@ -4,12 +4,9 @@
 #include "llvm/DataLayout.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/GlobalVariable.h"
-#include "llvm/BasicBlock.h"
 #include "accept.h"
 #include <fstream>
 #include <string>
-#include <iostream>
-#include <typeinfo>
 
 using namespace llvm;
 
