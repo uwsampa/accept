@@ -492,7 +492,12 @@ class Result(object):
         self.output = output
 
         if self.status == 0:
-            self.duration = umean(self.durations)
+            for dur in self.durations:
+                if dur is None:
+                    self.status = 'some durations missing'
+                    break
+            else:
+                self.duration = umean(self.durations)
 
     def evaluate(self, scorefunc, precise_output, precise_durations):
         p_dur = umean(precise_durations)
