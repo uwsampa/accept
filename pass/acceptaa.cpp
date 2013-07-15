@@ -31,6 +31,8 @@ namespace {
     }
 
     virtual AliasResult alias(const Location &LocA, const Location &LocB) {
+
+      // Globals
       if (const GlobalValue *GV = dyn_cast<GlobalValue>(LocA.Ptr))
         if (const GlobalVariable *V = dyn_cast<GlobalVariable>(GV))
           if (isApproxPtr(V)) return NoAlias;
@@ -39,6 +41,7 @@ namespace {
           if (isApproxPtr(V)) return NoAlias;
 
 
+      // Getelementptr
       if (const Instruction *inst = dyn_cast<Instruction>(LocA.Ptr))
         if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(inst))
           if (isApproxPtr(GEP)) return NoAlias;
@@ -46,6 +49,7 @@ namespace {
         if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(inst))
           if (isApproxPtr(GEP)) return NoAlias;
 
+      // Bitcasts
       // In case of a precise store, we can check whether it's to
       // an APPROX global variable. In this case, the store is also approx
       // and we can return NoAlias.
@@ -79,6 +83,13 @@ namespace {
             }
           }
         }
+
+      // Ordinary instructions
+      if (const Instruction *inst = dyn_cast<Instruction>(LocA.Ptr))
+        if (isApprox(inst)) return NoAlias;
+      if (const Instruction *inst = dyn_cast<Instruction>(LocB.Ptr))
+        if (isApprox(inst)) return NoAlias;
+
 
       /* DEBUG
       else if (instA && instB) {
