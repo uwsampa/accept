@@ -6,6 +6,7 @@ import logging
 import sys
 import os
 import subprocess
+import json
 from . import experiments
 from . import core
 from . import cwmemo
@@ -15,6 +16,7 @@ LOCAL_REPS = 1
 CLUSTER_REPS = 5
 APPS = ['streamcluster', 'blackscholes', 'sobel', 'canneal', 'fluidanimate',
         'x264']
+RESULTS_JSON = 'results.json'
 
 
 _client = None
@@ -38,10 +40,29 @@ def global_config(opts):
 
 @argh.arg('appnames', metavar='NAME', default=APPS, nargs='*', type=unicode,
           help='applications')
-def exp(appnames, verbose=False):
+@argh.arg('--json', '-j', dest='as_json')
+def exp(appnames, verbose=False, as_json=False):
+    out = {}
+
     for appname in appnames:
-        print(appname)
-        experiments.evaluate(_client, appname, verbose, _reps)
+        if not json:
+            print(appname)
+        res = experiments.evaluate(_client, appname, verbose, _reps, as_json)
+        if as_json:
+            out[appname] = res
+        else:
+            print(res)
+
+    # Merge these results into the current results.json.
+    if as_json:
+        try:
+            with open(RESULTS_JSON) as f:
+                res = json.load(f)
+        except IOError:
+            res = {}
+        res.update(out)
+        with open(RESULTS_JSON, 'w') as f:
+            json.dump(res, f, indent=2)
 
 
 # Get the compilation log or compiler output.
