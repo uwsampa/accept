@@ -20,39 +20,46 @@ def dump_config(config, descs):
         out.append(u'{} @ {}'.format(descs[ident], param))
     return u', '.join(out)
 
-def dump_results_human(optimal, suboptimal, bad, descs, verbose):
+def dump_results_human(exp, verbose):
     """Generate human-readable text (as a sequence of lines) for
     the results.
     """
+    optimal, suboptimal, bad = core.triage_results(exp.results)
+
+    if verbose and isinstance(exp.pout, str):
+        yield 'precise output: {}'.format(exp.pout)
+        yield ''
+
     yield '{} optimal, {} suboptimal, {} bad'.format(
         len(optimal), len(suboptimal), len(bad)
     )
     for res in optimal:
-        yield dump_config(res.config, descs)
+        yield dump_config(res.config, exp.descs)
         yield '{:.1%} error'.format(res.error)
         yield '{} speedup'.format(res.speedup)
         if verbose and isinstance(res.output, str):
-            yield res.output
+            yield 'output: {}'.format(res.output)
 
     if verbose:
         yield '\nsuboptimal configs:'
         for res in suboptimal:
-            yield dump_config(res.config, descs)
+            yield dump_config(res.config, exp.descs)
             yield '{:.1%} error'.format(res.error)
             yield '{} speedup'.format(res.speedup)
 
         yield '\nbad configs:'
         for res in bad:
-            yield dump_config(res.config, descs)
+            yield dump_config(res.config, exp.descs)
             yield res.desc
 
-def dump_results_json(results, descs):
+def dump_results_json(exp):
     """Return a JSON-like representation of the results.
     """
+    results, _, _ = core.triage_results(exp.results)
     out = []
     for res in results:
         out.append({
-            'config': dump_config(res.config, descs),
+            'config': dump_config(res.config, exp.descs),
             'error': res.error,
             'speedup_mu': res.speedup.value,
             'speedup_sigma': res.speedup.error,
@@ -75,11 +82,7 @@ def evaluate(client, appname, verbose=False, reps=1, as_json=False):
     logging.info('all experiments finished')
     results, descs = exp.results, exp.descs
 
-    optimal, suboptimal, bad = core.triage_results(results)
-
     if as_json:
-        return dump_results_json(optimal, descs)
+        return dump_results_json(exp)
     else:
-        return '\n'.join(
-            dump_results_human(optimal, suboptimal, bad, descs, verbose)
-        )
+        return '\n'.join(dump_results_human(exp, verbose))
