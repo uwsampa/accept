@@ -33,6 +33,11 @@ ACCEPTPass::ACCEPTPass() : FunctionPass(ID) {
   module = 0;
   opportunityId = 0;
   log = 0;
+
+  relax = optRelax;
+
+  if (relax)
+    loadRelaxConfig();
 }
 
 void ACCEPTPass::getAnalysisUsage(AnalysisUsage &Info) const {
@@ -128,10 +133,6 @@ void ACCEPTPass::collectType(DIType ty) {
 
 bool ACCEPTPass::doInitialization(Module &M) {
   module = &M;
-  relax = optRelax;
-
-  if (relax)
-    loadRelaxConfig();
 
   collectFuncDebug(M);
 
