@@ -29,6 +29,7 @@ PARAM_MAX = {
     'loop': 10,
     'lock': 1,
     'barrier': 1,
+    'alias': 1,
 }
 SEARCH_MAX_ERRORS = [
     0.3,

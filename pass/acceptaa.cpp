@@ -15,6 +15,8 @@ namespace {
     static char ID;
     ACCEPTPass *transformPass;
     ApproxInfo *AI;
+    int relaxId;
+    int relaxParam;
 
     AcceptAA() : ImmutablePass(ID) {
       initializeAcceptAAPass(*PassRegistry::getPassRegistry());
@@ -37,9 +39,23 @@ namespace {
 
     virtual void initializePass() {
       InitializeAliasAnalysis(this);
+
+      // One global optimization parameter controls whether we should enable
+      // alias relaxation. (For now.)
+      relaxId = transformPass->opportunityId;
+      ++(transformPass->opportunityId);
+      if (transformPass->relax) {
+        relaxParam = transformPass->relaxConfig[relaxId];
+      } else {
+        relaxParam = 0;
+        transformPass->relaxConfig[relaxId] = 0;
+        transformPass->configDesc[relaxId] = "alias relaxation";
+      }
     }
 
     virtual AliasResult alias(const Location &LocA, const Location &LocB) {
+      if (!relaxParam)
+        return MayAlias;
 
       // Mallocs, callocs...
       if (const Instruction *inst = dyn_cast<Instruction>(LocA.Ptr)) {
