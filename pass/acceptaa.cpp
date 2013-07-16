@@ -13,8 +13,17 @@ using namespace llvm;
 namespace {
   struct AcceptAA : public ImmutablePass, public AliasAnalysis {
     static char ID;
+    ACCEPTPass *transformPass;
+    ApproxInfo *AI;
+
     AcceptAA() : ImmutablePass(ID) {
       initializeAcceptAAPass(*PassRegistry::getPassRegistry());
+      if (!sharedAcceptTransformPass) {
+        errs() << "Alias analysis loaded without transform pass!\n";
+        return;
+      }
+      transformPass = (ACCEPTPass*)sharedAcceptTransformPass;
+      AI = transformPass->AI;
     }
 
     virtual const char *getPassName() const {

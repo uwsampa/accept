@@ -22,6 +22,7 @@ namespace llvm {
   ImmutablePass *createAcceptAAPass();
   void initializeAcceptAAPass(PassRegistry &Registry);
   FunctionPass *createAcceptTransformPass();
+  extern FunctionPass *sharedAcceptTransformPass;
 
   std::string srcPosDesc(const Module &mod, const DebugLoc &dl);
   std::string instDesc(const Module &mod, Instruction *inst);

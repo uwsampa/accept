@@ -194,6 +194,8 @@ void ACCEPTPass::loadRelaxConfig() {
 
 char ACCEPTPass::ID = 0;
 
+FunctionPass *llvm::sharedAcceptTransformPass = NULL;
 FunctionPass *llvm::createAcceptTransformPass() {
-  return new ACCEPTPass();
+  sharedAcceptTransformPass = new ACCEPTPass();
+  return sharedAcceptTransformPass;
 }
