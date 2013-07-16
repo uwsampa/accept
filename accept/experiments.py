@@ -31,6 +31,8 @@ def dump_results_human(optimal, suboptimal, bad, descs, verbose):
         yield dump_config(res.config, descs)
         yield '{:.1%} error'.format(res.error)
         yield '{} speedup'.format(res.speedup)
+        if verbose and isinstance(res.output, str):
+            yield res.output
 
     if verbose:
         yield '\nsuboptimal configs:'
