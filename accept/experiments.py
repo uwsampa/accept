@@ -2,7 +2,6 @@ from __future__ import print_function
 from __future__ import division
 import os
 import logging
-import subprocess
 from . import core
 
 APPSDIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'apps')
@@ -74,7 +73,7 @@ def evaluate(client, appname, verbose=False, reps=1, as_json=False):
     if os.path.exists(setup_script):
         logging.info('running setup script')
         with core.chdir(appdir):
-            subprocess.check_call(['sh', 'setup.sh'])
+            core.run_cmd(['sh', 'setup.sh'])
 
     logging.info('starting experiments')
     with client:
