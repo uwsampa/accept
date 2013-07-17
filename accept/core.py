@@ -41,6 +41,7 @@ SEARCH_MAX_ERRORS = [
 ]
 EPSILON_ERROR = 0.001
 EPSILON_SPEEDUP = 0.01
+BUILD_TIMEOUT = 60 * 5
 
 # Utilities.
 
@@ -107,23 +108,26 @@ def normpath(path):
 class CommandThread(threading.Thread):
     def __init__(self, command):
         super(CommandThread, self).__init__()
-        self.proc = subprocess.Popen(command)
+        self.proc = subprocess.Popen(command, stdout=subprocess.PIPE,
+                                     stderr=subprocess.STDOUT)
+        self.output = None
 
     def run(self):
-        self.proc.wait()
+        self.output, _ = self.proc.communicate()
 
 def run_cmd(command, timeout=None):
     """Run a process with an optional timeout. Return the process' exit
-    status or None if the process timed out.
+    status and combined stdout/studerr text (or None for both if the
+    process timed out).
     """
     thread = CommandThread(command)
     thread.start()
     thread.join(timeout)
     if thread.is_alive():
         thread.proc.terminate()
-        return None
+        return None, None
     else:
-        return thread.proc.returncode
+        return thread.proc.returncode, thread.output
 
 
 # Building and executing using our makefile system.
@@ -149,7 +153,7 @@ def execute(timeout, approx=False):
     command = ['make', 'run_opt' if approx else 'run_orig']
     command += _make_args()
     start_time = time.time()
-    status = run_cmd(command, timeout)
+    status, _ = run_cmd(command, timeout)
     end_time = time.time()
     return end_time - start_time, status
 
@@ -160,11 +164,10 @@ def build(approx=False, require=True):
     """
     build_cmd = ['make', 'build_opt' if approx else 'build_orig']
     build_cmd += _make_args()
-
-    proc = subprocess.Popen(build_cmd, stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT)
-    output, _ = proc.communicate()
-    if require and proc.returncode:
+    status, output = run_cmd(build_cmd, BUILD_TIMEOUT)
+    if status is None:
+        raise BuildError('build timed out')
+    if require and status:
         raise BuildError(output)
     return output
 
@@ -228,7 +231,7 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
     with chdir(directory):
         with sandbox(True):
             # Clean up any residual files.
-            subprocess.check_call(['make', 'clean'] + _make_args())
+            run_cmd(['make', 'clean'] + _make_args())
 
             if relax_config:
                 with open(CONFIGFILE, 'w') as f:
