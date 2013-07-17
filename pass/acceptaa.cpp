@@ -7,10 +7,20 @@
 #include "accept.h"
 #include <fstream>
 #include <string>
+#include <ctime>
 
 using namespace llvm;
 
 namespace {
+  bool isMalloc(const Value *val) {
+      if (const CallInst *call = dyn_cast<CallInst>(val)) {
+          if (Function *func = call->getCalledFunction()) {
+              return func->getName().find("alloc") != StringRef::npos;
+          }
+      }
+      return false;
+  }
+
   struct AcceptAA : public ImmutablePass, public AliasAnalysis {
     static char ID;
     ACCEPTPass *transformPass;
@@ -59,116 +69,127 @@ namespace {
 
       // Mallocs, callocs...
       if (const Instruction *inst = dyn_cast<Instruction>(LocA.Ptr)) {
-        if (const CallInst *ci = dyn_cast<CallInst>(inst)) {
-          std::string type_str;
-          llvm::raw_string_ostream rso(type_str);
-          rso << *inst;
-          if (rso.str().find("alloc") != std::string::npos) {
+        if (isMalloc(inst)) {
             for (Value::const_use_iterator ui = inst->use_begin();
                   ui != inst->use_end();
                   ++ui) {
               if (const Instruction *user = dyn_cast<Instruction>(*ui)) {
                 if (const StoreInst *si = dyn_cast<StoreInst>(user)) {
-                  if (isApproxPtr(si) || isApprox(si)) return NoAlias;
+                  if (isApproxPtr(si) || isApprox(si)) {
+                      return NoAlias;
+                  }
                 } else if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(user)) {
-                  if (isApproxPtr(user)) return NoAlias;
+                  if (isApproxPtr(user)) {
+                      return NoAlias;
+                  }
                 } else if (const BitCastInst *bc = dyn_cast<BitCastInst>(user)) {
                   for (Value::const_use_iterator bc_ui = user->use_begin();
                         bc_ui != user->use_end();
                         ++bc_ui) {
                     if (const Instruction *bc_user = dyn_cast<Instruction>(*bc_ui))
                       if (const StoreInst *si_bc_user = dyn_cast<StoreInst>(bc_user))
-                        if (isApproxPtr(si_bc_user) || isApprox(si_bc_user)) return NoAlias;
+                        if (isApproxPtr(si_bc_user) || isApprox(si_bc_user)) {
+                            return NoAlias;
+                        }
                   }
                 }
               }
             }
-          }
         }
       }
       if (const Instruction *inst = dyn_cast<Instruction>(LocB.Ptr)) {
-        if (const CallInst *ci = dyn_cast<CallInst>(inst)) {
-          std::string type_str;
-          llvm::raw_string_ostream rso(type_str);
-          rso << *inst;
-          if (rso.str().find("alloc") != std::string::npos) {
+        if (isMalloc(inst)) {
             for (Value::const_use_iterator ui = inst->use_begin();
                   ui != inst->use_end();
                   ++ui) {
               if (const Instruction *user = dyn_cast<Instruction>(*ui)) {
                 if (const StoreInst *si = dyn_cast<StoreInst>(user)) {
-                  if (isApproxPtr(si) || isApprox(si)) return NoAlias;
+                  if (isApproxPtr(si) || isApprox(si)) {
+                      return NoAlias;
+                  }
                 } else if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(user)) {
-                  if (isApproxPtr(user)) return NoAlias;
+                  if (isApproxPtr(user)) {
+                      return NoAlias;
+                  }
                 } else if (const BitCastInst *bc = dyn_cast<BitCastInst>(user)) {
                   for (Value::const_use_iterator bc_ui = user->use_begin();
                         bc_ui != user->use_end();
                         ++bc_ui) {
                     if (const Instruction *bc_user = dyn_cast<Instruction>(*bc_ui))
                       if (const StoreInst *si_bc_user = dyn_cast<StoreInst>(bc_user))
-                        if (isApproxPtr(si_bc_user) || isApprox(si_bc_user)) return NoAlias;
+                        if (isApproxPtr(si_bc_user) || isApprox(si_bc_user)) {
+                            return NoAlias;
+                        }
                   }
                 }
               }
             }
-          }
         }
       }
 
       // Globals
       if (const GlobalValue *GV = dyn_cast<GlobalValue>(LocA.Ptr))
         if (const GlobalVariable *V = dyn_cast<GlobalVariable>(GV))
-          if (isApproxPtr(V)) return NoAlias;
+          if (isApproxPtr(V)) {
+              return NoAlias;
+          }
       if (const GlobalValue *GV = dyn_cast<GlobalValue>(LocB.Ptr))
         if (const GlobalVariable *V = dyn_cast<GlobalVariable>(GV))
-          if (isApproxPtr(V)) return NoAlias;
-
+          if (isApproxPtr(V)) {
+              return NoAlias;
+          }
 
       // Getelementptr
       if (const Instruction *inst = dyn_cast<Instruction>(LocA.Ptr))
         if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(inst))
-          if (isApproxPtr(GEP)) return NoAlias;
+          if (isApproxPtr(GEP)) {
+              return NoAlias;
+          }
       if (const Instruction *inst = dyn_cast<Instruction>(LocB.Ptr))
         if (const GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(inst))
-          if (isApproxPtr(GEP)) return NoAlias;
+          if (isApproxPtr(GEP)) {
+              return NoAlias;
+          }
 
       // Bitcasts
       if (const Instruction *inst = dyn_cast<Instruction>(LocA.Ptr))
         if (const BitCastInst *BC = dyn_cast<BitCastInst>(inst)) {
-          std::string type_str;
-          llvm::raw_string_ostream rso(type_str);
-          rso << *(inst->getOperand(0));
-          if (rso.str().find("alloc") != std::string::npos) {
+          if (isMalloc(inst->getOperand(0))) {
             for (Value::const_use_iterator ui = inst->use_begin();
                   ui != inst->use_end();
                   ++ui) {
               const Instruction *user = dyn_cast<Instruction>(*ui);
               if (const StoreInst *st = dyn_cast<StoreInst>(user))
-                if (isApprox(st) || isApproxPtr(st)) return NoAlias;
+                if (isApprox(st) || isApproxPtr(st)) {
+                    return NoAlias;
+                }
             }
           }
         }
       if (const Instruction *inst = dyn_cast<Instruction>(LocB.Ptr))
         if (const BitCastInst *BC = dyn_cast<BitCastInst>(inst)) {
-          std::string type_str;
-          llvm::raw_string_ostream rso(type_str);
-          rso << *(inst->getOperand(0));
-          if (rso.str().find("alloc") != std::string::npos) {
+          if (isMalloc(inst->getOperand(0))) {
             for (Value::const_use_iterator ui = inst->use_begin();
                   ui != inst->use_end();
                   ++ui) {
               const Instruction *user = dyn_cast<Instruction>(*ui);
               if (const StoreInst *st = dyn_cast<StoreInst>(user))
-                if (isApprox(st) || isApproxPtr(st)) return NoAlias;
+                if (isApprox(st) || isApproxPtr(st)) {
+                    return NoAlias;
+                }
             }
           }
         }
 
       // Ordinary instructions
       if (const Instruction *inst = dyn_cast<Instruction>(LocA.Ptr))
-        if (isApprox(inst) || isApproxPtr(inst)) return NoAlias;
+        if (isApprox(inst) || isApproxPtr(inst)) {
+            return NoAlias;
+        }
       if (const Instruction *inst = dyn_cast<Instruction>(LocB.Ptr))
-        if (isApprox(inst) || isApproxPtr(inst)) return NoAlias;
+        if (isApprox(inst) || isApproxPtr(inst)) {
+            return NoAlias;
+        } 
 
       /* DEBUG
       else if (instA && instB) {
