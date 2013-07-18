@@ -34,6 +34,7 @@
 #ifdef ENABLE_THREADS
 #include <pthread.h>
 #endif
+#include "parsec_barrier.hpp"
 
 #include <assert.h>
 #include <enerc.h>
