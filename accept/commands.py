@@ -130,7 +130,7 @@ def precise(appdir='.'):
 def approx(num=None, appdir='.'):
     ev = core.Evaluation(appdir, _client, _reps)
     with _client:
-        ev.run()
+        experiments.run_experiments(ev)
     results = ev.results
 
     # Possibly choose a specific result.

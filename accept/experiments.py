@@ -65,6 +65,15 @@ def dump_results_json(exp):
         })
     return out
 
+def run_experiments(ev):
+    """Run all stages in the Evaluation for producing paper-ready
+    results.
+    """
+    ev.setup()
+    base_results = ev.evaluate_base()
+    tuned_results = ev.parameter_search(base_results)
+    ev.evaluate_composites(tuned_results)
+
 def evaluate(client, appname, verbose=False, reps=1, as_json=False):
     appdir = os.path.join(APPSDIR, appname)
     exp = core.Evaluation(appdir, client, reps)
@@ -77,9 +86,8 @@ def evaluate(client, appname, verbose=False, reps=1, as_json=False):
 
     logging.info('starting experiments')
     with client:
-        exp.run()
+        run_experiments(exp)
     logging.info('all experiments finished')
-    results, descs = exp.results, exp.descs
 
     if as_json:
         return dump_results_json(exp)

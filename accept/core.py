@@ -688,17 +688,25 @@ class Evaluation(object):
         self.results += res
         return res
 
-    def run(self):
-        """Execute the experiment.
+    def evaluate_base(self):
+        """Get results for all the base (single-opportunity)
+        configurations. `setup()` must have been called to get the
+        configuration space.
         """
-        self.setup()
         logging.info('evaluating base configurations')
-        results = self.run_approx(list(permute_config(self.base_config)))
+        return self.run_approx(list(permute_config(self.base_config)))
 
-        # Try increasing the parameter on good configs until they break
-        # the program.
-        survivors = [r for r in results if r.safe]
+    def parameter_search(self, base_results):
+        """Tune parameters for individual opportunity sites by
+        increasing the parameters until an error threshold is exceeded
+        or no speedup is gained. Pass the results produced by
+        `evalute_base`. Returns all safe results found (including some
+        of those base results that are passed in).
+        """
+        survivors = [r for r in base_results if r.safe]
+        all_results = list(survivors)
         generation = 0
+
         while survivors and generation <= MAX_GENERATIONS:
             generation += 1
             logging.info('evaluating generation {}, population {}'.format(
@@ -722,9 +730,15 @@ class Evaluation(object):
                 if res.safe and res.duration < old_res.duration:
                     next_gen.append(res)
             survivors = next_gen
+            all_results += survivors
 
-        # Evaluate configurations that combines good ones.
+        return all_results
+
+    def evaluate_composites(self, component_results):
+        """Compose the given configurations to evaluate some combined
+        configurations.
+        """
         logging.info('evaluating combined configs')
-        self.run_approx(bce_greedy_all(
-            [r for r in self.results if r.good]
+        return self.run_approx(bce_greedy_all(
+            [r for r in component_results if r.good]
         ))
