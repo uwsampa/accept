@@ -437,7 +437,7 @@ def bce_greedy(results, max_error=MAX_ERROR):
     good combined configuration that composes the component
     configurations. Uses a greedy approximation to the Knapsack Problem.
     """
-    components = [(r.config, r.speedup.value, r.error) for r in results]
+    components = [(r.config, r.speedup.value, r.error.value) for r in results]
 
     # Sort components by "value per unit weight".
     scored = []
@@ -488,20 +488,12 @@ class Result(object):
     """Represents the result of executing one relaxed configuration of a
     program.
     """
-    def __init__(self, app, config, durations, status, output):
+    def __init__(self, app, config, durations, statuses, outputs):
         self.app = app
         self.config = tuple(config)
         self.durations = durations
-        self.status = status
-        self.output = output
-
-        if self.status == 0:
-            for dur in self.durations:
-                if dur is None:
-                    self.status = 'some durations missing'
-                    break
-            else:
-                self.duration = umean(self.durations)
+        self.statuses = statuses
+        self.outputs = outputs
 
     def evaluate(self, scorefunc, precise_output, precise_durations):
         p_dur = umean(precise_durations)
@@ -510,28 +502,44 @@ class Result(object):
         self.safe = False  # Not useful, but also not harmful?
         self.desc = 'unknown'  # Why not good?
 
-        if self.status is None:
-            # Timed out.
-            self.desc = 'timed out'
-            return
+        # Check for errors.
+        for i, status in enumerate(self.statuses):
+            if status is None:
+                # Timed out.
+                self.desc = 'replica {} timed out'.format(i)
+                return
+            elif status:
+                # Error status.
+                self.desc = 'error status (replica {}): {}'.format(
+                    i, status
+                )
+                return
 
-        if self.status:
-            # Error status.
-            self.desc = 'error status: {}'.format(self.status)
-            return
-
-        # Get output error and speedup.
-        try:
-            self.error = scorefunc(precise_output, self.output)
-        except Exception as exc:
-            self.error = 1.0
-            self.desc = 'error in scoring function: {}'.format(exc)
-            return
+        # Get duration and speedup.
+        for i, dur in enumerate(self.durations):
+            if dur is None:
+                self.desc = 'duration {} missing'.format(i)
+                break
+        self.duration = umean(self.durations)
         self.speedup = p_dur / self.duration
+
+        # Get average output error.
+        self.errors = []
+        for i, output in enumerate(self.outputs):
+            try:
+                error = scorefunc(precise_output, output)
+            except Exception as exc:
+                self.error = 1.0
+                self.desc = 'error in scoring function, replica {}: {}'.format(
+                    i, exc
+                )
+                return
+            self.errors.append(error)
+        self.error = umean(self.errors)
 
         if self.error > MAX_ERROR:
             # Large output error.
-            self.desc = 'large error: {:.2%}'.format(self.error)
+            self.desc = 'large error: {}'.format(self.error)
             return
 
         # No error or large quality loss.
@@ -569,7 +577,8 @@ def triage_results(results):
                 suboptimal.append(res)
                 break
             elif other in optimal and \
-                    abs(other.error - res.error) < EPSILON_ERROR and \
+                    abs(other.error.value - res.error.value) < \
+                    EPSILON_ERROR and \
                     abs(other.speedup.value - res.speedup.value) < \
                     EPSILON_SPEEDUP:
                 # other and res are too similar, and other is already
@@ -667,8 +676,10 @@ class Evaluation(object):
                for rep in range(self.reps)]
 
         # Evaluate the result.
-        res = Result(self.appname, config, [ex.roitime for ex in exs],
-                     exs[0].status, exs[0].output)
+        res = Result(self.appname, config,
+                     [ex.roitime for ex in exs],
+                     [ex.status for ex in exs],
+                     [ex.output for ex in exs])
         res.evaluate(self.scorefunc, self.pout, self.ptimes)
         return res
 

@@ -45,8 +45,7 @@ def exp(appnames, verbose=False, as_json=False):
     out = {}
 
     for appname in appnames:
-        if not json:
-            print(appname)
+        logging.info(appname)
         res = experiments.evaluate(_client, appname, verbose, _reps, as_json)
         if as_json:
             out[appname] = res
@@ -62,7 +61,7 @@ def exp(appnames, verbose=False, as_json=False):
             res = {}
         res.update(out)
         with open(RESULTS_JSON, 'w') as f:
-            json.dump(res, f, indent=2)
+            json.dump(res, f, indent=2, sort_keys=True)
 
 
 # Get the compilation log or compiler output.

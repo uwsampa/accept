@@ -39,16 +39,16 @@ def dump_results_human(results, descs, pout, verbose):
     )
     for res in optimal:
         yield dump_config(res.config, descs)
-        yield '{:.1%} error'.format(res.error)
+        yield '{} % error'.format(res.error * 100)
         yield '{} speedup'.format(res.speedup)
-        if verbose and isinstance(res.output, str):
-            yield 'output: {}'.format(res.output)
+        if verbose and isinstance(res.outputs[0], str):
+            yield 'output: {}'.format(res.outputs[0])
 
     if verbose:
         yield '\nsuboptimal configs:'
         for res in suboptimal:
             yield dump_config(res.config, descs)
-            yield '{:.1%} error'.format(res.error)
+            yield '{} % error'.format(res.error * 100)
             yield '{} speedup'.format(res.speedup)
 
         yield '\nbad configs:'
@@ -64,7 +64,8 @@ def dump_results_json(results, descs):
     for res in results:
         out.append({
             'config': dump_config(res.config, descs),
-            'error': res.error,
+            'error_mu': res.error.value,
+            'error_sigma': res.error.error,
             'speedup_mu': res.speedup.value,
             'speedup_sigma': res.speedup.error,
         })
