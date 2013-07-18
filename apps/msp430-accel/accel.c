@@ -1,5 +1,5 @@
-/* Read an accelerometer repeatedly in a loop.  Most code adapted from the UMass
- * Moo CRFID's firmware. */
+/* Read an accelerometer repeatedly in a loop.  Most code adapted from the
+ * dlwisp41 firmware. */
 
 #include <enerc.h>
 #include <msp430.h>
