@@ -70,6 +70,21 @@ def dump_results_json(results, descs):
         })
     return out
 
+def results_for_base(ev, configs):
+    """Given a set of base configurations, return a set of uniqued
+    results from all phases of the experiment workflow.
+    """
+    # The phases.
+    base_results = ev.run_approx(configs)
+    tuned_results = ev.parameter_search(base_results)
+    composite_results = ev.evaluate_composites(tuned_results)
+
+    # Uniquify the results based on their configs.
+    results = {}
+    for result in base_results + tuned_results + composite_results:
+        results[result.config] = result
+    return results.values()
+
 def run_experiments(ev):
     """Run all stages in the Evaluation for producing paper-ready
     results. Returns the main results and a dict of kind-restricted
@@ -78,10 +93,7 @@ def run_experiments(ev):
     ev.setup()
 
     # Main results.
-    base_results = ev.evaluate_base()
-    tuned_results = ev.parameter_search(base_results)
-    composite_results = ev.evaluate_composites(tuned_results)
-    main_results = set(base_results + tuned_results + composite_results)
+    main_results = results_for_base(ev, ev.base_configs)
 
     # Experiments with only one optimization type at a time.
     kind_results = {}
@@ -89,7 +101,7 @@ def run_experiments(ev):
         # Filter all base configs for configs of this kind.
         logging.info('evaluating {} in isolation'.format(kind))
         kind_configs = []
-        for config in core.permute_config(ev.base_config):
+        for config in ev.base_configs:
             for ident, param in config:
                 if param and not ev.descs[ident].startswith(words):
                     break
@@ -98,11 +110,7 @@ def run_experiments(ev):
 
         # Run the experiment workflow.
         logging.info('isolated configs: {}'.format(len(kind_configs)))
-        base_results = ev.run_approx(kind_configs)
-        tuned_results = ev.parameter_search(base_results)
-        composite_results = ev.evaluate_composites(tuned_results)
-        kind_results[kind] = set(base_results + tuned_results +
-                                 composite_results)
+        kind_results[kind] = results_for_base(ev, kind_configs)
 
     return main_results, kind_results
 
@@ -122,8 +130,25 @@ def evaluate(client, appname, verbose=False, reps=1, as_json=False):
     logging.info('all experiments finished')
 
     if as_json:
-        return dump_results_json(main_results, exp.descs)
+        out = {}
+        out['main'] = dump_results_json(main_results, exp.descs)
+        isolated = {}
+        for kind, results in kind_results.items():
+            isolated[kind] = dump_results_json(results, exp.descs)
+        out['isolated'] = isolated
+        return out
+
     else:
-        return '\n'.join(
+        out = list(
             dump_results_human(main_results, exp.descs, exp.pout, verbose)
         )
+        if verbose:
+            for kind, results in kind_results.items():
+                out.append('')
+                if results:
+                    out.append('ISOLATING {}:'.format(kind))
+                    out += dump_results_human(results, exp.descs, exp.pout,
+                                              verbose)
+                else:
+                    out.append('No results for isolating {}.'.format(kind))
+        return '\n'.join(out)

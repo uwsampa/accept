@@ -614,13 +614,14 @@ class Evaluation(object):
         self.base_elapsed = None
         self.ptimes = []
         self.base_config = None
+        self.base_configs = None
         self.results = []
 
     def setup(self):
         """Submit the baseline precise executions and gather some
         information about the first. Set the fields `pout` (the precise
-        output), `pout` (precise execution time), `base_config`, and
-        `descs`.
+        output), `pout` (precise execution time), `base_config`,
+        `base_configs`, and `descs`.
         """
         # Precise (baseline) execution.
         for rep in range(self.reps):
@@ -636,6 +637,7 @@ class Evaluation(object):
         self.base_elapsed = pex.elapsed
         self.base_config = pex.config
         self.descs = pex.desc
+        self.base_configs = list(permute_config(self.base_config))
 
     def precise_times(self):
         """Generate the durations for the precise executions. Must be
@@ -694,7 +696,7 @@ class Evaluation(object):
         configuration space.
         """
         logging.info('evaluating base configurations')
-        return self.run_approx(list(permute_config(self.base_config)))
+        return self.run_approx(self.base_configs)
 
     def parameter_search(self, base_results):
         """Tune parameters for individual opportunity sites by
