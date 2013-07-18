@@ -1,5 +1,6 @@
 TARGET := canneal
 CFLAGS := -DENABLE_THREADS -pthread
+LDFLAGS := -pthread
 
 # RUNARGS := 1 15000 2000 2500000.nets 6000  # native
 # RUNARGS := 1 15000 2000 400000.nets 128  # simlarge
