@@ -3,7 +3,7 @@
 
 #include <enerc.h>
 #include <msp430.h>
-#include "moo.h"
+#include "dlwisp41.h"
 
 #define NUM_READINGS 1000
 
@@ -25,17 +25,6 @@ typedef struct {
     APPROX unsigned z;
 } accel_reading;
 
-unsigned read_accel_channel (unsigned channel) {
-    ADC12CTL0 &= ~ENC;
-    ADC12CTL0 = ADC12ON + SHT0_1;
-    ADC12CTL1 = SHP;
-    ADC12MCTL0 = channel + SREF_0; // Vr+ = AVcc = Vreg (= 1.8V)
-    ADC12CTL0 |= ENC;
-    ADC12CTL0 |= ADC12SC; // take a sample
-    while (ADC12CTL1 & ADC12BUSY);
-    return ADC12MEM0;
-}
-
 void read_sensor (accel_reading *reading) {
     unsigned char i;
 
@@ -51,40 +40,54 @@ void read_sensor (accel_reading *reading) {
         sleep();
 
     // Clear out any lingering voltage on the accelerometer outputs
-    P6SEL = 0;
-    P6OUT &= ~(ACCEL_X | ACCEL_Y | ACCEL_Z);
-    P6DIR |=   ACCEL_X | ACCEL_Y | ACCEL_Z;
-    P6DIR &= ~(ACCEL_X | ACCEL_Y | ACCEL_Z);
+    ADC10AE0 = 0;
+
+    P2OUT &= ~(ACCEL_X | ACCEL_Y | ACCEL_Z);
+    P2DIR |=   ACCEL_X | ACCEL_Y | ACCEL_Z;
+    P2DIR &= ~(ACCEL_X | ACCEL_Y | ACCEL_Z);
 
     P1DIR |= ACCEL_POWER;
     P1OUT |= ACCEL_POWER;
-    P6SEL |= ACCEL_X | ACCEL_Y | ACCEL_Z;
+    ADC10AE0 |= ACCEL_X | ACCEL_Y | ACCEL_Z;
 
     // a little time for regulator to stabilize active mode current AND
     // filter caps to settle.
     for(i = 0; i < 225; i++);
     RECEIVE_CLOCK;
 
-    // GRAB DATA
-    ADC12CTL0 &= ~ENC; // make sure this is off otherwise settings are locked.
-    ADC12CTL0 = ADC12ON + SHT0_1;                     // Turn on and set up ADC12
-    ADC12CTL1 = SHP;                                  // Use sampling timer
-    ADC12MCTL0 = INCH_ACCEL_X + SREF_0;               // Vr+=AVcc=Vreg=1.8V
-    // ADC12CTL1 =  + ADC12SSEL_0 + SHS_0 + CONSEQ_0;
-    ADC12CTL0 |= ENC;
-    ADC12CTL0 |= ADC12SC;
-    while (ADC12CTL1 & ADC12BUSY);    // wait while ADC finishes work
+    // x
+    ADC10CTL0 &= ~ENC;
+    ADC10CTL0 = SREF_0 + ADC10SHT_1 + ADC10ON;
+    ADC10CTL1 = ADC10DIV_2 + ADC10SSEL_0 + SHS_0 + CONSEQ_0 + INCH_ACCEL_X;
+    ADC10CTL0 |= ENC;
+    ADC10CTL0 |= ADC10SC;
+    while (ADC10CTL1 & ADC10BUSY);    // wait while ADC finishes work
+    reading->x = ADC10MEM & 0x3ff;
 
-    reading->x = read_accel_channel(INCH_ACCEL_X);
-    reading->y = read_accel_channel(INCH_ACCEL_Y);
-    reading->z = read_accel_channel(INCH_ACCEL_Z);
+    // y
+    ADC10CTL0 &= ~ENC;
+    ADC10CTL0 = SREF_0 + ADC10SHT_1 + ADC10ON;
+    ADC10CTL1 = ADC10DIV_2 + ADC10SSEL_0 + SHS_0 + CONSEQ_0 + INCH_ACCEL_Y;
+    ADC10CTL0 |= ENC;
+    ADC10CTL0 |= ADC10SC;
+    while (ADC10CTL1 & ADC10BUSY);    // wait while ADC finishes work
+    reading->y = ADC10MEM & 0x3ff;
+
+    // z
+    ADC10CTL0 &= ~ENC;
+    ADC10CTL0 = SREF_0 + ADC10SHT_1 + ADC10ON;
+    ADC10CTL1 = ADC10DIV_2 + ADC10SSEL_0 + SHS_0 + CONSEQ_0 + INCH_ACCEL_Z;
+    ADC10CTL0 |= ENC;
+    ADC10CTL0 |= ADC10SC;
+    while (ADC10CTL1 & ADC10BUSY);    // wait while ADC finishes work
+    reading->z = ADC10MEM & 0x3ff;
 
     // Power off sensor and adc
     P1DIR &= ~ACCEL_POWER;
     P1OUT &= ~ACCEL_POWER;
-    ADC12CTL0 &= ~ENC;
-    ADC12CTL1 = 0;       // turn adc off
-    ADC12CTL0 = 0;       // turn adc off
+    ADC10CTL0 &= ~ENC;
+    ADC10CTL1 = 0;       // turn adc off
+    ADC10CTL0 = 0;       // turn adc off
 
     // Store sensor read count
     numreadings++;
