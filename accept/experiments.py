@@ -2,6 +2,7 @@ from __future__ import print_function
 from __future__ import division
 import os
 import logging
+import time
 from . import core
 
 APPSDIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'apps')
@@ -91,10 +92,12 @@ def run_experiments(ev):
     results. Returns the main results and a dict of kind-restricted
     results.
     """
+    start_time = time.time()
     ev.setup()
 
     # Main results.
     main_results = results_for_base(ev, ev.base_configs)
+    end_time = time.time()
 
     # Experiments with only one optimization type at a time.
     kind_results = {}
@@ -113,7 +116,7 @@ def run_experiments(ev):
         logging.info('isolated configs: {}'.format(len(kind_configs)))
         kind_results[kind] = results_for_base(ev, kind_configs)
 
-    return main_results, kind_results
+    return main_results, kind_results, end_time - start_time
 
 def evaluate(client, appname, verbose=False, reps=1, as_json=False):
     appdir = os.path.join(APPSDIR, appname)
@@ -127,7 +130,7 @@ def evaluate(client, appname, verbose=False, reps=1, as_json=False):
 
     logging.info('starting experiments')
     with client:
-        main_results, kind_results = run_experiments(exp)
+        main_results, kind_results, exp_time = run_experiments(exp)
     logging.info('all experiments finished')
 
     if as_json:
@@ -137,6 +140,7 @@ def evaluate(client, appname, verbose=False, reps=1, as_json=False):
         for kind, results in kind_results.items():
             isolated[kind] = dump_results_json(results, exp.descs)
         out['isolated'] = isolated
+        out['time'] = exp_time
         return out
 
     else:

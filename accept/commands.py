@@ -41,27 +41,34 @@ def global_config(opts):
 @argh.arg('appnames', metavar='NAME', default=APPS, nargs='*', type=unicode,
           help='applications')
 @argh.arg('--json', '-j', dest='as_json')
-def exp(appnames, verbose=False, as_json=False):
-    out = {}
+@argh.arg('--time', '-t', dest='include_time')
+def exp(appnames, verbose=False, as_json=False, include_time=False):
+    # Load the current results, if any.
+    if as_json:
+        try:
+            with open(RESULTS_JSON) as f:
+                results_json = json.load(f)
+        except IOError:
+            results_json = {}
 
     for appname in appnames:
         logging.info(appname)
         res = experiments.evaluate(_client, appname, verbose, _reps, as_json)
+
         if as_json:
-            out[appname] = res
+            if not include_time:
+                del res['time']
+            if appname not in results_json:
+                results_json[appname] = {}
+            results_json[appname].update(res)
+
         else:
             print(res)
 
-    # Merge these results into the current results.json.
-    if as_json:
-        try:
-            with open(RESULTS_JSON) as f:
-                res = json.load(f)
-        except IOError:
-            res = {}
-        res.update(out)
-        with open(RESULTS_JSON, 'w') as f:
-            json.dump(res, f, indent=2, sort_keys=True)
+        # Dump the results back to the JSON file.
+        if as_json:
+            with open(RESULTS_JSON, 'w') as f:
+                json.dump(results_json, f, indent=2, sort_keys=True)
 
 
 # Get the compilation log or compiler output.
