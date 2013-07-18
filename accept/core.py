@@ -479,7 +479,7 @@ def bce_greedy(results, max_error=MAX_ERROR):
     return cur_combined
 
 def bce_greedy_all(results, max_errors=SEARCH_MAX_ERRORS):
-    return [bce_greedy(results, m) for m in max_errors]
+    return filter(None, [bce_greedy(results, m) for m in max_errors])
 
 
 # Results.
