@@ -133,7 +133,7 @@ int main (void) {
     unsigned i;
 
     for (i = 0; i < NUM_READINGS; ++i) {
-        read_sensor(&cur_reading);
+        read_sensor(&cur_reading); // ACCEPT_PERMIT
 
         if (ENDORSE(cur_reading.x > max_x)) max_x = cur_reading.x;
         if (ENDORSE(cur_reading.y > max_y)) max_y = cur_reading.y;
