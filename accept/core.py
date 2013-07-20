@@ -19,7 +19,6 @@ import itertools
 
 EVALSCRIPT = 'eval.py'
 CONFIGFILE = 'accept_config.txt'
-DESCFILE = 'accept_config_desc.txt'
 BASEDIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUTPUTS_DIR = os.path.join(BASEDIR, 'saved_outputs')
 MAX_ERROR = 0.3
@@ -181,27 +180,15 @@ def parse_relax_config(f):
     for line in f:
         line = line.strip()
         if line:
-            ident, param = line.split(None, 2)
-            yield int(ident), int(param)
+            param, ident = line.split(None, 1)
+            yield ident, int(param)
 
 def dump_relax_config(config, f):
     """Write a relaxation configuration to a file-like object. The
     configuration should be a sequence of tuples.
     """
-    for site in config:
-        f.write('{} {}\n'.format(*site))
-
-def parse_relax_desc(f):
-    """Parse a relaxation description map from a file-like object.
-    Return a dict mapping identifiers to description strings.
-    """
-    out = {}
-    for line in f:
-        line = line.strip()
-        if line:
-            ident, desc = line.split(None, 1)
-            out[int(ident)] = desc
-    return out
+    for ident, param in config:
+        f.write('{} {}\n'.format(param, ident))
 
 
 # Loading the evaluation script.
@@ -221,7 +208,7 @@ def load_eval_funcs(appdir):
 # High-level profiling driver.
 
 Execution = namedtuple('Execution', ['output', 'elapsed', 'status',
-                                     'config', 'desc', 'roitime'])
+                                     'config', 'roitime'])
 
 def build_and_execute(directory, relax_config, rep, timeout=None):
     """Build the application in the given directory (which must contain
@@ -238,8 +225,6 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
                     dump_relax_config(relax_config, f)
             elif os.path.exists(CONFIGFILE):
                 os.remove(CONFIGFILE)
-            if os.path.exists(DESCFILE):
-                os.remove(DESCFILE)
 
             approx = bool(relax_config)
             build(approx)
@@ -285,13 +270,8 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
             if not relax_config:
                 with open(CONFIGFILE) as f:
                     relax_config = list(parse_relax_config(f))
-                with open(DESCFILE) as f:
-                    relax_desc = parse_relax_desc(f)
-            else:
-                relax_desc = None
 
-    return Execution(output, elapsed, status, relax_config,
-                     relax_desc, roitime)
+    return Execution(output, elapsed, status, relax_config, roitime)
 
 
 # Configuration space exploration.
@@ -354,14 +334,14 @@ def config_subsumes(a, b):
             return False
     return True
 
-def cap_config(config, descs):
+def cap_config(config):
     """Reduce configuration parameters that exceed their maxima,
     returning a new configuration. `descs` describes each optimization
     site and dictates the maxima.
     """
     out = []
     for ident, param in config:
-        max_param = PARAM_MAX[descs[ident].split()[0]]
+        max_param = PARAM_MAX[ident.split()[0]]
         if param > max_param:
             param = max_param
         out.append((ident, param))
@@ -619,7 +599,6 @@ class Evaluation(object):
         # Results, to be populated later.
         self.ptimes = []
         self.pout = None
-        self.descs = None
         self.base_elapsed = None
         self.ptimes = []
         self.base_config = None
@@ -629,8 +608,8 @@ class Evaluation(object):
     def setup(self):
         """Submit the baseline precise executions and gather some
         information about the first. Set the fields `pout` (the precise
-        output), `pout` (precise execution time), `base_config`,
-        `base_configs`, and `descs`.
+        output), `pout` (precise execution time), `base_config`, and
+        `base_configs`.
         """
         # Precise (baseline) execution.
         for rep in range(self.reps):
@@ -645,7 +624,6 @@ class Evaluation(object):
         self.pout = pex.output
         self.base_elapsed = pex.elapsed
         self.base_config = pex.config
-        self.descs = pex.desc
         self.base_configs = list(permute_config(self.base_config))
 
     def precise_times(self):
@@ -730,7 +708,7 @@ class Evaluation(object):
             # evaluate.
             gen_configs = []
             for res in survivors:
-                increased = cap_config(increase_config(res.config), self.descs)
+                increased = cap_config(increase_config(res.config))
                 if increased != res.config:
                     gen_configs.append(increased)
             gen_res = self.run_approx(gen_configs)

@@ -52,14 +52,12 @@ namespace {
 
       // One global optimization parameter controls whether we should enable
       // alias relaxation. (For now.)
-      relaxId = transformPass->opportunityId;
-      ++(transformPass->opportunityId);
+      std::string relaxName = "alias relaxation";
       if (transformPass->relax) {
-        relaxParam = transformPass->relaxConfig[relaxId];
+        relaxParam = transformPass->relaxConfig[relaxName];
       } else {
         relaxParam = 0;
-        transformPass->relaxConfig[relaxId] = 0;
-        transformPass->configDesc[relaxId] = "alias relaxation";
+        transformPass->relaxConfig[relaxName] = 0;
       }
     }
 
