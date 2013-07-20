@@ -31,7 +31,6 @@ cl::opt<bool> optRelax ("accept-relax",
 
 ACCEPTPass::ACCEPTPass() : FunctionPass(ID) {
   module = 0;
-  opportunityId = 0;
   log = 0;
 
   relax = optRelax;
@@ -160,20 +159,12 @@ const char *ACCEPTPass::getPassName() const {
 
 void ACCEPTPass::dumpRelaxConfig() {
   std::ofstream configFile("accept_config.txt", std::ios_base::out);
-  for (std::map<int, int>::iterator i = relaxConfig.begin();
+  for (std::map<std::string, int>::iterator i = relaxConfig.begin();
         i != relaxConfig.end(); ++i) {
-    configFile << i->first << " "
-                << i->second << "\n";
+    configFile << i->second << " "
+               << i->first << "\n";
   }
   configFile.close();
-
-  std::ofstream descFile("accept_config_desc.txt", std::ios_base::out);
-  for (std::map<int, std::string>::iterator i = configDesc.begin();
-        i != configDesc.end(); ++i) {
-    descFile << i->first << " "
-              << i->second << "\n";
-  }
-  descFile.close();
 }
 
 void ACCEPTPass::loadRelaxConfig() {
@@ -184,9 +175,10 @@ void ACCEPTPass::loadRelaxConfig() {
   }
 
   while (configFile.good()) {
-    int ident;
+    std::string ident;
     int param;
-    configFile >> ident >> param;
+    configFile >> param;
+    getline(configFile, ident);
     relaxConfig[ident] = param;
   }
 

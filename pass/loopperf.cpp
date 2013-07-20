@@ -25,9 +25,8 @@ void ACCEPTPass::optimizeLoopsHelper(Loop *loop, int &perforatedLoops) {
   for (int i = 0; i < subLoops.size(); ++i)
     // Recurse into subloops.
     optimizeLoopsHelper(subLoops[i], perforatedLoops);
-  if (tryToOptimizeLoop(loop, opportunityId))
+  if (tryToOptimizeLoop(loop))
     ++perforatedLoops;
-  ++opportunityId;;
 }
 
 // Assess whether a loop can be optimized and, if so, log some messages and
@@ -35,7 +34,7 @@ void ACCEPTPass::optimizeLoopsHelper(Loop *loop, int &perforatedLoops) {
 // configuration map will be used to actually transform the loop. Returns a
 // boolean indicating whether the code was changed (i.e., the loop
 // perforated).
-bool ACCEPTPass::tryToOptimizeLoop(Loop *loop, int id) {
+bool ACCEPTPass::tryToOptimizeLoop(Loop *loop) {
   bool transformed = false;
 
   std::stringstream ss;
@@ -133,17 +132,16 @@ bool ACCEPTPass::tryToOptimizeLoop(Loop *loop, int id) {
   }
 
   if (!blockers.size()) {
-    *log << "can perforate loop " << id << "\n";
+    *log << "can perforate loop\n";
     if (relax) {
-      int param = relaxConfig[id];
+      int param = relaxConfig[loopName];
       if (param) {
         *log << "perforating with factor 2^" << param << "\n";
         perforateLoop(loop, param, isForLike);
         transformed = true;
       }
     } else {
-      relaxConfig[id] = 0;
-      configDesc[id] = loopName;
+      relaxConfig[loopName] = 0;
     }
   }
 

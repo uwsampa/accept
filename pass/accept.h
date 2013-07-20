@@ -85,8 +85,7 @@ struct ACCEPTPass : public llvm::FunctionPass {
   static char ID;
 
   llvm::Module *module;
-  std::map<int, int> relaxConfig;  // ident -> param
-  std::map<int, std::string> configDesc;  // ident -> description
+  std::map<std::string, int> relaxConfig;  // ident -> param
   int opportunityId;
   llvm::raw_fd_ostream *log;
   std::map<llvm::Function*, llvm::DISubprogram> funcDebugInfo;
@@ -113,12 +112,12 @@ struct ACCEPTPass : public llvm::FunctionPass {
 
   bool optimizeLoops(llvm::Function &F);
   void optimizeLoopsHelper(llvm::Loop *loop, int &perforatedLoops);
-  bool tryToOptimizeLoop(llvm::Loop *loop, int id);
+  bool tryToOptimizeLoop(llvm::Loop *loop);
   void perforateLoop(llvm::Loop *loop, int logfactor, bool isForLike);
 
   bool optimizeSync(llvm::Function &F);
-  bool optimizeAcquire(llvm::Instruction *inst, int id);
-  bool optimizeBarrier(llvm::Instruction *bar1, int id);
+  bool optimizeAcquire(llvm::Instruction *inst);
+  bool optimizeBarrier(llvm::Instruction *bar1);
   llvm::Instruction *findCritSec(llvm::Instruction *acq, std::set<llvm::Instruction*> &cs);
   llvm::Instruction *findApproxCritSec(llvm::Instruction *acq);
 };

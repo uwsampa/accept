@@ -12,7 +12,7 @@ OPT_KINDS = {
     'aarelax':  ('alias',),
 }
 
-def dump_config(config, descs):
+def dump_config(config):
     """Given a relaxation configuration and an accompanying description
     map, returning a human-readable string describing it.
     """
@@ -22,10 +22,10 @@ def dump_config(config, descs):
 
     out = []
     for ident, param in optimizations:
-        out.append(u'{} @ {}'.format(descs[ident], param))
+        out.append(u'{} @ {}'.format(ident, param))
     return u', '.join(out)
 
-def dump_results_human(results, descs, pout, verbose):
+def dump_results_human(results, pout, verbose):
     """Generate human-readable text (as a sequence of lines) for
     the results.
     """
@@ -39,7 +39,7 @@ def dump_results_human(results, descs, pout, verbose):
         len(optimal), len(suboptimal), len(bad)
     )
     for res in optimal:
-        yield dump_config(res.config, descs)
+        yield dump_config(res.config)
         yield '{} % error'.format(res.error * 100)
         yield '{} speedup'.format(res.speedup)
         if verbose and isinstance(res.outputs[0], str):
@@ -48,23 +48,23 @@ def dump_results_human(results, descs, pout, verbose):
     if verbose:
         yield '\nsuboptimal configs:'
         for res in suboptimal:
-            yield dump_config(res.config, descs)
+            yield dump_config(res.config)
             yield '{} % error'.format(res.error * 100)
             yield '{} speedup'.format(res.speedup)
 
         yield '\nbad configs:'
         for res in bad:
-            yield dump_config(res.config, descs)
+            yield dump_config(res.config)
             yield res.desc
 
-def dump_results_json(results, descs):
+def dump_results_json(results):
     """Return a JSON-like representation of the results.
     """
     results, _, _ = core.triage_results(results)
     out = []
     for res in results:
         out.append({
-            'config': dump_config(res.config, descs),
+            'config': dump_config(res.config),
             'error_mu': res.error.value,
             'error_sigma': res.error.error,
             'speedup_mu': res.speedup.value,
@@ -107,7 +107,7 @@ def run_experiments(ev):
         kind_configs = []
         for config in ev.base_configs:
             for ident, param in config:
-                if param and not ev.descs[ident].startswith(words):
+                if param and not ident.startswith(words):
                     break
             else:
                 kind_configs.append(config)
@@ -135,25 +135,24 @@ def evaluate(client, appname, verbose=False, reps=1, as_json=False):
 
     if as_json:
         out = {}
-        out['main'] = dump_results_json(main_results, exp.descs)
+        out['main'] = dump_results_json(main_results)
         isolated = {}
         for kind, results in kind_results.items():
-            isolated[kind] = dump_results_json(results, exp.descs)
+            isolated[kind] = dump_results_json(results)
         out['isolated'] = isolated
         out['time'] = exp_time
         return out
 
     else:
         out = list(
-            dump_results_human(main_results, exp.descs, exp.pout, verbose)
+            dump_results_human(main_results, exp.pout, verbose)
         )
         if verbose:
             for kind, results in kind_results.items():
                 out.append('')
                 if results:
                     out.append('ISOLATING {}:'.format(kind))
-                    out += dump_results_human(results, exp.descs, exp.pout,
-                                              verbose)
+                    out += dump_results_human(results, exp.pout, verbose)
                 else:
                     out.append('No results for isolating {}.'.format(kind))
         return '\n'.join(out)

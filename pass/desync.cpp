@@ -173,7 +173,7 @@ Instruction *ACCEPTPass::findApproxCritSec(Instruction *acq) {
 }
 
 
-bool ACCEPTPass::optimizeAcquire(Instruction *acq, int id) {
+bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
   // Generate a name for this opportunity site.
   std::string optName = siteName("lock acquire", acq);
   *log << "---\n" << optName << "\n";
@@ -183,9 +183,9 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq, int id) {
     return false;
 
   // Success.
-  *log << "can elide lock " << id << "\n";
+  *log << "can elide lock\n";
   if (relax) {
-    int param = relaxConfig[id];
+    int param = relaxConfig[optName];
     if (param) {
       // Remove the acquire and release calls.
       *log << "eliding lock\n";
@@ -194,15 +194,14 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq, int id) {
       return true;
     }
   } else {
-    relaxConfig[id] = 0;
-    configDesc[id] = optName;
+    relaxConfig[optName] = 0;
   }
   return false;
 }
 
 
 
-bool ACCEPTPass::optimizeBarrier(Instruction *bar1, int id) {
+bool ACCEPTPass::optimizeBarrier(Instruction *bar1) {
   std::string optName = siteName("barrier", bar1);
   *log << "---\n" << optName << "\n";
 
@@ -210,9 +209,9 @@ bool ACCEPTPass::optimizeBarrier(Instruction *bar1, int id) {
     return false;
 
   // Success.
-  *log << "can elide barrier " << id << "\n";
+  *log << "can elide barrier\n";
   if (relax) {
-    int param = relaxConfig[id];
+    int param = relaxConfig[optName];
     if (param) {
       // Remove the first barrier.
       *log << "eliding barrier wait\n";
@@ -220,8 +219,7 @@ bool ACCEPTPass::optimizeBarrier(Instruction *bar1, int id) {
       return true;
     }
   } else {
-    relaxConfig[id] = 0;
-    configDesc[id] = optName;
+    relaxConfig[optName] = 0;
   }
   return false;
 }
@@ -234,11 +232,10 @@ bool ACCEPTPass::optimizeSync(Function &F) {
       if (isAcquire(bi) || isBarrier(bi)) {
         bool optimized;
         if (isAcquire(bi))
-          optimized = optimizeAcquire(bi, opportunityId);
+          optimized = optimizeAcquire(bi);
         else
-          optimized = optimizeBarrier(bi, opportunityId);
+          optimized = optimizeBarrier(bi);
         changed |= optimized;
-        ++opportunityId;
         if (optimized)
           // Stop iterating over this block, since it changed (and there's
           // almost certainly not another critical section in here anyway).
