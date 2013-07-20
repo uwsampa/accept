@@ -1,5 +1,5 @@
 TARGET := blackscholes
-LDFLAGS := -lm
+LDFLAGS := -lm -pthread
 CFLAGS := -pthread -DENABLE_THREADS
 
 blackscholes.m4.cpp: blackscholes.c c.m4.pthreads
