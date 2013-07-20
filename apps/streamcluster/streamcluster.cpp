@@ -68,7 +68,7 @@ static int nproc; //# of threads
 
 
 
-float dist(Point p1, Point p2, int dim);
+APPROX float dist(const Point &p1, const Point &p2, int dim);
 
 
 
@@ -127,7 +127,7 @@ void intshuffle(int *intarray, int length)
 }
 
 /* compute Euclidean distance squared between two points */
-APPROX float dist(Point p1, Point p2, int dim)
+APPROX float dist(const Point &p1, const Point &p2, int dim)
 {
   int i;
   APPROX float result=0.0;
@@ -299,7 +299,7 @@ APPROX double pgain(long x, Points *points, APPROX double z, long int *numcenter
 
   APPROX static double *work_mem;
   APPROX static double gl_cost_of_opening_x;
-  static int gl_number_of_centers_to_close;
+  APPROX static int gl_number_of_centers_to_close;
 
   //each thread takes a block of working_mem.
   int stride = *numcenters+2;
@@ -311,7 +311,7 @@ APPROX double pgain(long x, Points *points, APPROX double z, long int *numcenter
   int K = stride -2 ; // K==*numcenters
   
   //my own cost of opening x
-  double cost_of_opening_x = 0;
+  APPROX double cost_of_opening_x = 0;
 
   if( pid==0 )    { 
     work_mem = (double*) malloc(stride*(nproc+1)*sizeof(double));
@@ -471,7 +471,7 @@ APPROX double pgain(long x, Points *points, APPROX double z, long int *numcenter
     }
 
     if( pid==0 ) {
-      *numcenters = *numcenters + 1 - gl_number_of_centers_to_close;
+      *numcenters = *numcenters + 1 - ENDORSE(gl_number_of_centers_to_close);
     }
   }
   else {
