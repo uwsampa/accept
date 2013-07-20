@@ -717,5 +717,7 @@ class Evaluation(object):
         configurations.
         """
         logging.info('evaluating combined configs')
-        optimal, _, _ = triage_results(component_results)
-        return self.run_approx(list(bce_greedy(optimal)))
+        optimal, good, _ = triage_results(component_results)
+        candidates = set(bce_greedy(optimal))
+        candidates = candidates.union(bce_greedy(optimal + good))
+        return self.run_approx(list(candidates))
