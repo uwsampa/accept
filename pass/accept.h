@@ -23,6 +23,7 @@ namespace llvm {
   void initializeAcceptAAPass(PassRegistry &Registry);
   FunctionPass *createAcceptTransformPass();
   extern FunctionPass *sharedAcceptTransformPass;
+  LoopPass *createLoopPerfPass();
 
   std::string srcPosDesc(const Module &mod, const DebugLoc &dl);
   std::string instDesc(const Module &mod, Instruction *inst);
@@ -100,7 +101,6 @@ struct ACCEPTPass : public llvm::FunctionPass {
   virtual bool doFinalization(llvm::Module &M);
 
   bool shouldSkipFunc(llvm::Function &F);
-  llvm::IntegerType *getNativeIntegerType();
   std::string siteName(std::string kind, llvm::Instruction *at);
 
   void collectFuncDebug(llvm::Module &M);
@@ -109,11 +109,6 @@ struct ACCEPTPass : public llvm::FunctionPass {
 
   void dumpRelaxConfig();
   void loadRelaxConfig();
-
-  bool optimizeLoops(llvm::Function &F);
-  void optimizeLoopsHelper(llvm::Loop *loop, int &perforatedLoops);
-  bool tryToOptimizeLoop(llvm::Loop *loop);
-  void perforateLoop(llvm::Loop *loop, int logfactor, bool isForLike);
 
   bool optimizeSync(llvm::Function &F);
   bool optimizeAcquire(llvm::Instruction *inst);

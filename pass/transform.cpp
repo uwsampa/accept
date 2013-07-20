@@ -83,7 +83,7 @@ bool ACCEPTPass::runOnFunction(Function &F) {
   if (shouldSkipFunc(F))
     return false;
 
-  return optimizeLoops(F) || optimizeSync(F);
+  return optimizeSync(F);
 }
 
 // Find the debug info for every "subprogram" (i.e., function).
@@ -142,12 +142,6 @@ bool ACCEPTPass::doFinalization(Module &M) {
   if (!relax)
     dumpRelaxConfig();
   return false;
-}
-
-IntegerType *ACCEPTPass::getNativeIntegerType() {
-  DataLayout layout(module->getDataLayout());
-  return Type::getIntNTy(module->getContext(),
-                          layout.getPointerSizeInBits());
 }
 
 const char *ACCEPTPass::getPassName() const {
