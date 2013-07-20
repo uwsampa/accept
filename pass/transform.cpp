@@ -178,6 +178,9 @@ void ACCEPTPass::loadRelaxConfig() {
     std::string ident;
     int param;
     configFile >> param;
+    if (!configFile.good())
+      break;
+    configFile.ignore(); // Skip space.
     getline(configFile, ident);
     relaxConfig[ident] = param;
   }
