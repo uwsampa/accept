@@ -31,6 +31,14 @@ PARAM_MAX = {
     'barrier': 1,
     'alias': 1,
 }
+SEARCH_MAX_ERRORS = [
+    0.3,
+    0.2,
+    0.1,
+    0.075,
+    0.05,
+    0.01,
+]
 EPSILON_ERROR = 0.001
 EPSILON_SPEEDUP = 0.01
 BUILD_TIMEOUT = 60 * 20
@@ -436,8 +444,11 @@ def bce_greedy(results, max_error=MAX_ERROR):
     for i, (_, speedup, error) in enumerate(components):
         # Linear-combining performance score: 1 - s^-1
         value = 1.0 - speedup ** -1.0
-        error = max(error, 0.001)  # Avoid divide-by-zero.
-        score = value / error
+        if error:
+            score = value / error
+        else:
+            # Avoid divide-by-zero.
+            score = 'max'
         scored.append((score, i))
     scored.sort(reverse=True)
 
@@ -446,7 +457,7 @@ def bce_greedy(results, max_error=MAX_ERROR):
     cur_combined = None  # Current merged config.
     cur_error = 0.0
     for _, i in scored:
-        config, speedup, error = components[i]
+        config, _, error = components[i]
 
         if cur_combined is None:
             # Add first item to knapsack.
@@ -465,8 +476,10 @@ def bce_greedy(results, max_error=MAX_ERROR):
 
     # Here, we could predict the speedup for validation.
 
-    for num in range(1, len(knapsack) + 1):
-        yield combine_configs([components[i][0] for i in knapsack[:num]])
+    return cur_combined
+
+def bce_greedy_all(results, max_errors=SEARCH_MAX_ERRORS):
+    return filter(None, [bce_greedy(results, m) for m in max_errors])
 
 
 # Results.
@@ -739,5 +752,6 @@ class Evaluation(object):
         configurations.
         """
         logging.info('evaluating combined configs')
-        optimal, _, _ = triage_results(component_results)
-        return self.run_approx(list(bce_greedy(optimal)))
+        return self.run_approx(bce_greedy_all(
+            [r for r in component_results if r.good]
+        ))
