@@ -695,7 +695,7 @@ static void refine_subpel( x264_t *h, x264_me_t *m, int hpel_iters, int qpel_ite
     const int i_pixel = m->i_pixel;
     const int b_chroma_me = h->mb.b_chroma_me && i_pixel <= PIXEL_8x8;
 
-    DECLARE_ALIGNED_16( uint8_t pix[2][32*18] ); // really 17x17, but round up for alignment
+    DECLARE_ALIGNED_16( APPROX uint8_t pix[2][32*18] ); // really 17x17, but round up for alignment
     int omx, omy;
     int i;
 

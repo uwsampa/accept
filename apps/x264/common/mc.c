@@ -31,9 +31,9 @@
 #endif
 
 
-static inline void pixel_avg( uint8_t *dst,  int i_dst_stride,
-                              uint8_t *src1, int i_src1_stride,
-                              uint8_t *src2, int i_src2_stride,
+static inline void pixel_avg( APPROX uint8_t *dst,  int i_dst_stride,
+                              APPROX uint8_t *src1, int i_src1_stride,
+                              APPROX uint8_t *src2, int i_src2_stride,
                               int i_width, int i_height )
 {
     int x, y;
@@ -49,7 +49,7 @@ static inline void pixel_avg( uint8_t *dst,  int i_dst_stride,
     }
 }
 
-static inline void pixel_avg_wxh( uint8_t *dst, int i_dst, uint8_t *src1, int i_src1, uint8_t *src2, int i_src2, int width, int height )
+static inline void pixel_avg_wxh( APPROX uint8_t *dst, int i_dst, APPROX uint8_t *src1, int i_src1, APPROX uint8_t *src2, int i_src2, int width, int height )
 {
     int x, y;
     for( y = 0; y < height; y++ )
@@ -66,8 +66,8 @@ static inline void pixel_avg_wxh( uint8_t *dst, int i_dst, uint8_t *src1, int i_
 
 /* Implicit weighted bipred only:
  * assumes log2_denom = 5, offset = 0, weight1 + weight2 = 64 */
-#define op_scale2(x) dst[x] = x264_clip_uint8( (src1[x]*i_weight1 + src2[x]*i_weight2 + (1<<5)) >> 6 )
-static inline void pixel_avg_weight_wxh( uint8_t *dst, int i_dst, uint8_t *src1, int i_src1, uint8_t *src2, int i_src2, int width, int height, int i_weight1 )
+#define op_scale2(x) dst[x] = x264_clip_uint8( ENDORSE((src1[x]*i_weight1 + src2[x]*i_weight2 + (1<<5)) >> 6) )
+static inline void pixel_avg_weight_wxh( APPROX uint8_t *dst, int i_dst, APPROX uint8_t *src1, int i_src1, APPROX uint8_t *src2, int i_src2, int width, int height, int i_weight1 )
 {
     int y;
     const int i_weight2 = 64 - i_weight1;
@@ -97,9 +97,9 @@ static inline void pixel_avg_weight_wxh( uint8_t *dst, int i_dst, uint8_t *src1,
 #undef op_scale2
 
 #define PIXEL_AVG_C( name, width, height ) \
-static void name( uint8_t *pix1, int i_stride_pix1, \
-                  uint8_t *pix2, int i_stride_pix2, \
-                  uint8_t *pix3, int i_stride_pix3, int weight ) \
+static void name( APPROX uint8_t *pix1, int i_stride_pix1, \
+                  APPROX uint8_t *pix2, int i_stride_pix2, \
+                  APPROX uint8_t *pix3, int i_stride_pix3, int weight ) \
 { \
     if( weight == 32 )\
         pixel_avg_wxh( pix1, i_stride_pix1, pix2, i_stride_pix2, pix3, i_stride_pix3, width, height ); \
@@ -117,7 +117,7 @@ PIXEL_AVG_C( pixel_avg_4x2,   4, 2 )
 PIXEL_AVG_C( pixel_avg_2x4,   2, 4 )
 PIXEL_AVG_C( pixel_avg_2x2,   2, 2 )
 
-static void mc_copy( uint8_t *src, int i_src_stride, uint8_t *dst, int i_dst_stride, int i_width, int i_height )
+static void mc_copy( APPROX uint8_t *src, int i_src_stride, APPROX uint8_t *dst, int i_dst_stride, int i_width, int i_height )
 {
     int y;
 
@@ -159,18 +159,18 @@ static void hpel_filter( uint8_t *dsth, uint8_t *dstv, uint8_t *dstc, uint8_t *s
 static const int hpel_ref0[16] = {0,1,1,1,0,1,1,1,2,3,3,3,0,1,1,1};
 static const int hpel_ref1[16] = {0,0,0,0,2,2,3,2,2,2,3,2,2,2,3,2};
 
-static void mc_luma( uint8_t *dst,    int i_dst_stride,
-                     uint8_t *src[4], int i_src_stride,
+static void mc_luma( APPROX uint8_t *dst,    int i_dst_stride,
+                     APPROX uint8_t *src[4], int i_src_stride,
                      int mvx, int mvy,
                      int i_width, int i_height )
 {
     int qpel_idx = ((mvy&3)<<2) + (mvx&3);
     int offset = (mvy>>2)*i_src_stride + (mvx>>2);
-    uint8_t *src1 = src[hpel_ref0[qpel_idx]] + offset + ((mvy&3) == 3) * i_src_stride;
+    APPROX uint8_t *src1 = src[hpel_ref0[qpel_idx]] + offset + ((mvy&3) == 3) * i_src_stride;
 
     if( qpel_idx & 5 ) /* qpel interpolation needed */
     {
-        uint8_t *src2 = src[hpel_ref1[qpel_idx]] + offset + ((mvx&3) == 3);
+        APPROX uint8_t *src2 = src[hpel_ref1[qpel_idx]] + offset + ((mvx&3) == 3);
         pixel_avg( dst, i_dst_stride, src1, i_src_stride,
                    src2, i_src_stride, i_width, i_height );
     }
@@ -180,18 +180,18 @@ static void mc_luma( uint8_t *dst,    int i_dst_stride,
     }
 }
 
-static uint8_t *get_ref( uint8_t *dst,   int *i_dst_stride,
-                         uint8_t *src[4], int i_src_stride,
+APPROX static uint8_t *get_ref( APPROX uint8_t *dst,   int *i_dst_stride,
+                         APPROX uint8_t *src[4], int i_src_stride,
                          int mvx, int mvy,
                          int i_width, int i_height )
 {
     int qpel_idx = ((mvy&3)<<2) + (mvx&3);
     int offset = (mvy>>2)*i_src_stride + (mvx>>2);
-    uint8_t *src1 = src[hpel_ref0[qpel_idx]] + offset + ((mvy&3) == 3) * i_src_stride;
+    APPROX uint8_t *src1 = src[hpel_ref0[qpel_idx]] + offset + ((mvy&3) == 3) * i_src_stride;
 
     if( qpel_idx & 5 ) /* qpel interpolation needed */
     {
-        uint8_t *src2 = src[hpel_ref1[qpel_idx]] + offset + ((mvx&3) == 3);
+        APPROX uint8_t *src2 = src[hpel_ref1[qpel_idx]] + offset + ((mvx&3) == 3);
         pixel_avg( dst, *i_dst_stride, src1, i_src_stride,
                    src2, i_src_stride, i_width, i_height );
         return dst;
@@ -238,7 +238,7 @@ static void mc_chroma( uint8_t *dst, int i_dst_stride,
 }
 
 #define MC_COPY(W) \
-static void mc_copy_w##W( uint8_t *dst, int i_dst, uint8_t *src, int i_src, int i_height ) \
+static void mc_copy_w##W( APPROX uint8_t *dst, int i_dst, APPROX uint8_t *src, int i_src, int i_height ) \
 { \
     mc_copy( src, i_src, dst, i_dst, W, i_height ); \
 }
