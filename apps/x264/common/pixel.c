@@ -163,22 +163,25 @@ PIXEL_VAR_C( x264_pixel_var_8x8,    8, 6 )
 
 
 #define HADAMARD4(d0,d1,d2,d3,s0,s1,s2,s3) {\
-    int t0 = s0 + s1;\
-    int t1 = s0 - s1;\
-    int t2 = s2 + s3;\
-    int t3 = s2 - s3;\
-    d0 = t0 + t2;\
-    d2 = t0 - t2;\
-    d1 = t1 + t3;\
-    d3 = t1 - t3;\
+    APPROX int t0 = s0 + s1;\
+    APPROX int t1 = s0 - s1;\
+    APPROX int t2 = s2 + s3;\
+    APPROX int t3 = s2 - s3;\
+    d0 = ENDORSE(t0 + t2);\
+    d2 = ENDORSE(t0 - t2);\
+    d1 = ENDORSE(t1 + t3);\
+    d3 = ENDORSE(t1 - t3);\
 }
+
+// EnerC: The above endorsements work around a deficiency in multidimensional
+// array indexing types.
 
 /****************************************************************************
  * pixel_satd_WxH: sum of 4x4 Hadamard transformed differences
  ****************************************************************************/
-static int pixel_satd_wxh( uint8_t *pix1, int i_pix1, uint8_t *pix2, int i_pix2, int i_width, int i_height )
+static int pixel_satd_wxh( APPROX uint8_t *pix1, int i_pix1, APPROX uint8_t *pix2, int i_pix2, int i_width, int i_height )
 {
-    int16_t tmp[4][4];
+    APPROX int16_t tmp[4][4];
     int x, y;
     int i_satd = 0;
 
@@ -187,14 +190,14 @@ static int pixel_satd_wxh( uint8_t *pix1, int i_pix1, uint8_t *pix2, int i_pix2,
         for( x = 0; x < i_width; x += 4 )
         {
             int i;
-            uint8_t *p1 = pix1+x, *p2 = pix2+x;
+            APPROX uint8_t *p1 = pix1+x, *p2 = pix2+x;
 
             for( i=0; i<4; i++, p1+=i_pix1, p2+=i_pix2 )
             {
-                int a0 = p1[0] - p2[0];
-                int a1 = p1[1] - p2[1];
-                int a2 = p1[2] - p2[2];
-                int a3 = p1[3] - p2[3];
+                APPROX int a0 = p1[0] - p2[0];
+                APPROX int a1 = p1[1] - p2[1];
+                APPROX int a2 = p1[2] - p2[2];
+                APPROX int a3 = p1[3] - p2[3];
                 HADAMARD4( tmp[i][0], tmp[i][1], tmp[i][2], tmp[i][3], a0,a1,a2,a3 );
             }
             for( i=0; i<4; i++ )
@@ -212,8 +215,8 @@ static int pixel_satd_wxh( uint8_t *pix1, int i_pix1, uint8_t *pix2, int i_pix2,
     return i_satd / 2;
 }
 #define PIXEL_SATD_C( name, width, height ) \
-static int name( uint8_t *pix1, int i_stride_pix1, \
-                 uint8_t *pix2, int i_stride_pix2 ) \
+static int name( APPROX uint8_t *pix1, int i_stride_pix1, \
+                 APPROX uint8_t *pix2, int i_stride_pix2 ) \
 { \
     return pixel_satd_wxh( pix1, i_stride_pix1, pix2, i_stride_pix2, width, height ); \
 }
@@ -401,13 +404,13 @@ SAD_X( 8x8_vis )
  ****************************************************************************/
 
 #define SATD_X( size, cpu ) \
-static void x264_pixel_satd_x3_##size##cpu( uint8_t *fenc, uint8_t *pix0, uint8_t *pix1, uint8_t *pix2, int i_stride, int scores[3] )\
+static void x264_pixel_satd_x3_##size##cpu( APPROX uint8_t *fenc, APPROX uint8_t *pix0, APPROX uint8_t *pix1, APPROX uint8_t *pix2, int i_stride, int scores[3] )\
 {\
     scores[0] = x264_pixel_satd_##size##cpu( fenc, FENC_STRIDE, pix0, i_stride );\
     scores[1] = x264_pixel_satd_##size##cpu( fenc, FENC_STRIDE, pix1, i_stride );\
     scores[2] = x264_pixel_satd_##size##cpu( fenc, FENC_STRIDE, pix2, i_stride );\
 }\
-static void x264_pixel_satd_x4_##size##cpu( uint8_t *fenc, uint8_t *pix0, uint8_t *pix1, uint8_t *pix2, uint8_t *pix3, int i_stride, int scores[4] )\
+static void x264_pixel_satd_x4_##size##cpu( APPROX uint8_t *fenc, APPROX uint8_t *pix0, APPROX uint8_t *pix1, APPROX uint8_t *pix2, APPROX uint8_t *pix3, int i_stride, int scores[4] )\
 {\
     scores[0] = x264_pixel_satd_##size##cpu( fenc, FENC_STRIDE, pix0, i_stride );\
     scores[1] = x264_pixel_satd_##size##cpu( fenc, FENC_STRIDE, pix1, i_stride );\
