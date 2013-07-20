@@ -630,7 +630,7 @@ APPROX float pkmedian(Points *points, long kmin, long kmax, long* kfinal,
   static long k;
   static int *feasible;
   static int numfeasible;
-  static double* hizs;
+  APPROX static double* hizs;
 
   if( pid==0 ) hizs = (double*)calloc(nproc,sizeof(double));
   hiz = loz = 0.0;
@@ -647,7 +647,7 @@ APPROX float pkmedian(Points *points, long kmin, long kmax, long* kfinal,
   pthread_barrier_wait(barrier);
 #endif
 
-  double myhiz = 0;
+  APPROX double myhiz = 0;
   for (long kk=k1;kk < k2; kk++ ) {
     myhiz += dist(points->p[kk], points->p[0],
 		      ptDimension)*points->p[kk].weight;
