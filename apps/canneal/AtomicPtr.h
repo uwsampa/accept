@@ -125,10 +125,10 @@ class AtomicPtr {
 
 #ifdef ENABLE_THREADS
       do {
-        val = Get();
+        val = ENDORSE(Get());
       } while(!atomic_cmpset_ptr((ATOMIC_TYPE *)&p, (ATOMIC_TYPE)val, (ATOMIC_TYPE)x));
 #else
-        val = Get();
+        val = ENDORSE(Get());
         p = x;
 #endif //ENABLE_THREADS
 
@@ -168,7 +168,7 @@ class AtomicPtr {
 
     //copy constructor
     AtomicPtr(const AtomicPtr<T> &X) {
-      p = X.Get();
+      p = ENDORSE(X.Get());
     }
 
     // *** Functions to modify and obtain encapsulated data ***
@@ -188,19 +188,19 @@ class AtomicPtr {
     }
 
     //return the current value of the pointer
-    inline T *Get() const {
+    APPROX inline T *Get() const {
       T *val;
 
 #ifdef ENABLE_THREADS
       do {
-        val = (T *)atomic_load_acq_ptr((ATOMIC_TYPE *)&p);
+        val = (T *)atomic_load_acq_ptr((ATOMIC_TYPE *)&p); //ACCEPT_PERMIT
       } while(val == ATOMIC_NULL);
 #else
       val = p;
       assert(val != ATOMIC_NULL);
 #endif //ENABLE_THREADS
 
-      return val;
+      return DEDORSE(val);
     }
 
     //writes the current value of the pointer to *x and returns true
@@ -301,7 +301,7 @@ class AtomicPtr {
     // *** Operators ***
 
 
-    T operator*() {
+    APPROX T operator*() {
       return *Get();
     }
 

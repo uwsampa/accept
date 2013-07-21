@@ -2,6 +2,8 @@ TARGET := canneal
 CFLAGS := -DENABLE_THREADS -pthread
 LDFLAGS := -pthread
 
+HEADERS := $(wildcard *.h)
+
 # RUNARGS := 1 15000 2000 2500000.nets 6000  # native
 # RUNARGS := 1 15000 2000 400000.nets 128  # simlarge
 RUNARGS := 4 15000 2000 200000.nets 64  # simmedium
