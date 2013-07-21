@@ -693,18 +693,19 @@ class Evaluation(object):
 
             # Increase the aggressiveness of each configuration and
             # evaluate.
-            gen_configs = []
+            gen_configs = {}
             for res in survivors:
                 increased = cap_config(increase_config(res.config))
                 if increased != res.config:
-                    gen_configs.append(increased)
+                    gen_configs[increased] = res
             gen_res = self.run_approx(gen_configs)
 
             # Produce the next generation, eliminating any config that
             # has too much error or that offers no speedup over its
             # parent.
             next_gen = []
-            for res, old_res in zip(gen_res, survivors):
+            for res in gen_res:
+                old_res = gen_configs[res.config]
                 if res.safe and res.duration < old_res.duration:
                     next_gen.append(res)
             survivors = next_gen
