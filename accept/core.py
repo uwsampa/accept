@@ -706,7 +706,7 @@ class Evaluation(object):
             next_gen = []
             for res in gen_res:
                 old_res = gen_configs[res.config]
-                if res.safe and res.duration < old_res.duration:
+                if res.safe and not res.duration > old_res.duration:
                     next_gen.append(res)
             survivors = next_gen
             all_results += survivors
