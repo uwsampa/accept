@@ -26,6 +26,8 @@ namespace {
       return false;
     }
     virtual bool runOnLoop(Loop *loop, LPPassManager &LPM) {
+      if (transformPass->shouldSkipFunc(*(loop->getHeader()->getParent())))
+          return false;
       module = loop->getHeader()->getParent()->getParent();
       LI = &getAnalysis<LoopInfo>();
       return tryToOptimizeLoop(loop);
