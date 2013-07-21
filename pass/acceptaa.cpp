@@ -61,9 +61,21 @@ namespace {
       }
     }
 
+    bool approxPointerLoc(const Value *val) {
+      if (isApproxPtr(val))
+        return true;
+      if (const Instruction *inst = dyn_cast<Instruction>(val))
+        if (isApprox(inst))
+          return true;
+      return false;
+    }
+
     virtual AliasResult alias(const Location &LocA, const Location &LocB) {
       if (!relaxParam)
-        return MayAlias;
+        return AliasAnalysis::alias(LocA, LocB);
+
+      if (approxPointerLoc(LocA.Ptr) || approxPointerLoc(LocB.Ptr))
+        return NoAlias;
 
       // Mallocs, callocs...
       if (const Instruction *inst = dyn_cast<Instruction>(LocA.Ptr)) {

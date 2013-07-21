@@ -122,10 +122,27 @@ void _parse_globals() {
   }
 }
 
-bool isApproxPtr(const Value *value) {
+bool isApproxPtr(const Value *value, std::set<const Value *> &seen) {
+  // Avoid infinite loops through phi nodes.
+  if (seen.count(value))
+    return false;
+  seen.insert(value);
+
+  // Special cases.
   if (const BitCastInst *cast = dyn_cast<BitCastInst>(value)) {
-    return isApproxPtr(cast->getOperand(0));
+    if (isApproxPtr(cast->getOperand(0), seen))
+      return true;
+  } else if (const GetElementPtrInst *gep = dyn_cast<GetElementPtrInst>(value)) {
+    if (isApproxPtr(gep->getPointerOperand(), seen))
+      return true;
+  } else if (const PHINode *phi = dyn_cast<PHINode>(value)) {
+    for (unsigned i = 0; i != phi->getNumIncomingValues(); ++i) {
+      if (isApproxPtr(phi->getIncomingValue(i), seen))
+        return true;
+    }
   }
+
+  // General instructions and globals.
   if (const Instruction *instr = dyn_cast<Instruction>(value)) {
     MDNode *md = instr->getMetadata("quals");
     if (!md)
@@ -140,6 +157,11 @@ bool isApproxPtr(const Value *value) {
     return _approx_vars.count(gv->getName());
   }
   return false;
+}
+
+bool isApproxPtr(const Value *value) {
+  std::set<const Value *> seen;
+  return isApproxPtr(value, seen);
 }
 
 // Identification of lock acquire and release calls.
