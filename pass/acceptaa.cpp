@@ -71,47 +71,73 @@ namespace {
       return approxLoc(Loc.Ptr);
     }
 
-    virtual bool pointToConstantMemory(const Location &Loc, bool OrLocal=false) {
+    virtual bool pointToConstantMemory(const Location &Loc,
+        bool OrLocal=false) {
+      bool result = AliasAnalysis::pointsToConstantMemory(Loc, OrLocal);
+      if (!relaxParam)
+        return result;
+
       if (approxLoc(Loc)) {
-        errs() << "ptcm ";
-        Loc.Ptr->dump();
         return true;
       }
-      return AliasAnalysis::pointsToConstantMemory(Loc, OrLocal);
-    }
 
+      return result;
+    }
     virtual ModRefBehavior getModRefBehavior (ImmutableCallSite CS) {
       ModRefBehavior result = AliasAnalysis::getModRefBehavior(CS);
+      if (!relaxParam)
+        return result;
+
       if (result == UnknownModRefBehavior) {
         const Function *func = CS.getCalledFunction();
-        if (func && transformPass->AI->functionPurity.count(const_cast<Function*>(func))) {
-          // errs() << "relax mrb for site\n";
+        if (func && transformPass->AI->isPrecisePure(const_cast<Function*>(func))) {
           return OnlyReadsMemory;
         }
       }
+
       return result;
     }
     virtual ModRefBehavior getModRefBehavior (const Function *F) {
       ModRefBehavior result = AliasAnalysis::getModRefBehavior(F);
+      if (!relaxParam)
+        return result;
+
       if (result == UnknownModRefBehavior) {
-        if (transformPass->AI->functionPurity.count(const_cast<Function*>(F))) {
-          // errs() << "relax mrb for func\n";
+        if (transformPass->AI->isPrecisePure(const_cast<Function*>(F))) {
           return OnlyReadsMemory;
         }
       }
+
       return result;
     }
     virtual ModRefResult getModRefInfo (ImmutableCallSite CS,
         const Location &Loc) {
       ModRefResult result = AliasAnalysis::getModRefInfo(CS, Loc);
-      // errs() << "mrr " << result << "\n";
-      return NoModRef;
+      if (!relaxParam)
+        return result;
+
+      const Function *func = CS.getCalledFunction();
+      if (func && transformPass->AI->isPrecisePure(const_cast<Function*>(func))) {
+        return NoModRef;
+      } else if (approxLoc(Loc)) {
+        return NoModRef;
+      }
+
+      return result;
     }
     virtual ModRefResult getModRefInfo (ImmutableCallSite CS1,
         ImmutableCallSite CS2) {
       ModRefResult result = AliasAnalysis::getModRefInfo(CS1, CS2);
-      // errs() << "mrr " << result << "\n";
-      return NoModRef;
+      if (!relaxParam)
+        return result;
+
+      const Function *func1 = CS1.getCalledFunction();
+      const Function *func2 = CS2.getCalledFunction();
+      if ((func1 && transformPass->AI->isPrecisePure(const_cast<Function*>(func1))) || (func2 && transformPass->AI->isPrecisePure(const_cast<Function*>(func2)))) {
+        return NoModRef;
+      }
+
+      return result;
     }
 
     virtual AliasResult alias(const Location &LocA, const Location &LocB) {
