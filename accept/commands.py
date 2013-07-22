@@ -42,7 +42,8 @@ def global_config(opts):
           help='applications')
 @argh.arg('--json', '-j', dest='as_json')
 @argh.arg('--time', '-t', dest='include_time')
-def exp(appnames, verbose=False, as_json=False, include_time=False):
+@argh.arg('--only', '-o', dest='only', action='append')
+def exp(appnames, verbose=False, as_json=False, include_time=False, only=None):
     # Load the current results, if any.
     if as_json:
         try:
@@ -53,7 +54,8 @@ def exp(appnames, verbose=False, as_json=False, include_time=False):
 
     for appname in appnames:
         logging.info(appname)
-        res = experiments.evaluate(_client, appname, verbose, _reps, as_json)
+        res = experiments.evaluate(_client, appname, verbose, _reps, as_json,
+                                   only)
 
         if as_json:
             if not include_time:
@@ -156,7 +158,7 @@ def approx(num=None, appdir='.'):
 
 def main():
     logging.getLogger().addHandler(logging.StreamHandler(sys.stderr))
-    parser = argh.ArghParser()
+    parser = argh.ArghParser(prog='accept')
     parser.add_commands([exp, log, build, precise, approx])
     parser.add_argument('--cluster', '-c', default=False, action='store_true',
                         help='execute on Slurm cluster')

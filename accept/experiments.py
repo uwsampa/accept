@@ -87,7 +87,7 @@ def results_for_base(ev, configs):
         results[result.config] = result
     return results.values()
 
-def run_experiments(ev):
+def run_experiments(ev, only=None):
     """Run all stages in the Evaluation for producing paper-ready
     results. Returns the main results and a dict of kind-restricted
     results.
@@ -96,12 +96,18 @@ def run_experiments(ev):
     ev.setup()
 
     # Main results.
-    main_results = results_for_base(ev, ev.base_configs)
+    if only and 'main' not in only:
+        main_results = []
+    else:
+        main_results = results_for_base(ev, ev.base_configs)
     end_time = time.time()
 
     # Experiments with only one optimization type at a time.
     kind_results = {}
     for kind, words in OPT_KINDS.items():
+        if only and kind not in only:
+            continue
+
         # Filter all base configs for configs of this kind.
         logging.info('evaluating {} in isolation'.format(kind))
         kind_configs = []
@@ -118,7 +124,8 @@ def run_experiments(ev):
 
     return main_results, kind_results, end_time - start_time
 
-def evaluate(client, appname, verbose=False, reps=1, as_json=False):
+def evaluate(client, appname, verbose=False, reps=1, as_json=False,
+             only=None):
     appdir = os.path.join(APPSDIR, appname)
     exp = core.Evaluation(appdir, client, reps)
     
@@ -130,7 +137,7 @@ def evaluate(client, appname, verbose=False, reps=1, as_json=False):
 
     logging.info('starting experiments')
     with client:
-        main_results, kind_results, exp_time = run_experiments(exp)
+        main_results, kind_results, exp_time = run_experiments(exp, only)
     logging.info('all experiments finished')
 
     if as_json:
@@ -144,11 +151,13 @@ def evaluate(client, appname, verbose=False, reps=1, as_json=False):
         return out
 
     else:
-        out = list(
-            dump_results_human(main_results, exp.pout, verbose)
-        )
-        if verbose:
+        out = []
+        if not only or 'main' in only:
+            out += dump_results_human(main_results, exp.pout, verbose)
+        if verbose or only:
             for kind, results in kind_results.items():
+                if only and kind not in only:
+                    continue
                 out.append('')
                 if results:
                     out.append('ISOLATING {}:'.format(kind))
