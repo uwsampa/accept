@@ -24,7 +24,6 @@ namespace {
   struct AcceptAA : public ImmutablePass, public AliasAnalysis {
     static char ID;
     ACCEPTPass *transformPass;
-    ApproxInfo *AI;
     int relaxId;
     int relaxParam;
 
@@ -35,7 +34,6 @@ namespace {
         return;
       }
       transformPass = (ACCEPTPass*)sharedAcceptTransformPass;
-      AI = transformPass->AI;
     }
 
     virtual const char *getPassName() const {
@@ -61,7 +59,7 @@ namespace {
       }
     }
 
-    bool approxPointerLoc(const Value *val) {
+    bool approxLoc(const Value *val) {
       if (isApproxPtr(val))
         return true;
       if (const Instruction *inst = dyn_cast<Instruction>(val))
@@ -69,13 +67,63 @@ namespace {
           return true;
       return false;
     }
+    bool approxLoc(const Location &Loc) {
+      return approxLoc(Loc.Ptr);
+    }
+
+    virtual bool pointToConstantMemory(const Location &Loc, bool OrLocal=false) {
+      if (approxLoc(Loc)) {
+        errs() << "ptcm ";
+        Loc.Ptr->dump();
+        return true;
+      }
+      return AliasAnalysis::pointsToConstantMemory(Loc, OrLocal);
+    }
+
+    virtual ModRefBehavior getModRefBehavior (ImmutableCallSite CS) {
+      ModRefBehavior result = AliasAnalysis::getModRefBehavior(CS);
+      if (result == UnknownModRefBehavior) {
+        const Function *func = CS.getCalledFunction();
+        if (func && transformPass->AI->functionPurity.count(const_cast<Function*>(func))) {
+          // errs() << "relax mrb for site\n";
+          return OnlyReadsMemory;
+        }
+      }
+      return result;
+    }
+    virtual ModRefBehavior getModRefBehavior (const Function *F) {
+      ModRefBehavior result = AliasAnalysis::getModRefBehavior(F);
+      if (result == UnknownModRefBehavior) {
+        if (transformPass->AI->functionPurity.count(const_cast<Function*>(F))) {
+          // errs() << "relax mrb for func\n";
+          return OnlyReadsMemory;
+        }
+      }
+      return result;
+    }
+    virtual ModRefResult getModRefInfo (ImmutableCallSite CS,
+        const Location &Loc) {
+      ModRefResult result = AliasAnalysis::getModRefInfo(CS, Loc);
+      // errs() << "mrr " << result << "\n";
+      return NoModRef;
+    }
+    virtual ModRefResult getModRefInfo (ImmutableCallSite CS1,
+        ImmutableCallSite CS2) {
+      ModRefResult result = AliasAnalysis::getModRefInfo(CS1, CS2);
+      // errs() << "mrr " << result << "\n";
+      return NoModRef;
+    }
 
     virtual AliasResult alias(const Location &LocA, const Location &LocB) {
+      AliasResult result = AliasAnalysis::alias(LocA, LocB);
       if (!relaxParam)
-        return AliasAnalysis::alias(LocA, LocB);
+        return result;
 
-      if (approxPointerLoc(LocA.Ptr) || approxPointerLoc(LocB.Ptr))
+      if (result == MustAlias) {
+        return MustAlias;
+      } else if (approxLoc(LocA) || approxLoc(LocB)) {
         return NoAlias;
+      }
 
       // Mallocs, callocs...
       if (const Instruction *inst = dyn_cast<Instruction>(LocA.Ptr)) {
