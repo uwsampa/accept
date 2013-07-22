@@ -330,13 +330,16 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
         return CL_LEAVE_UNCHANGED;
       }
 
-      // Special cases for standard unary math functions.
-      if (name.equals("abs") || name.equals("cos")) {
+      // Special cases for standard math functions.
+      if (name.equals("abs") || name.equals("cos") || name.equals("log") || name.equals("exp") || name.equals("pow")) {
         Expr *arg = call->getArg(0);
         // Parametric-esque: return qualifier is the argument qualifier.
         uint32_t outType = typeOf(arg);
-        // Ignore type errors on the argument.
+        // Ignore type errors on the arguments.
         arg->setType(withQuals(arg->getType(), ecPrecise));
+        for (unsigned i = 0; i < call->getNumArgs(); ++i) {
+            call->getArg(i)->setType(withQuals(call->getArg(i)->getType(), ecPrecise));
+        }
         return outType;
       }
     }
