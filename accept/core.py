@@ -221,7 +221,7 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
             approx = bool(relax_config)
             build(approx)
             elapsed, status = execute(timeout, approx)
-            if elapsed is None or status:
+            if elapsed is None or status or status is None:
                 # Timeout or error.
                 output = None
                 roitime = None
