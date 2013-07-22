@@ -55,4 +55,13 @@ def score(orig, relaxed):
         dist = euclidean_dist(a, b)
         dist /= len(a) ** 0.5
         total += dist
+
+    if len(orig) > len(relaxed):
+        for i in range(len(orig) - len(relaxed)):
+            total += 1
+
     return total / len(orig)
+
+if __name__ == '__main__':
+    import sys
+    print(score(load(sys.argv[1]), load(sys.argv[2])))
