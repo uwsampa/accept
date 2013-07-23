@@ -6,8 +6,11 @@
 #include "dlwisp41.h"
 
 #define NUM_READINGS 250u
+#define NUM_AVG 16
+#define DUMMY_AVG 0xBEEFu
 
-APPROX unsigned int numreadings = 0;
+unsigned int numreadings = 0;
+unsigned int iters = 0;
 
 // status register &= ~i
 inline void __bic_status_register (unsigned i) {
@@ -59,6 +62,7 @@ APPROX unsigned read_accel() {
     ADC10CTL1 = 0;       // turn adc off
     ADC10CTL0 = 0;       // turn adc off
 
+    ++iters;
     return reading;
 }
 
@@ -69,21 +73,36 @@ APPROX unsigned read_accel() {
 __attribute__((section(".init9"), aligned(2)))
 #endif
 int main (void) {
-    WDTCTL = WDTPW + WDTHOLD; // stop watchdog timer
-
     APPROX unsigned cur_reading = 0;
     APPROX unsigned max = 0;
     APPROX unsigned min = 0xffffu;
-    APPROX unsigned avg = 0xbeefu;
+    APPROX signed int avg = DUMMY_AVG;
+    unsigned int sum = 0, summed = 0;
 
-    for (; ENDORSE(numreadings != NUM_READINGS); ++numreadings) {
+    WDTCTL = WDTPW + WDTHOLD; // stop watchdog timer to avoid untimely death
+
+    for (; numreadings != NUM_READINGS; ++numreadings) {
         cur_reading = read_accel(); // ACCEPT_PERMIT
 
-        if (ENDORSE(cur_reading > max)) max = cur_reading;
-        if (ENDORSE(cur_reading < min)) min = cur_reading;
+        if (ENDORSE(cur_reading > max))
+            max = cur_reading;
 
-        // TODO: moving average
+        if (ENDORSE(cur_reading < min))
+            min = cur_reading;
+
+        // weighted average of last NUM_AVG readings
+        if (ENDORSE(avg == DUMMY_AVG)) {
+            sum += cur_reading;
+            if (++summed == NUM_AVG)
+                avg = sum / NUM_AVG;
+            continue;
+        }
+
+        avg = avg + ((cur_reading - avg) / NUM_AVG);
     }
 
+    asm volatile ("MOV.W %0, R12" ::"m"(min));
+    asm volatile ("MOV.W %0, R13" ::"m"(max));
+    asm volatile ("MOV.W %0, R14" ::"m"(avg));
     return 19; // lucky 0x13
 }
