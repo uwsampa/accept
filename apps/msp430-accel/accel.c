@@ -98,7 +98,7 @@ int main (void) {
             continue;
         }
 
-        avg = avg + ((cur_reading - avg) / NUM_AVG);
+        avg = avg + (((signed int)cur_reading - avg) / NUM_AVG);
     }
 
     asm volatile ("MOV.W %0, R12" ::"m"(min));
