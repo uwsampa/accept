@@ -24,6 +24,7 @@ namespace llvm {
   FunctionPass *createAcceptTransformPass();
   extern FunctionPass *sharedAcceptTransformPass;
   LoopPass *createLoopPerfPass();
+  FunctionPass *createNullifierPass();
 
   std::string srcPosDesc(const Module &mod, const DebugLoc &dl);
   std::string instDesc(const Module &mod, Instruction *inst);
