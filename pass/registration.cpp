@@ -30,7 +30,6 @@ namespace {
     PM.add(new ApproxInfo());
     PM.add(createAcceptTransformPass());
     PM.add(createLoopPerfPass());
-    PM.add(createNullifierPass());
   }
   static RegisterStandardPasses
       RegisterACCEPT(PassManagerBuilder::EP_EarlyAsPossible,

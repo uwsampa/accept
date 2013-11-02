@@ -24,7 +24,6 @@ namespace llvm {
   FunctionPass *createAcceptTransformPass();
   extern FunctionPass *sharedAcceptTransformPass;
   LoopPass *createLoopPerfPass();
-  FunctionPass *createNullifierPass();
 
   std::string srcPosDesc(const Module &mod, const DebugLoc &dl);
   std::string instDesc(const Module &mod, Instruction *inst);
@@ -116,6 +115,8 @@ struct ACCEPTPass : public llvm::FunctionPass {
   bool optimizeBarrier(llvm::Instruction *bar1);
   llvm::Instruction *findCritSec(llvm::Instruction *acq, std::set<llvm::Instruction*> &cs);
   llvm::Instruction *findApproxCritSec(llvm::Instruction *acq);
+
+  bool nullifyApprox(llvm::Function &F);
 };
 
 // Information about individual instructions is always available.
