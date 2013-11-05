@@ -91,6 +91,27 @@ For some of the benchmarks, you will need some large input files that are not in
 
 Run the experiments by typing `accept exp`.
 
+### Writing Your Own Experiment
+
+To add your own app `foo`, put your C/C++ sources in `apps/foo`.  (The build
+system will assume all `.c` and `.cpp` files are to be built and linked
+together.)
+
+Add `#include <enerc.h>` to files where you plan to add `APPROX` type
+qualifiers.
+
+Insert `APPROX` type qualifiers into your code as appropriate.  XXX pointer to
+paper.  You can run `make build_orig` and `make build_opt` to build precise and
+approximate versions of your app, respectively.  Use `accept -f log` during
+development to preview relaxation opportunity sites.
+
+Insert a call to `accept_roi_begin()` immediately before the program's main
+chunk of work, and insert a call to `accept_roi_end()` immediately afterward.
+
+Finally, run your app:
+
+    $ accept exp foo
+
 ### Running on a Cluster
 
 The above will run all compilations and executions locally and in serial. To
