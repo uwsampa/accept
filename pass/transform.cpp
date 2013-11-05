@@ -83,8 +83,10 @@ bool ACCEPTPass::runOnFunction(Function &F) {
   if (shouldSkipFunc(F))
     return false;
 
-  return optimizeSync(F)
-      && nullifyApprox(F);
+  bool modified = false;
+  modified = modified || optimizeSync(F);
+  modified = modified || nullifyApprox(F);
+  return modified;
 }
 
 // Find the debug info for every "subprogram" (i.e., function).
