@@ -10,6 +10,7 @@ OPT_KINDS = {
     'loopperf': ('loop',),
     'desync':   ('lock', 'barrier'),
     'aarelax':  ('alias',),
+    'nullify':  ('nullify',),
 }
 
 def dump_config(config):
