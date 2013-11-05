@@ -145,7 +145,7 @@ def approx(num=None, appdir='.'):
     results = [results[num]] if num is not None else results
 
     for result in results:
-        print(experiments.dump_config(result.config, ev.descs))
+        print(experiments.dump_config(result.config))
         print('output:', result.output)
         print('time:')
         for t in result.durations:
