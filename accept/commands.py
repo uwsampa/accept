@@ -129,9 +129,6 @@ def precise(appdir='.'):
     print('time:')
     for t in times:
         print('  {:.2f}'.format(t))
-    print('sites: {}'.format(len(ev.descs)))
-    for desc in ev.descs.values():
-        print(' ', desc)
 
 @argh.arg('num', nargs='?', type=int, help='which configuration')
 @argh.arg('appdir', nargs='?', help='application directory')
@@ -145,7 +142,7 @@ def approx(num=None, appdir='.'):
     results = [results[num]] if num is not None else results
 
     for result in results:
-        print(experiments.dump_config(result.config, ev.descs))
+        print(experiments.dump_config(result.config))
         print('output:', result.output)
         print('time:')
         for t in result.durations:

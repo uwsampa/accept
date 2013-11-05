@@ -328,8 +328,7 @@ def config_subsumes(a, b):
 
 def cap_config(config):
     """Reduce configuration parameters that exceed their maxima,
-    returning a new configuration. `descs` describes each optimization
-    site and dictates the maxima.
+    returning a new configuration.
     """
     out = []
     for ident, param in config:
