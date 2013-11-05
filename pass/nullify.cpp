@@ -19,10 +19,13 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
   *log << "Nullifying precise-pure instrs in function " << F.getName()
     << "\n";
 
-  // Remove calls to precise-pure functions.
+  // Mark calls to precise-pure functions for removal.
+  std::set<CallInst *> callsToRemove;
   for (inst_iterator I = inst_begin(&F), E = inst_end(&F); I != E; ++I) {
     Function *callee;
-    if (CallInst *call = dyn_cast<CallInst>(&*I)) {
+    CallInst *call;
+
+    if (call = dyn_cast<CallInst>(&*I)) {
       callee = call->getCalledFunction();
     } else if (InvokeInst *invoke = dyn_cast<InvokeInst>(&*I)) {
       callee = invoke->getCalledFunction();
@@ -31,6 +34,7 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
       continue;
     }
 
+    assert(call != NULL);
     assert(callee != NULL);
 
     if (shouldSkipFunc(*callee))
@@ -40,13 +44,24 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
       *log << "can remove call to precise-pure function "
         << callee->getName() << "\n";
       if (relax && relaxParam) {
-        *log << "removing precise-pure function " << callee->getName() << "\n";
-        I->eraseFromParent();
-        modified = true;
+        callsToRemove.insert((CallInst *)&*I);
       }
     }
   }
 
+  // Actually remove all the Instructions marked for removal.
+  for (std::set<CallInst *>::iterator I = callsToRemove.begin(),
+      E = callsToRemove.end(); I != E; ++I) {
+    CallInst *call = *I;
+    assert(call != NULL);
+
+    *log << "removing call to precise-pure function " << *call << "\n";
+    call->replaceAllUsesWith(UndefValue::get(call->getType()));
+    call->eraseFromParent();
+    modified = true;
+  }
+
+  /*
   // Step 2: Remove precise-pure BBs.  Note that a Function may include both
   // precise-pure and precise-impure BBs.
   // XXX consult a global counter instead; perforate code according to
@@ -64,6 +79,7 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
       }
     }
   }
+  */
 
   return modified;
 }
