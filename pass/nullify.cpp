@@ -31,7 +31,12 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
       continue;
     }
 
-    if (callee && AI->isPrecisePure(callee)) {
+    assert(callee != NULL);
+
+    if (shouldSkipFunc(*callee))
+      continue;
+
+    if (AI->isPrecisePure(callee)) {
       *log << "can remove call to precise-pure function "
         << callee->getName() << "\n";
       if (relax && relaxParam) {
