@@ -12,6 +12,7 @@
 #include <set>
 #include <map>
 #include <string>
+#include <cassert>
 
 #define ECQ_PRECISE 0
 #define ECQ_APPROX 1
@@ -115,6 +116,8 @@ struct ACCEPTPass : public llvm::FunctionPass {
   bool optimizeBarrier(llvm::Instruction *bar1);
   llvm::Instruction *findCritSec(llvm::Instruction *acq, std::set<llvm::Instruction*> &cs);
   llvm::Instruction *findApproxCritSec(llvm::Instruction *acq);
+
+  bool nullifyApprox(llvm::Function &F);
 };
 
 // Information about individual instructions is always available.

@@ -23,6 +23,11 @@ LLVMPROF := $(BUILTDIR)/bin/llvm-prof
 SUMMARY := $(ENERCDIR)/bin/summary.py
 
 ifeq ($(shell uname -s),Darwin)
+	ifeq ($(shell uname -r | sed -e 's/\..*//'),13) # OS X 10.9
+		XCODEINCLUDES = $(shell xcrun --show-sdk-path)/usr/include
+		CFLAGS += -I$(XCODEINCLUDES)
+		CXXFLAGS += -I$(XCODEINCLUDES)
+	endif
 	LIBEXT := dylib
 else
 	LIBEXT := so

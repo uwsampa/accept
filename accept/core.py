@@ -61,7 +61,7 @@ def symlink_all(src, dst):
         os.symlink(src, dst)
 
 @contextmanager
-def sandbox(symlink=False):
+def sandbox(symlink=False, keep_sandbox=False):
     """Create a temporary sandbox directory, copy (or symlink)
     everything from the current directory into it, and enter the
     directory. Afterwards, change back and clean up.
@@ -80,9 +80,12 @@ def sandbox(symlink=False):
                 shutil.copyfile(src, dst)
 
     with chdir(sandbox_dir):
+        logging.debug('sandbox directory: {} (will{}keep)'.\
+                format(sandbox_dir, keep_sandbox and ' ' or ' not '))
         yield
 
-    shutil.rmtree(sandbox_dir)
+    if not keep_sandbox:
+        shutil.rmtree(sandbox_dir)
 
 def _random_string(length=20, chars=(string.ascii_letters + string.digits)):
     return ''.join(random.choice(chars) for i in range(length))
@@ -328,8 +331,7 @@ def config_subsumes(a, b):
 
 def cap_config(config):
     """Reduce configuration parameters that exceed their maxima,
-    returning a new configuration. `descs` describes each optimization
-    site and dictates the maxima.
+    returning a new configuration.
     """
     out = []
     for ident, param in config:

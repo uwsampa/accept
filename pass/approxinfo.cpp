@@ -583,6 +583,8 @@ std::set<Instruction*> ApproxInfo::preciseEscapeCheck(
 // Determine whether a function can only affect approximate memory (i.e., no
 // precise stores escape).
 bool ApproxInfo::isPrecisePure(Function *func) {
+  assert(func != NULL);
+
   // Check for cached result.
   if (functionPurity.count(func)) {
     return functionPurity[func];
