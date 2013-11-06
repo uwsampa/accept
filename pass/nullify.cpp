@@ -25,7 +25,7 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
     Function *callee;
     CallInst *call;
 
-    if (call = dyn_cast<CallInst>(&*I)) {
+    if ((call = dyn_cast<CallInst>(&*I))) {
       callee = call->getCalledFunction();
     } else if (InvokeInst *invoke = dyn_cast<InvokeInst>(&*I)) {
       callee = invoke->getCalledFunction();
