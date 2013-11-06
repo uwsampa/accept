@@ -21,15 +21,19 @@ RESULTS_JSON = 'results.json'
 
 _client = None
 _reps = 1
+_keep_sandboxes = False
 
 def global_config(opts):
     global _client
     global _reps
+    global _keep_sandboxes
     _client = cwmemo.get_client(cluster=opts.cluster, force=opts.force)
     if opts.reps:
         _reps = opts.reps
     else:
         _reps = CLUSTER_REPS if opts.cluster else LOCAL_REPS
+    if opts.keep_sandboxes:
+        _keep_sandboxes = True
     if opts.verbose >= 2:
         logging.getLogger().setLevel(logging.DEBUG)
     elif opts.verbose >= 1:
@@ -80,7 +84,7 @@ def log_and_output(directory, fn='accept_log.txt'):
     compilation log.
     """
     with core.chdir(directory):
-        with core.sandbox(True):
+        with core.sandbox(True, _keep_sandboxes):
             if os.path.exists(fn):
                 os.remove(fn)
 
@@ -165,6 +169,9 @@ def main():
                         help='replication runs')
     parser.add_argument('--verbose', '-v', action='count', default=0,
                         help='enable verbose logging')
+    parser.add_argument('--keep-sandboxes', '-k', action='store_true',
+                        dest='keep_sandboxes', default=False,
+                        help='keep intermediate sandbox directories')
     parser.dispatch(pre_call=global_config)
 
 if __name__ == '__main__':
