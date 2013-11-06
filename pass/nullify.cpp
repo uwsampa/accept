@@ -61,7 +61,6 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
     modified = true;
   }
 
-  /*
   // Step 2: Remove precise-pure BBs.  Note that a Function may include both
   // precise-pure and precise-impure BBs.
   // XXX consult a global counter instead; perforate code according to
@@ -74,12 +73,14 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
     if (blockers.empty()) {
       if (relax && relaxParam) {
         *log << "Removing precise-pure basic block " << BB->getName() << "\n";
-        BB->eraseFromParent();
+        while (BB->begin() != BB->end()
+               && &BB->front() != BB->getTerminator()) {
+          BB->begin()->eraseFromParent();
+        }
         modified = true;
       }
     }
   }
-  */
 
   return modified;
 }
