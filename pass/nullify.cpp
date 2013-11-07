@@ -75,7 +75,9 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
         *log << "Removing precise-pure basic block " << BB->getName() << "\n";
         while (BB->begin() != BB->end()
                && &BB->front() != BB->getTerminator()) {
-          BB->begin()->eraseFromParent();
+          Instruction *I = BB->begin();
+          I->replaceAllUsesWith(UndefValue::get(I->getType()));
+          I->eraseFromParent();
         }
         modified = true;
       }
