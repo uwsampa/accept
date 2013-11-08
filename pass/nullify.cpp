@@ -29,13 +29,10 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
       callee = call->getCalledFunction();
     } else if (InvokeInst *invoke = dyn_cast<InvokeInst>(&*I)) {
       callee = invoke->getCalledFunction();
-    } else {
-      // This is not a call or invoke instruction.
-      continue;
     }
 
-    assert(call != NULL);
-    assert(callee != NULL);
+    if (!call || !callee)
+      continue;
 
     if (shouldSkipFunc(*callee))
       continue;
