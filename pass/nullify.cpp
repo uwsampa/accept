@@ -45,6 +45,9 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
         << callee->getName() << "\n";
       if (relax && relaxParam) {
         callsToRemove.insert((CallInst *)&*I);
+      } else {
+        *log << "but not removing because relax=" << relax
+          << " and relaxParam=" << relaxParam << "\n";
       }
     }
   }
@@ -55,7 +58,8 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
     CallInst *call = *I;
     assert(call != NULL);
 
-    *log << "removing call to precise-pure function " << *call << "\n";
+    *log << "removing call to precise-pure function "
+      << call->getCalledFunction()->getName() << "\n";
     call->replaceAllUsesWith(UndefValue::get(call->getType()));
     call->eraseFromParent();
     modified = true;
@@ -72,7 +76,7 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
     std::set<Instruction*> blockers = AI->preciseEscapeCheck(bbSingleton);
     if (blockers.empty()) {
       if (relax && relaxParam) {
-        *log << "Removing precise-pure basic block " << BB->getName() << "\n";
+        *log << "removing precise-pure basic block " << BB->getName() << "\n";
         while (BB->begin() != BB->end()
                && &BB->front() != BB->getTerminator()) {
           Instruction *I = BB->begin();
