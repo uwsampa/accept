@@ -10,6 +10,11 @@ APPROX int removeme () {
 int main (int argc, char** argv) {
     APPROX int i;
 
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s outfile\n", argv[0]);
+        return 1;
+    }
+
     FILE *fn = fopen(argv[1], "w");
     fprintf(fn, "1\n");
     fclose(fn);
