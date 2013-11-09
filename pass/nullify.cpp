@@ -66,17 +66,23 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
   // XXX consult a global counter instead; perforate code according to
   // counter value
   for (Function::iterator BB = F.begin(), E = F.end(); BB != E; ++BB) {
-    std::set<BasicBlock*> bbSingleton;
-    bbSingleton.insert(BB);
     const Instruction &front = BB->front();
     std::string pos = srcPosDesc(*module, front.getDebugLoc());
 
+    if (BB->size() == 1) {
+      *log << "---\nskipping BB of size 1 at " << pos << "\n";
+      continue;
+    }
+
+    std::set<BasicBlock*> bbSingleton;
+    bbSingleton.insert(BB);
     std::set<Instruction*> blockers = AI->preciseEscapeCheck(bbSingleton);
     if (blockers.empty()) {
       // Remove this precise-pure BB
       std::string optName = "nullable BB at " + pos;
       *log << "---\n" << optName << "\n"
-        << "can remove precise-pure BB at " << pos << "\n";
+        << "can remove precise-pure BB at " << pos << " (size=" << BB->size()
+        << ")\n";
       if (relax) {
         if (relaxConfig[optName]) {
           *log << "removing precise-pure BB at " << pos << "\n";
