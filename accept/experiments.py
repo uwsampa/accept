@@ -1,16 +1,17 @@
 from __future__ import print_function
 from __future__ import division
 import os
+import shutil
 import logging
 import time
 from . import core
+from . import cwmemo
 
 APPSDIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'apps')
 OPT_KINDS = {
     'loopperf': ('loop',),
     'desync':   ('lock', 'barrier'),
     'aarelax':  ('alias',),
-    'nullify':  ('nullify',),
 }
 
 def dump_config(config):
@@ -26,7 +27,7 @@ def dump_config(config):
         out.append(u'{} @ {}'.format(ident, param))
     return u', '.join(out)
 
-def dump_results_human(results, pout, verbose):
+def dump_results_human(results, pout, verbose, exp):
     """Generate human-readable text (as a sequence of lines) for
     the results.
     """
@@ -43,6 +44,11 @@ def dump_results_human(results, pout, verbose):
         yield dump_config(res.config)
         yield '{} % error'.format(res.error * 100)
         yield '{} speedup'.format(res.speedup)
+
+        #exp.makefile()
+        #res2 = exp.run_approx(res.config)
+        #yield '{} speedup twooooo'.format(res2.speedup)
+
         if verbose and isinstance(res.outputs[0], str):
             yield 'output: {}'.format(res.outputs[0])
 
@@ -101,6 +107,40 @@ def run_experiments(ev, only=None):
         main_results = []
     else:
         main_results = results_for_base(ev, ev.base_configs)
+        print('DEBUG ===================================================>>>  Copying Makefile')
+        shutil.copyfile('/sampa/home/andreolb/exp2/enerc/apps/streamcluster/Makefile2', '/sampa/home/andreolb/exp2/enerc/apps/streamcluster/Makefile')
+        optimal, suboptimal, bad = core.triage_results(main_results)
+        new_client = cwmemo.get_client2(cluster=False, force=True)
+        ev2 = core.Evaluation(ev.appdir, new_client, ev.reps)
+        setup_script = os.path.join(ev.appdir, 'setup.sh')
+        if os.path.exists(setup_script):
+            print('running setup script')
+            with core.chdir(ev.appdir):
+                core.run_cmd(['sh', 'setup.sh'])
+        print('starting experiments')
+        with new_client:
+            ev2.setup()
+
+        speedups = []
+        errors = []
+        for r in optimal:
+            print(dump_config(r.config))
+            print('{} % error'.format(r.error * 100))
+            print('{} speedup'.format(r.speedup))
+            errors.append(r.error * 100)
+            speedups.append(r.speedup)
+        i = 0
+        for r in optimal:
+            new_config = []
+            new_config.append(r.config)
+            print(dump_config(r.config))
+            with new_client:
+                i2_res = ev2.run_approx(new_config)
+            print('error 1: {} % \t error 2: {} % \t diff: {}'.format(errors[i], i2_res[0].error * 100, errors[i] - i2_res[0].error * 100))
+            print('speedup 1: {} \t speedup 2: {} \t diff: {}'.format(speedups[i], i2_res[0].speedup, speedups[i] - i2_res[0].speedup))
+            i = i + 1
+        print('DEBUG ===================================================>>>  Enddd')
+            
     end_time = time.time()
 
     # Experiments with only one optimization type at a time.
@@ -154,15 +194,19 @@ def evaluate(client, appname, verbose=False, reps=1, as_json=False,
     else:
         out = []
         if not only or 'main' in only:
-            out += dump_results_human(main_results, exp.pout, verbose)
+            print('fuck1')
+            out += dump_results_human(main_results, exp.pout, verbose, exp)
         if verbose or only:
+            print('fuck2')
             for kind, results in kind_results.items():
+                print('fuck3')
                 if only and kind not in only:
                     continue
                 out.append('')
                 if results:
+                    print('fuck4')
                     out.append('ISOLATING {}:'.format(kind))
-                    out += dump_results_human(results, exp.pout, verbose)
+                    out += dump_results_human(results, exp.pout, verbose, exp)
                 else:
                     out.append('No results for isolating {}.'.format(kind))
         return '\n'.join(out)

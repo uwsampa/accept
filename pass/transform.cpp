@@ -85,7 +85,6 @@ bool ACCEPTPass::runOnFunction(Function &F) {
 
   bool modified = false;
   modified = modified || optimizeSync(F);
-  modified = modified || nullifyApprox(F);
   return modified;
 }
 

@@ -217,6 +217,9 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
 
             if relax_config:
                 with open(CONFIGFILE, 'w') as f:
+                    #print('yyyyyyyyyyyyyyyyyyyyyyy')
+                    #print(relax_config)
+                    #print('yyyyyyyyyyyyyyyyyyyyyyy')
                     dump_relax_config(relax_config, f)
             elif os.path.exists(CONFIGFILE):
                 os.remove(CONFIGFILE)
@@ -476,12 +479,14 @@ class Result(object):
             if status is None:
                 # Timed out.
                 self.desc = 'replica {} timed out'.format(i)
+                print('\n\n\nFUCK1\n\n\n')
                 return
             elif status:
                 # Error status.
                 self.desc = 'error status (replica {}): {}'.format(
                     i, status
                 )
+                print('\n\n\nFUCK2\n\n\n')
                 return
 
         # Get duration and speedup.
@@ -649,6 +654,9 @@ class Evaluation(object):
                      [ex.output for ex in exs])
         res.evaluate(self.scorefunc, self.pout, self.ptimes)
         return res
+
+    def makefile(self):
+        shutil.copyfile('/sampa/home/andreolb/exp2/enerc/apps/fluidanimate/Makefile2', '/sampa/home/andreolb/exp2/enerc/apps/fluidanimate/Makefile')
 
     def run_approx(self, configs):
         """Evaluate a set of approximate configurations. Return a list of
