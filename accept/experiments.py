@@ -27,7 +27,7 @@ def dump_config(config):
         out.append(u'{} @ {}'.format(ident, param))
     return u', '.join(out)
 
-def dump_results_human(results, pout, verbose, exp):
+def dump_results_human(results, pout, verbose):
     """Generate human-readable text (as a sequence of lines) for
     the results.
     """
@@ -44,10 +44,6 @@ def dump_results_human(results, pout, verbose, exp):
         yield dump_config(res.config)
         yield '{} % error'.format(res.error * 100)
         yield '{} speedup'.format(res.speedup)
-
-        #exp.makefile()
-        #res2 = exp.run_approx(res.config)
-        #yield '{} speedup twooooo'.format(res2.speedup)
 
         if verbose and isinstance(res.outputs[0], str):
             yield 'output: {}'.format(res.outputs[0])
@@ -194,19 +190,15 @@ def evaluate(client, appname, verbose=False, reps=1, as_json=False,
     else:
         out = []
         if not only or 'main' in only:
-            print('fuck1')
-            out += dump_results_human(main_results, exp.pout, verbose, exp)
+            out += dump_results_human(main_results, exp.pout, verbose)
         if verbose or only:
-            print('fuck2')
             for kind, results in kind_results.items():
-                print('fuck3')
                 if only and kind not in only:
                     continue
                 out.append('')
                 if results:
-                    print('fuck4')
                     out.append('ISOLATING {}:'.format(kind))
-                    out += dump_results_human(results, exp.pout, verbose, exp)
+                    out += dump_results_human(results, exp.pout, verbose)
                 else:
                     out.append('No results for isolating {}.'.format(kind))
         return '\n'.join(out)
