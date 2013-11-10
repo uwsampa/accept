@@ -75,6 +75,8 @@ $(RUN_TARGETS): run_%: $(TARGET).%
 
 profile: $(TARGET).prof.bc llvmprof.out
 	$(LLVMPROF) $^
+
+accept_config.txt: build_orig
 #################################################################
 
 # make LLVM bitcode from C/C++ sources
