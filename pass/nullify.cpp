@@ -79,6 +79,12 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
     std::set<Instruction*> blockers = AI->preciseEscapeCheck(bbSingleton);
     if (blockers.empty()) {
       // Remove this precise-pure BB
+      if (BB->size() < 6) {
+        *log << "precise-pure BB of size " << BB->size() << ":\n";
+        for (BasicBlock::iterator ii = BB->begin(); ii != BB->end(); ++ii) {
+          *log << "  " << *ii << "\n";
+        }
+      }
       std::string optName = "nullable BB at " + pos;
       *log << "---\n" << optName << "\n"
         << "can remove precise-pure BB at " << pos << " (size=" << BB->size()
