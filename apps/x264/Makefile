@@ -19,9 +19,9 @@ CFLAGS := -I. -Wno-array-bounds -Wno-incompatible-pointer-types -DHAVE_STDINT_H 
 LDFLAGS := -lm -lpthread
 
 # simmedium
-RUNARGS := --quiet --qp 20 --partitions b8x8,i4x4 --ref 5 --direct auto --b-pyramid --weightb --mixed-refs --no-fast-pskip --me umh --subme 7 --analyse b8x8,i4x4 --threads 4 -o eledream.264 eledream_640x360_32.y4m
+#RUNARGS := --quiet --qp 20 --partitions b8x8,i4x4 --ref 5 --direct auto --b-pyramid --weightb --mixed-refs --no-fast-pskip --me umh --subme 7 --analyse b8x8,i4x4 --threads 4 -o eledream.264 eledream_640x360_32.y4m
 # simlarge
-#RUNARGS := --quiet --qp 20 --partitions b8x8,i4x4 --ref 5 --direct auto --b-pyramid --weightb --mixed-refs --no-fast-pskip --me umh --subme 7 --analyse b8x8,i4x4 --threads ${NTHREADS} -o eledream.264 eledream_640x360_128.y4m
+RUNARGS := --quiet --qp 20 --partitions b8x8,i4x4 --ref 5 --direct auto --b-pyramid --weightb --mixed-refs --no-fast-pskip --me umh --subme 7 --analyse b8x8,i4x4 --threads 4 -o eledream.264 eledream_640x360_128.y4m
 
 APP_MK := ../app.mk
 include $(APP_MK)
