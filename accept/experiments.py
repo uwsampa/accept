@@ -90,6 +90,47 @@ def results_for_base(ev, configs):
         results[result.config] = result
     return results.values()
 
+def testing_results(ev, training_results):
+    """Given a list of results from the training stage, generate a list
+    of results for executions on testing inputs.
+    """
+    print('DEBUG ===================================================>>>  Copying Makefile')
+    shutil.copyfile(
+        os.path.join(ev.appdir, 'Makefile2'),
+        os.path.join(ev.appdir, 'Makefile')
+    )
+    optimal, suboptimal, bad = core.triage_results(training_results)
+    new_client = cwmemo.get_client2(cluster=False, force=True)
+    ev2 = core.Evaluation(ev.appdir, new_client, ev.reps)
+    setup_script = os.path.join(ev.appdir, 'setup.sh')
+    if os.path.exists(setup_script):
+        print('running setup script')
+        with core.chdir(ev.appdir):
+            core.run_cmd(['sh', 'setup.sh'])
+    print('starting experiments')
+    with new_client:
+        ev2.setup()
+
+    speedups = []
+    errors = []
+    for r in optimal:
+        print(dump_config(r.config))
+        print('{} % error'.format(r.error * 100))
+        print('{} speedup'.format(r.speedup))
+        errors.append(r.error * 100)
+        speedups.append(r.speedup)
+    i = 0
+    for r in optimal:
+        new_config = []
+        new_config.append(r.config)
+        print(dump_config(r.config))
+        with new_client:
+            i2_res = ev2.run_approx(new_config)
+        print('error 1: {} % \t error 2: {} % \t diff: {}'.format(errors[i], i2_res[0].error * 100, errors[i] - i2_res[0].error * 100))
+        print('speedup 1: {} \t speedup 2: {} \t diff: {}'.format(speedups[i], i2_res[0].speedup, speedups[i] - i2_res[0].speedup))
+        i = i + 1
+    print('DEBUG ===================================================>>>  Enddd')
+
 def run_experiments(ev, only=None):
     """Run all stages in the Evaluation for producing paper-ready
     results. Returns the main results and a dict of kind-restricted
@@ -103,41 +144,12 @@ def run_experiments(ev, only=None):
         main_results = []
     else:
         main_results = results_for_base(ev, ev.base_configs)
-        print('DEBUG ===================================================>>>  Copying Makefile')
-        shutil.copyfile('/sampa/home/andreolb/exp2/enerc/apps/streamcluster/Makefile2', '/sampa/home/andreolb/exp2/enerc/apps/streamcluster/Makefile')
-        optimal, suboptimal, bad = core.triage_results(main_results)
-        new_client = cwmemo.get_client2(cluster=False, force=True)
-        ev2 = core.Evaluation(ev.appdir, new_client, ev.reps)
-        setup_script = os.path.join(ev.appdir, 'setup.sh')
-        if os.path.exists(setup_script):
-            print('running setup script')
-            with core.chdir(ev.appdir):
-                core.run_cmd(['sh', 'setup.sh'])
-        print('starting experiments')
-        with new_client:
-            ev2.setup()
 
-        speedups = []
-        errors = []
-        for r in optimal:
-            print(dump_config(r.config))
-            print('{} % error'.format(r.error * 100))
-            print('{} speedup'.format(r.speedup))
-            errors.append(r.error * 100)
-            speedups.append(r.speedup)
-        i = 0
-        for r in optimal:
-            new_config = []
-            new_config.append(r.config)
-            print(dump_config(r.config))
-            with new_client:
-                i2_res = ev2.run_approx(new_config)
-            print('error 1: {} % \t error 2: {} % \t diff: {}'.format(errors[i], i2_res[0].error * 100, errors[i] - i2_res[0].error * 100))
-            print('speedup 1: {} \t speedup 2: {} \t diff: {}'.format(speedups[i], i2_res[0].speedup, speedups[i] - i2_res[0].speedup))
-            i = i + 1
-        print('DEBUG ===================================================>>>  Enddd')
-            
     end_time = time.time()
+
+    # "Testing" phase.
+    if main_results:
+        testing_results(ev, main_results)
 
     # Experiments with only one optimization type at a time.
     kind_results = {}
@@ -165,7 +177,7 @@ def evaluate(client, appname, verbose=False, reps=1, as_json=False,
              only=None):
     appdir = os.path.join(APPSDIR, appname)
     exp = core.Evaluation(appdir, client, reps)
-    
+
     setup_script = os.path.join(appdir, 'setup.sh')
     if os.path.exists(setup_script):
         logging.info('running setup script')
