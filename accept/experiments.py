@@ -111,24 +111,27 @@ def testing_results(ev, training_results):
     with new_client:
         ev2.setup()
 
-    speedups = []
-    errors = []
-    for r in optimal:
-        print(dump_config(r.config))
-        print('{} % error'.format(r.error * 100))
-        print('{} speedup'.format(r.speedup))
-        errors.append(r.error * 100)
-        speedups.append(r.speedup)
-    i = 0
-    for r in optimal:
-        new_config = []
-        new_config.append(r.config)
-        print(dump_config(r.config))
-        with new_client:
-            i2_res = ev2.run_approx(new_config)
-        print('error 1: {} % \t error 2: {} % \t diff: {}'.format(errors[i], i2_res[0].error * 100, errors[i] - i2_res[0].error * 100))
-        print('speedup 1: {} \t speedup 2: {} \t diff: {}'.format(speedups[i], i2_res[0].speedup, speedups[i] - i2_res[0].speedup))
-        i = i + 1
+    # Evaluate the optimal configs again with the testing input.
+    configs = [r.config for r in optimal]
+    with new_client:
+        testing_results = ev2.run_approx(configs)
+
+    # Dump both results.
+    for training_res, testing_res in zip(optimal, testing_results):
+        print(dump_config(training_res.config))
+        if not testing_res.safe:
+            print('testing run unsafe!')
+            continue
+        print('error 1: {} % \t error 2: {} % \t diff: {}'.format(
+            training_res.error * 100,
+            testing_res.error * 100,
+            (training_res.error - testing_res.error) * 100,
+        ))
+        print('speedup 1: {} \t speedup 2: {} \t diff: {}'.format(
+            training_res.speedup,
+            testing_res.speedup,
+            training_res.speedup - testing_res.speedup,
+        ))
     print('DEBUG ===================================================>>>  Enddd')
 
 def run_experiments(ev, only=None):
