@@ -61,6 +61,8 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
     modified = true;
   }
 
+  return modified; // XXX removeme
+
   // Step 2: Remove precise-pure BBs.  Note that a Function may include both
   // precise-pure and precise-impure BBs.
   // XXX consult a global counter instead; perforate code according to

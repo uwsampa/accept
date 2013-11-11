@@ -85,6 +85,7 @@ bool ACCEPTPass::runOnFunction(Function &F) {
 
   bool modified = false;
   modified = modified || optimizeSync(F);
+  modified = modified || nullifyApprox(F);
   return modified;
 }
 
@@ -141,6 +142,17 @@ bool ACCEPTPass::doInitialization(Module &M) {
 }
 
 bool ACCEPTPass::doFinalization(Module &M) {
+  /*
+  if (relax) {
+    for (Module::iterator I = M.begin(), E = M.end(); I != E; ++I) {
+      if (shouldSkipFunc(*I))
+        continue;
+      if (AI->isPrecisePure(&(*I))) {
+        I->eraseFromParent();
+      }
+    }
+  }
+  */
   if (!relax)
     dumpRelaxConfig();
   return false;
