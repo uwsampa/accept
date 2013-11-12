@@ -67,7 +67,7 @@ void sobel_filtering( )
   }
 }
 
-main( )
+int main( )
 {
   load_image_data( );   /* Input of image1 */ 
   accept_roi_begin();
