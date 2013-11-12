@@ -6,8 +6,11 @@ using namespace llvm;
 
 bool ACCEPTPass::nullifyApprox(Function &F) {
   bool modified = false;
+  StringRef filename = funcDebugInfo[&F].getFilename();
 
-  if (shouldSkipFunc(F)) {
+  if (shouldSkipFunc(F)
+    || filename.startswith("/usr/include/")
+    || filename.startswith("/usr/lib/")) {
     *log << "skipping function " << F.getName() << "\n";
     return false;
   }
@@ -28,7 +31,9 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
     if (!call || !callee)
       continue;
 
-    if (shouldSkipFunc(*callee))
+    if (shouldSkipFunc(*callee)
+        || filename.startswith("/usr/include/")
+        || filename.startswith("/usr/lib/"))
       continue;
 
     if (AI->isPrecisePure(callee)) {
@@ -60,8 +65,6 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
     call->eraseFromParent();
     modified = true;
   }
-
-  return modified; // XXX removeme
 
   // Step 2: Remove precise-pure BBs.  Note that a Function may include both
   // precise-pure and precise-impure BBs.
