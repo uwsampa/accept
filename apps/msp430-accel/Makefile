@@ -28,4 +28,5 @@ ENERCRT_SRC=$(ENERCDIR)/rt/enercrt.c
 $(PROFLIB): $(ENERCRT_SRC)
 	$(CC) $(CFLAGS) -emit-llvm -c -o $@ $<
 
-RUNSHIM=../../bin/mspsim
+# -f 500 means 500 Hz
+RUNSHIM=../../bin/mspsim -f 500
