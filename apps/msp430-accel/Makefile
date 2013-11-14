@@ -29,4 +29,4 @@ $(PROFLIB): $(ENERCRT_SRC)
 	$(CC) $(CFLAGS) -emit-llvm -c -o $@ $<
 
 # -f 500 means 500 Hz
-RUNSHIM=../../bin/mspsim -f 500
+RUNSHIM=../../bin/mspsim -f 500 -s ../../mspsim/scripts/start.sc
