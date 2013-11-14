@@ -5,7 +5,7 @@
 #include <msp430.h>
 #include "dlwisp41.h"
 
-#define NUM_READINGS 250u
+#define NUM_READINGS 50u
 #define NUM_AVG 16
 #define DUMMY_AVG 0xBEEFu
 
