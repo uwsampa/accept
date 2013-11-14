@@ -5,8 +5,8 @@
 #include <msp430.h>
 #include "dlwisp41.h"
 
-#define NUM_READINGS 50u
-#define NUM_AVG 16
+#define NUM_READINGS 40u
+#define NUM_AVG 5
 #define DUMMY_AVG 0xBEEFu
 
 unsigned int numreadings = 0;
