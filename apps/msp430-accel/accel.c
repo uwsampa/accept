@@ -23,7 +23,7 @@ inline void __bis_status_register (unsigned i) {
 }
 
 APPROX unsigned read_accel() {
-    APPROX unsigned char i;
+    APPROX unsigned volatile char i;
     APPROX unsigned reading;
 
     // slow down clock
