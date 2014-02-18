@@ -15,10 +15,9 @@ whatever your preferred tool is.
 [Ninja]: http://martine.github.com/ninja/
 [CMake]: http://www.cmake.org/
 
-To get all set up, you will need to download (vanilla) LLVM and compile it with
+To get all set up, you will need to [download LLVM 3.2][llvm-dl] and compile it with
 our modified version of Clang that supports type qualifiers. This repository
-contains a couple of scripts that help with this. To get started, `cd` to this
-directory and then run:
+contains a couple of scripts that help with this. To get started, `cd` to the directory containing this README and then run:
 
     $ ./bin/fetch_llvm.sh
 
@@ -42,6 +41,8 @@ and `bin/enerclang++` to compile EnerC programs.
 
 Now, it might be a good idea to `./bin/runtests.sh` to make sure everything's
 working.
+
+[llvm-dl]: http://llvm.org/releases/index.html
 
 
 Using the Tool
