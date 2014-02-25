@@ -8,41 +8,24 @@ EnerC approximate compiler project.
 Quick Start
 -----------
 
-The build scripts included use [CMake][] and [Ninja][]. If you don't
-have these tools, install them or edit the scripts to use make or
-whatever your preferred tool is.
+Here's the easiest way to get started:
 
-[Ninja]: http://martine.github.com/ninja/
-[CMake]: http://www.cmake.org/
+1. Clone this repository to your Unix-like system.
 
-To get all set up, you will need to [download LLVM 3.2][llvm-dl] and compile it with
-our modified version of Clang that supports type qualifiers. This repository
-contains a couple of scripts that help with this. To get started, `cd` to the directory containing this README and then run:
+2. Install [CMake][] and [Ninja][], which our build scripts use to build to tool. (If you like, you can of course edit the relevant scripts to use make or another build tool instead of Ninja.)
 
-    $ ./bin/fetch_llvm.sh
+3. Inside this directory (the repository containing this README file), type `make setup`. This will do several things:
 
-That downloads LLVM 3.2 into a directory called `llvm`. Then it symlinks our
-Clang subrepository into `llvm/tools/clang`, which is required for the LLVM
-build process. Then, to build both LLVM and Clang, run:
+    * Download and extract [LLVM 3.2][llvm-dl].
+    * Build LLVM and our modified Clang frontend using CMake and Ninja. (This can take a long time.) The programs and libraries are installed into the `build/built/` subdirectory.
+    * Build the ACCEPT-specific extensions to LLVM and Clang.
+Take a look inside the Makefile if you're curious about how to run any of these steps individually.
 
-    $ ./bin/build_llvm.sh
-
-This uses CMake and Ninja to build everything and install it under
-`build/built/`. You now have a fully-functional Clang compiler at
-`build/built/bin/clang`. Next, we need to build the EnerC extensions to LLVM
-and Clang. Run:
-
-    $ ./bin/build_enerc.sh
-
-Again using CMake, that builds three things: a frontend (Clang) plugin
-for checking types, a backend (LLVM) pass for analysis and
-transformation, and a runtime library. Now you can use `bin/enerclang`
-and `bin/enerclang++` to compile EnerC programs.
-
-Now, it might be a good idea to `./bin/runtests.sh` to make sure everything's
-working.
+    You should now be able to use the `bin/enerclang` and `bin/enerclang++` programs to compile EnerC programs. You can type `make test` to make sure everything's working.
 
 [llvm-dl]: http://llvm.org/releases/index.html
+[Ninja]: http://martine.github.com/ninja/
+[CMake]: http://www.cmake.org/
 
 
 Using the Tool
