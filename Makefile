@@ -25,10 +25,14 @@ llvm: llvm/CMakeLists.txt llvm/tools/clang check_cmake check_ninja
 	cd $(BUILD)/llvm ; ninja install
 
 
-# Set up and build everything.
+# Convenience targets.
 
-.PHONY: setup
+.PHONY: setup test
+
 setup: llvm accept
+
+test:
+	$(BUILT)/bin/llvm-lit -v test
 
 
 # Fetching and extracting LLVM.
