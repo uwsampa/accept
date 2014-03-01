@@ -2,13 +2,20 @@ BUILD := build
 BUILT := $(BUILD)/built
 CMAKE_FLAGS := -G Ninja -DCMAKE_BUILD_TYPE:STRING=Debug -DCMAKE_INSTALL_PREFIX:PATH=$(BUILT)
 LLVM_VERSION := 3.2
-NINJA := ninja
 CMAKE := cmake
 
 ifeq ($(shell uname -s),Darwin)
         LIBEXT := dylib
 else
         LIBEXT := so
+endif
+
+# Automatically use a binary called "ninja-build", if it's available. Some
+# package managers call it this to avoid naming conflicts.
+ifeq ($(shell which ninja-build >/dev/null ; echo $$?),0)
+	NINJA := ninja-build
+else
+	NINJA := ninja
 endif
 
 
