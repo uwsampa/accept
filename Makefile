@@ -12,7 +12,7 @@ endif
 
 # Automatically use a binary called "ninja-build", if it's available. Some
 # package managers call it this to avoid naming conflicts.
-ifeq ($(shell which ninja-build >/dev/null ; echo $$?),0)
+ifeq ($(shell which ninja-build >/dev/null 2>&1 ; echo $$?),0)
 	NINJA := ninja-build
 else
 	NINJA := ninja
