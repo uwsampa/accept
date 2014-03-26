@@ -23,23 +23,23 @@ Take a look inside the Makefile if you're curious about how to run any of these 
 
     You should now be able to use the `bin/enerclang` and `bin/enerclang++` programs to compile EnerC programs. You can type `make test` to make sure everything's working.
 
+4. Finally, ensure that you have the dependencies for the Python-based driver component. Use [pip][], the standard Python package installer:
+
+        pip install -r requirements.txt
+
+    Make sure the driver script is working by typing `./bin/accept help`.
+
 [llvm-dl]: http://llvm.org/releases/index.html
 [Ninja]: http://martine.github.com/ninja/
 [CMake]: http://www.cmake.org/
+[pip]: https://github.com/pypa/pip
 
 
 Using the Tool
 --------------
 
-Once you have the compiler set up, you can use the driver logic to
-interactively explore relaxations of programs. This stuff is all written in
-Python and has a number of dependencies. Install these by typing:
-
-    pip install -r requirements.txt
-
-The main entry point is the `bin/accept` script, which invokes the Python code
-in the `accept` directory. For convenience, you can put this on your `$PATH` by
-running `source activate.sh`.
+The main entry point to the ACCEPT toolchain is the `bin/accept` script. For
+convenience, you can put this on your `$PATH` by running `source activate.sh`.
 
 Type `accept help` to see the available commands:
 
@@ -60,11 +60,7 @@ All of the commands use memoization to some degree. Memoized results are stored
 in an SQLite database called `memo.db`. Clear this out or pass the
 `-f`/`--force` flag to `accept` to throw away the results and recompute.
 
-(If you're hacking on ACCEPT itself, you can also use the `build_enerc.sh` and
-`build_llvm.sh` scripts once you've extended your `$PATH`. This avoids the
-`cd`-to-build-directory, `cd -` dance that would otherwise be necessary.)
-
-### Running the Experiments
+### Running the Included Experiments
 
 For some of the benchmarks, you will need some large input files that are not included in this repository:
 
@@ -84,8 +80,8 @@ together.)
 Add `#include <enerc.h>` to files where you plan to add `APPROX` type
 qualifiers.
 
-Insert `APPROX` type qualifiers into your code as appropriate.  XXX pointer to
-paper.  You can run `make build_orig` and `make build_opt` to build precise and
+Insert `APPROX` type qualifiers into your code as appropriate.  (The ACCEPT paper contains details on the annotation language.)
+You can run `make build_orig` and `make build_opt` to build precise and
 approximate versions of your app, respectively.  Use `accept -f log` during
 development to preview relaxation opportunity sites.
 
