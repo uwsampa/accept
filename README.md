@@ -41,24 +41,13 @@ Using the Tool
 The main entry point to the ACCEPT toolchain is the `bin/accept` script. For
 convenience, you can put this on your `$PATH` by running `source activate.sh`.
 
-Type `accept help` to see the available commands:
+Type `accept help` to see the available commands. You can also type `accept help COMMAND` to see more documentation for a specific command.
 
-* `accept log`: Dump the ACCEPT compiler log when compiling the program in the
-  current directory, which can help you get an idea of which approximations are
-  available. The output is filtered through `c++filt` to demangle C++ names.
-* `accept build`: Dump the Clang output from compiling the program. This can be
-  helpful during the annotation process. Shares a memoized build call with the
-  `log` command, so after running one, the other will be free.
-* `accept precise`: Show the precise output, precise running time, and
-  approximation opportunities for the application.
-* `accept approx [CONFIGNUM]`: Similarly, show the approximate output and
-  approximate running time for either a particular relaxation or all
-  configurations if the parameter is omitted. Both this and `precise` share
-  memoized calls with the main experiments.
+There are a couple of important (and possibly surprising) aspects that all of the commands have in common:
 
-All of the commands use memoization to some degree. Memoized results are stored
-in an SQLite database called `memo.db`. Clear this out or pass the
-`-f`/`--force` flag to `accept` to throw away the results and recompute.
+**Memoization.** All of the commands save intermediate results to help save time when iterating. This means that, after executing a command successfully once, it won't respond to any changes you make out of band (e.g., updating source files). Use `accept -f COMMAND` to force re-computation.
+
+**Sandboxing.** Builds are performed in a temporary directory to avoid cluttering your filesystem. This is why you won't see build products in your working directory after running commands.
 
 ### Running the Included Experiments
 
@@ -71,27 +60,6 @@ For some of the benchmarks, you will need some large input files that are not in
 
 Run the experiments by typing `accept exp`.
 
-### Writing Your Own Experiment
-
-To add your own app `foo`, put your C/C++ sources in `apps/foo`.  (The build
-system will assume all `.c` and `.cpp` files are to be built and linked
-together.)
-
-Add `#include <enerc.h>` to files where you plan to add `APPROX` type
-qualifiers.
-
-Insert `APPROX` type qualifiers into your code as appropriate.  (The ACCEPT paper contains details on the annotation language.)
-You can run `make build_orig` and `make build_opt` to build precise and
-approximate versions of your app, respectively.  Use `accept -f log` during
-development to preview relaxation opportunity sites.
-
-Insert a call to `accept_roi_begin()` immediately before the program's main
-chunk of work, and insert a call to `accept_roi_end()` immediately afterward.
-
-Finally, run your app:
-
-    $ accept exp foo
-
 ### Running on a Cluster
 
 The above will run all compilations and executions locally and in serial. To
@@ -100,6 +68,71 @@ library. Then pass the `-c`/`--cluster` flag to `accept` to enable cluster
 execution.
 
 [cluster-workers]: https://github.com/sampsyo/cluster-workers
+
+
+Writing a New Experiment
+------------------------
+
+This section will guide you through setting up a new application to be analyzed and optimized by the ACCEPT toolchain.
+
+### Add Source Files
+
+First, make a new directory in `apps/` with the name of your program. We'll use `apps/foo` in this example.
+
+Put your C/C++ sources in `apps/foo`. By default, The build system will assume
+all `.c` and `.cpp` files are to be built and linked together. (You can
+customize this later if need be.)
+
+### Makefile
+
+Next, add a `Makefile` for your experiment. Your Makefile should include at least these incantations to make everything work:
+
+    TARGET := foo
+    APP_MK := ../app.mk
+    include $(APP_MK)
+
+Of course, you'll want to change the name of your target to match your application's name.
+
+At this point, you can also specify more complicated aspects of your build setup if necessary. You can specify `CFLAGS` and `LDFLAGS`, add targets, explicitly indicate your source files with the `SOURCES` variable, etc. See the included benchmarks' Makefiles for examples.
+
+### Try Building
+
+You can now use the ACCEPT toolchain to try building your application. Just type:
+
+    accept -f build
+
+(The `-f` flag avoids memoization---see above.) This command shows the output of the build process, including any errors emitted by the compiler.
+
+Like most `accept` commands, `accept build` uses the application in the working directory by default. You can specify a path as an argument to build something else.
+
+### Annotate
+
+Add `#include <enerc.h>` to files where you plan to add `APPROX` type
+qualifiers.
+
+Then, insert `APPROX` type qualifiers into your code as appropriate.  (The ACCEPT paper contains details on the annotation language.)
+
+Insert a call to `accept_roi_begin()` immediately before the program's main
+chunk of work, and insert a call to `accept_roi_end()` immediately afterward.
+This assists the toolchain in timing the relevant portion of your computation.
+
+You might find it helpful to repeatedly run `accept -f build` during annotation to see type errors and guide your placement of qualifiers.
+
+### See Optimizations
+
+Now that you have an annotated application, you can ask ACCEPT to analyze the program for optimization opportunities. Type:
+
+    accept log
+
+(Remember to add `-f` if you make any changes to your source files.) This will spit out a log of places where ACCEPT looked for---and found---possible relaxations. It will attempt to point you toward source locations that, given a bit more attention, could unlock to more opportunities. Again, the ACCEPT paper describes the purpose of this feedback log.
+
+### Run the Toolchain
+
+Once you're happy with your annotations, you can run the full toolchain to optimize your program. Run this command:
+
+    accept exp foo
+
+Unlike the other `accept` commands, the `exp` command needs the name of your application (i.e., the directory name containing your sources).
 
 
 What Else is Here?
