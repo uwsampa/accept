@@ -48,6 +48,8 @@ def global_config(opts):
 @argh.arg('--time', '-t', dest='include_time')
 @argh.arg('--only', '-o', dest='only', action='append')
 def exp(appnames, verbose=False, as_json=False, include_time=False, only=None):
+    """Run the entire ACCEPT pipeline, by default on all apps
+    """
     # Load the current results, if any.
     if as_json:
         try:
@@ -100,6 +102,8 @@ def log_and_output(directory, fn='accept_log.txt'):
 
 @argh.arg('appdir', nargs='?', help='application directory')
 def log(appdir='.'):
+    """Compile a program and show ACCEPT optimization log
+    """
     appdir = core.normpath(appdir)
     with _client:
         _client.submit(log_and_output, appdir)
@@ -113,6 +117,8 @@ def log(appdir='.'):
 
 @argh.arg('appdir', nargs='?', help='application directory')
 def build(appdir='.'):
+    """Compile a program and show compiler output
+    """
     appdir = core.normpath(appdir)
     with _client:
         _client.submit(log_and_output, appdir)
@@ -124,6 +130,8 @@ def build(appdir='.'):
 
 @argh.arg('appdir', nargs='?', help='application directory')
 def precise(appdir='.'):
+    """Execute the precise (baseline) version of a program
+    """
     ev = core.Evaluation(appdir, _client, _reps)
     with _client:
         ev.setup()
@@ -137,6 +145,8 @@ def precise(appdir='.'):
 @argh.arg('num', nargs='?', type=int, help='which configuration')
 @argh.arg('appdir', nargs='?', help='application directory')
 def approx(num=None, appdir='.'):
+    """Execute approximate versions of a program
+    """
     ev = core.Evaluation(appdir, _client, _reps)
     with _client:
         experiments.run_experiments(ev)
