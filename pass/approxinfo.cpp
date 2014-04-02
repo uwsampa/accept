@@ -223,6 +223,15 @@ const std::set<std::string> funcWhitelist(
 ApproxInfo::ApproxInfo() : FunctionPass(ID) {
   std::string error;
   log = new raw_fd_ostream("accept_log.txt", error);
+  std::ifstream f("accept-approxRetValueFunctions-info.txt");
+  if (f.is_open()) {
+    while (f.good()) {
+      std::string line;
+      std::getline(f, line);
+      if (!line.empty()) approx_funcs.insert(line);
+    }
+    f.close();
+  }
 }
 
 ApproxInfo::~ApproxInfo() {
@@ -624,10 +633,52 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   }
   std::set<Instruction*> blockers = preciseEscapeCheck(blocks);
 
+  //andreolb: npu-specific
+  // A store to one of the function arguments is local and does not escape.
+  // This store might be to an address, which means this instruction *must*
+  // execute and must do so *precisely*.
+  // However, this is still local and doesn't prevent the function from
+  // being suitable for NPU execution.
+  // Only exception is when argument is reference (something&)
+  //
+  // Stores to the return value of a function that returns an approx value
+  // do not prevent the function from being precise-pure.
+  for (std::set<Instruction*>::iterator i = blockers.begin();
+        i != blockers.end();) {
+	  Instruction *inst = *i;
+	  if (isa<StoreInst>(inst)) {
+      bool deleted_it = false;
+      // Store to approx ret value case
+      if (approx_funcs.count(func->getName().str()) &&
+          (inst->getOperand(1)->getName().str() == "retval")) {
+        deleted_it = true;
+      } else {
+        // Store to argument case
+        for (Function::arg_iterator ai = func->arg_begin();
+              ai != func->arg_end(); ++ai) {
+          //std::cerr << ai->getName().str() << " -- " << func->getName().str() << std::endl;
+          if ((ai->getName().str() == inst->getOperand(1)->getName().str()) ||
+        	  ((ai->getName().str() + ".addr") == inst->getOperand(1)->getName().str())) {
+            deleted_it = true;
+            break;
+          }
+        }
+	    }
+      if (!deleted_it) {
+        ++i;
+      } else {
+        std::set<Instruction*>::iterator i_tmp = i++;
+        blockers.erase(i_tmp);
+      }
+	  } else {
+      ++i;
+	  }
+  }
+
   *log << " - blockers: " << blockers.size() << "\n";
   for (std::set<Instruction*>::iterator i = blockers.begin();
-        i != blockers.end(); ++i) {
-    *log << " - * " << instDesc(*(func->getParent()), *i) << "\n";
+          i != blockers.end(); ++i) {
+      *log << " - * " << instDesc(*(func->getParent()), *i) << "\n";
   }
   if (blockers.empty()) {
     *log << " - precise-pure function: _" << func->getName() << "\n";

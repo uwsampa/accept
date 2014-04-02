@@ -11,7 +11,6 @@ extern UINT8 Cqt [BLOCK_SIZE];
 extern UINT16 ILqt [BLOCK_SIZE];
 extern UINT16 ICqt [BLOCK_SIZE];
 
-extern INT16 Y1 [BLOCK_SIZE];
 extern INT16 CB [BLOCK_SIZE];
 extern INT16 CR [BLOCK_SIZE];
 extern INT16 Temp [BLOCK_SIZE];

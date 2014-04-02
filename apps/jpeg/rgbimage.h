@@ -2,6 +2,7 @@
 #define RGB_IMAGE_H_
 
 #include "datatype.h"
+#include <enerc.h>
 
 typedef struct {
    INT16 r;
@@ -23,6 +24,6 @@ void freeRgbImage(RgbImage* image);
 
 void makeGrayscale(RgbImage* rgbImage);
 
-void readMcuFromRgbImage(RgbImage* srcImage, int x, int y, INT16* data);
+void readMcuFromRgbImage(RgbImage* srcImage, int x, int y, APPROX INT16* data);
 
 #endif /* RGB_IMAGE_H_ */

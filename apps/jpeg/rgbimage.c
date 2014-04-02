@@ -3,6 +3,8 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include <enerc.h>
+
 void initRgbImage(RgbImage* image) {
 	image->w = 0;
 	image->h = 0;
@@ -202,7 +204,7 @@ void makeGrayscale(RgbImage* image) {
 	}
 }
 
-void readMcuFromRgbImage(RgbImage* image, int x, int y, INT16* data) {
+void readMcuFromRgbImage(RgbImage* image, int x, int y, APPROX INT16* data) {
 	int i, j;
 
 	for (i = 0; i < 8; ++i) {

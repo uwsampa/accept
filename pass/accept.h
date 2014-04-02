@@ -25,6 +25,7 @@ namespace llvm {
   FunctionPass *createAcceptTransformPass();
   extern FunctionPass *sharedAcceptTransformPass;
   LoopPass *createLoopPerfPass();
+  LoopPass *createLoopNPUPass();
 
   std::string srcPosDesc(const Module &mod, const DebugLoc &dl);
   std::string instDesc(const Module &mod, Instruction *inst);
@@ -44,6 +45,7 @@ typedef enum {
 // chunks are approximate. It is consumed by our various optimizations.
 class ApproxInfo : public llvm::FunctionPass {
 public:
+  std::set<std::string> approx_funcs;
   static char ID;
   ApproxInfo();
   virtual ~ApproxInfo();
@@ -70,10 +72,11 @@ public:
   LineMarker markerAtLine(std::string filename, int line);
   LineMarker instMarker(llvm::Instruction *inst);
 
+  std::set<llvm::BasicBlock*> successorsOf(llvm::BasicBlock *block);
+
 private:
   void successorsOfHelper(llvm::BasicBlock *block,
                           std::set<llvm::BasicBlock*> &succ);
-  std::set<llvm::BasicBlock*> successorsOf(llvm::BasicBlock *block);
   bool storeEscapes(llvm::StoreInst *store,
                     std::set<llvm::Instruction*> insts);
   int preciseEscapeCheckHelper(std::map<llvm::Instruction*, bool> &flags,

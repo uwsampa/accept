@@ -3,6 +3,8 @@
 #include "quantdata.h"
 #include <enerc.h>
 
+APPROX INT16	Temp [BLOCK_SIZE];
+
 /**	This function implements 16 Step division for Q.15 format data */
 UINT16 dspDivision(UINT32 numer, UINT32 denom) {
 	UINT16 i;
@@ -89,6 +91,6 @@ void quantization(APPROX INT16* const data, UINT16* const quant_table_ptr) {
 		value = data[i] * quant_table_ptr[i];
 		value = (value + 0x4000) >> 15;
 
-		Temp[zigzagTable[i]] = ENDORSE((INT16) value);
+		Temp[zigzagTable[i]] = (INT16) value;
 	}
 }

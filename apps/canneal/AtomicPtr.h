@@ -188,6 +188,7 @@ class AtomicPtr {
     }
 
     //return the current value of the pointer
+    //NPU: pure approx function. This gets a lock.
     APPROX inline T *Get() const {
       T *val;
 
@@ -301,6 +302,7 @@ class AtomicPtr {
     // *** Operators ***
 
 
+    //NPU: pure approx function. Operator.
     APPROX T operator*() {
       return *Get();
     }
