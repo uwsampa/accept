@@ -133,6 +133,9 @@ int main (int argc, const char* argv[]) {
 
     dynInsn_precise = get_eventcount(0);  
 */
+
+    float *p;
+    p = (float *)(1024 * sizeof(float));
     
 #if POWER_MODE == 1
     while (1) {
@@ -146,6 +149,8 @@ int main (int argc, const char* argv[]) {
             t_kernel_precise_start();
 #endif //PROFILE_MODE == 2
 */
+          *p = i + 3;
+          p++;
 
             inversek2j(xy[i + 0], xy[i + 1], t1t2_precise + (i + 0), t1t2_precise + (i + 1));
 
