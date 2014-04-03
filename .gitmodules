@@ -1,0 +1,9 @@
+[submodule "checkerlib"]
+	path = checkerlib
+	url = git@bitbucket.org:sampa/checkerlib.git
+[submodule "clang"]
+	path = clang
+	url = git@bitbucket.org:sampa/clang-qual.git
+[submodule "mspsim"]
+	path = mspsim
+	url = git://github.com/ransford/mspsim.git
