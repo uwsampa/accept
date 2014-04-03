@@ -10,7 +10,8 @@ Quick Start
 
 Here's the easiest way to get started:
 
-1. Clone this repository to your Unix-like system.
+1. Clone this repository to your Unix-like system. Use `git clone
+   --recurse-submodules` to grab the project's dependencies.
 
 2. Install [CMake][] and [Ninja][], which our build scripts use to build to tool. (If you like, you can of course edit the relevant scripts to use make or another build tool instead of Ninja.)
 
