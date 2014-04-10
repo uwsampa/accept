@@ -7,3 +7,5 @@ pages:
     - [index.md, Home]
     - [tutorial.md, Tutorial]
     - [cli.md, Reference]
+repo_url: https://github.com/uwsampa/accept/
+markdown_extensions: [smartypants]
