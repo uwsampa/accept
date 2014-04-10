@@ -1,3 +1,0 @@
-checkerlib=[git]git@bitbucket.org:sampa/checkerlib.git
-clang=[git]git@bitbucket.org:sampa/clang-qual.git
-mspsim=[git]git://github.com/ransford/mspsim.git

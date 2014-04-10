@@ -1,0 +1,9 @@
+build/
+llvm/
+test/Output/
+saved_outputs/
+memo.db
+apps/blackscholes/in_*.txt
+apps/canneal/*.nets
+apps/fluidanimate/in_*.fluid
+site/
