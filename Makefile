@@ -78,3 +78,21 @@ check_ninja:
 		echo "http://martine.github.io/ninja/"; \
 		exit 2; \
 	else true; fi
+
+
+# Documentation.
+
+.PHONY: docs cleandocs deploydocs
+
+docs:
+	mkdocs build
+
+cleandocs:
+	rm -rf site
+
+# Upload the documentation to the Web server.
+CSEHOST := bicycle.cs.washington.edu
+CSEPATH := /cse/www2/sampa/accept
+deploydocs: cleandocs docs
+	rsync --compress --recursive --checksum --itemize-changes --delete -e ssh site/ $(CSEHOST):$(CSEPATH)
+	ssh $(CSEHOST) "echo -e 'authtype csenetid\\nrequire valid-user' > $(CSEPATH)/.htaccess"

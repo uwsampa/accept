@@ -1,0 +1,9 @@
+# Configuration for our documentation build system, MkDocs:
+# http://www.mkdocs.org
+
+site_name: ACCEPT
+theme: cosmo
+pages:
+    - [index.md, Home]
+    - [tutorial.md, Tutorial]
+    - [cli.md, Reference]
