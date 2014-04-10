@@ -141,7 +141,7 @@ Here's an example `eval.py` to start with:
 
     def load():
         out = []
-        open 'my_output.txt' as f:
+        with open('my_output.txt') as f:
             for line in f:
                 first_num, _ = line.split(None, 1)
                 out.append(float(first_num))
