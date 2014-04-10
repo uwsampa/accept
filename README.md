@@ -53,6 +53,19 @@ This repository includes lots of stuff:
 [LIT]: http://llvm.org/docs/CommandGuide/lit.html
 
 
+Building the Docs
+-----------------
+
+The documentation can be translated into a nice HTML representation using [MkDocs][]. Install it and the SmartyPants Markdown extension with:
+
+    $ pip install mkdocs
+    $ pip install mdx_smartypants
+
+To view the docs locally, type `mkdocs serve` and go to the indicated URL.
+
+If you have the appropriate permissions, type `make deploydocs` to upload the HTML files to [our servers][docs].
+
+
 License
 -------
 
