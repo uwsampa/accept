@@ -18,6 +18,16 @@ else
 	NINJA := ninja
 endif
 
+# LLVM 3.2 has some trouble building against libc++, which seems to be the
+# default standard library on recent OS X dev tools. Presumably this is fixed
+# in later versions of LLVM, but for now, we force the compiler to use GNU
+# libstdc++.
+ifeq ($(LLVM_VERSION),3.2)
+ifneq ($(shell c++ --version | grep clang),)
+	CMAKE_FLAGS += -DCMAKE_CXX_FLAGS=-stdlib=libstdc++
+endif
+endif
+
 
 # Actually building stuff.
 
