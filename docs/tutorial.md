@@ -28,9 +28,9 @@ At this point, you can also specify more complicated aspects of your build setup
 
 You can now use the ACCEPT toolchain to try building your application. Just type:
 
-    accept -f build
+    $ accept -f build
 
-(The `-f` flag avoids memoization---see above.) This command shows the output of the build process, including any errors emitted by the compiler.
+(The `-f` flag avoids memoization—see the [tool documentation](cli.md).) This command shows the output of the build process, including any errors emitted by the compiler.
 
 Like most `accept` commands, `accept build` uses the application in the working directory by default. You can specify a path as an argument to build something else.
 
@@ -51,9 +51,9 @@ You might find it helpful to repeatedly run `accept -f build` during annotation 
 
 Now that you have an annotated application, you can ask ACCEPT to analyze the program for optimization opportunities. Type:
 
-    accept log
+    $ accept log
 
-(Remember to add `-f` if you make any changes to your source files.) This will spit out a log of places where ACCEPT looked for---and found---possible relaxations. It will attempt to point you toward source locations that, given a bit more attention, could unlock to more opportunities. Again, the ACCEPT paper describes the purpose of this feedback log.
+(Remember to add `-f` if you make any changes to your source files.) This will spit out a log of places where ACCEPT looked for—and found—possible relaxations. It will attempt to point you toward source locations that, given a bit more attention, could unlock to more opportunities. Again, the ACCEPT paper describes the purpose of this feedback log.
 
 ## Write a Quality Metric
 
@@ -80,7 +80,7 @@ Here's an example `eval.py` to start with:
             total += min(abs(a - b), 1.0)
         return total / len(orig), 1.0
 
-**File caching.** Parsed program outputs---values returned by `load`---are stored serialized in an SQLite database for safekeeping and reuse. The idea is to avoid re-parsing the same output multiple times. Sometimes, however, it can be inefficient to store parsed and serialized values: when outputs are very large, it's better to just keep the file itself around and parse it on the fly each time. For example, if your program outputs an image, you probably don't want to store that in the database. In these cases, return a string starting with the prefix `file:` from your `load` function. Output files will then be cached and their *filenames* (rather than contents) passed to `score`.
+**File caching.** Parsed program outputs—values returned by `load`—are stored serialized in an SQLite database for safekeeping and reuse. The idea is to avoid re-parsing the same output multiple times. Sometimes, however, it can be inefficient to store parsed and serialized values: when outputs are very large, it's better to just keep the file itself around and parse it on the fly each time. For example, if your program outputs an image, you probably don't want to store that in the database. In these cases, return a string starting with the prefix `file:` from your `load` function. Output files will then be cached and their *filenames* (rather than contents) passed to `score`.
 
 Here's an example `eval.py` using this approach:
 
@@ -106,6 +106,6 @@ Here's an example `eval.py` using this approach:
 
 Once you're happy with your annotations, you can run the full toolchain to optimize your program. Run this command:
 
-    accept exp foo
+    $ accept exp foo
 
 Unlike the other `accept` commands, the `exp` command needs the name of your application (i.e., the directory name containing your sources).
