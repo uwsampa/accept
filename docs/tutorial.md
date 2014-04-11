@@ -73,12 +73,13 @@ Here's an example `eval.py` to start with:
             for line in f:
                 first_num, _ = line.split(None, 1)
                 out.append(float(first_num))
+        return out
 
     def score(orig, relaxed):
         total = 0.0
         for a, b in zip(orig, relaxed):
             total += min(abs(a - b), 1.0)
-        return total / len(orig), 1.0
+        return total / len(orig)
 
 **File caching.** Parsed program outputs—values returned by `load`—are stored serialized in an SQLite database for safekeeping and reuse. The idea is to avoid re-parsing the same output multiple times. Sometimes, however, it can be inefficient to store parsed and serialized values: when outputs are very large, it's better to just keep the file itself around and parse it on the fly each time. For example, if your program outputs an image, you probably don't want to store that in the database. In these cases, return a string starting with the prefix `file:` from your `load` function. Output files will then be cached and their *filenames* (rather than contents) passed to `score`.
 
