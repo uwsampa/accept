@@ -59,7 +59,7 @@ Now that you have an annotated application, you can ask ACCEPT to analyze the pr
 
 The dynamic feedback loop component of ACCEPT relies on a function that assesses the *quality* of a relaxed program's output. You write this function in a Python script that accompanies the source code of your program.
 
-To write your application's quality metric, create a file called `eval.py` alongside your source files. There, you'll define two Python functions: `load` and `score`.
+To write your application's quality metric, create a file called `eval.py` alongside your source files. There, you'll define two Python functions: `load` and `score`. You never have to worry about calling these functions—the ACCEPT driver itself invokes them during the auto-tuning process.
 
 **Load function.** The `load` function takes no arguments. It loads and parses the output of one execution of the program and returns a data structure representing it. For example, you might parse a CSV file to get a list of floating-point numbers and return that.
 
