@@ -30,6 +30,8 @@ This explains which opportunities where analyzed for approximation, which are re
 
 Build and execute a baseline, precise configuration of the program in the current working directory.
 
+Show the output of the program (parsed by the `eval.py` script's `load()` function) and the execution time in seconds.
+
 ### `accept approx`
 
 Build and execute approximate configurations of the program in the current working directory. By default, all approximate configurations are run. An optional argument lets you select a specific single configuration by its index.
