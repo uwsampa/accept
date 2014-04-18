@@ -43,6 +43,8 @@ The `accept` tool provides a few common flags (which should appear before the sp
 
 Enable more logging output. This is especially helpful if you have a long-running command and want to make sure it's actually making progress.
 
+Use this option multiple times to get more verbose output (e.g., `-vv`).
+
 ### `--force`, `-f`
 
 Don't use memoized results; force re-computation.

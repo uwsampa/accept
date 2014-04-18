@@ -158,7 +158,11 @@ def build(approx=False, require=True):
     """
     build_cmd = ['make', 'build_opt' if approx else 'build_orig']
     build_cmd += _make_args()
+
+    logging.debug(u'running build command: {0}'.format(u' '.join(build_cmd)))
     status, output = run_cmd(build_cmd, BUILD_TIMEOUT)
+    logging.debug(u'build output (status {0}): {1}'.format(status, output))
+
     if status is None:
         raise BuildError('build timed out')
     if require and status:
