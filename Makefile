@@ -24,7 +24,7 @@ endif
 # libstdc++.
 ifeq ($(LLVM_VERSION),3.2)
 ifneq ($(shell c++ --version | grep clang),)
-	CMAKE_FLAGS += -DCMAKE_CXX_FLAGS=-stdlib=libstdc++
+	CMAKE_FLAGS += '-DCMAKE_CXX_FLAGS:STRING=-stdlib=libstdc++ -std=gnu++98'
 endif
 endif
 
@@ -46,12 +46,15 @@ llvm: llvm/CMakeLists.txt llvm/tools/clang check_cmake check_ninja
 
 # Convenience targets.
 
-.PHONY: setup test
+.PHONY: setup test clean
 
 setup: llvm accept
 
 test:
 	$(BUILT)/bin/llvm-lit -v test
+
+clean:
+	rm -rf $(BUILD)
 
 
 # Fetching and extracting LLVM.
