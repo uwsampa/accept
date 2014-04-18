@@ -36,18 +36,24 @@ You can now use the ACCEPT toolchain to try building your application. Just type
 
 Like most `accept` commands, `accept build` uses the application in the working directory by default. You can specify a path as an argument to build something else.
 
+## Source Setup
+
+You will need to make a few small changes to your application's source code to make it fit the ACCEPT workflow:
+
+* The output will need to be written to a file (or multiple files). This is because the quality measurement infrastructure needs to pick up the output after the execution finishes. If the program's output is sent to the console, change it to instead send writes to a text file.
+* Add `#include <enerc.h>` to relevant files. This header file includes definitions for both annotations and ROI markers (next!).
+* Mark the "interesting" part of the workload for timing using *region of interest* (ROI) markers. ACCEPT needs to time your program's execution, but you don't want it to time mundane tasks like reading input files. Insert a call to `accept_roi_begin()` immediately before the program's main chunk of work, and insert a call to `accept_roi_end()` immediately afterward.
+
 ## Annotate
 
-Add `#include <enerc.h>` to files where you plan to add `APPROX` type
-qualifiers.
+Your next task is to actually annotate the application to enable approximation.
+Insert `APPROX` type qualifiers and `ENDORSE()` casts into your code as appropriate.
 
-Then, insert `APPROX` type qualifiers into your code as appropriate.  (The ACCEPT paper contains details on the annotation language.)
-
-Insert a call to `accept_roi_begin()` immediately before the program's main
-chunk of work, and insert a call to `accept_roi_end()` immediately afterward.
-This assists the toolchain in timing the relevant portion of your computation.
+The ACCEPT paper contains details on the annotation language. This guide should eventually contain a summary of the annotation features, but for now, take a look at the paper.
 
 You might find it helpful to repeatedly run `accept -f build` during annotation to see type errors and guide your placement of qualifiers.
+
+Remember that you will need to use `#include <enerc.h>` in files where use annotations.
 
 ## See Optimizations
 
