@@ -3,10 +3,10 @@ cmake_minimum_required(VERSION 2.8)
 
 # Incantation to get Ninja to give us color output.
 if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-    set(CMAKE_CXX_FLAGS "-fcolor-diagnostics")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcolor-diagnostics")
 endif()
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
-    set(CMAKE_C_FLAGS "-fcolor-diagnostics")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcolor-diagnostics")
 endif()
 
 execute_process(COMMAND xcrun --show-sdk-path OUTPUT_VARIABLE XCODESDKPATH OUTPUT_STRIP_TRAILING_WHITESPACE)
