@@ -22,7 +22,9 @@ Next, add a `Makefile` for your experiment. Your Makefile should include at leas
 
 Of course, you'll want to change the name of your target to match your application's name.
 
-At this point, you can also specify more complicated aspects of your build setup if necessary. You can specify `CFLAGS` and `LDFLAGS`, add targets, explicitly indicate your source files with the `SOURCES` variable, etc. See the included benchmarks' Makefiles for examples.
+For simple programs, this is all you need; by default, the build system will compile any files ending in `.c` and `.cpp` into your executable.
+
+In more complex build scenarios, you can specify more variables and targets here. For example, you can specify `CFLAGS` and `LDFLAGS` to add to the compiler invocation command-lines. You can set the `SOURCES` variable to explicitly indicate which files should be compiled (rather than using `*.c *.cpp`). See the included benchmarks' Makefiles for examples.
 
 ## Try Building
 
