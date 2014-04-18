@@ -181,7 +181,7 @@ def main():
     parser.add_argument('--keep-sandboxes', '-k', action='store_true',
                         dest='keep_sandboxes', default=False,
                         help='keep intermediate sandbox directories')
-    parser.dispatch(pre_call=global_config)
+    parser.dispatch(pre_call=global_config, completion=False)
 
 if __name__ == '__main__':
     main()
