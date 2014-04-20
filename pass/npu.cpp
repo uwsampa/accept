@@ -269,6 +269,7 @@ namespace {
     unsigned int n = inst->getNumOperands();
 
     builder.SetInsertPoint(prev_inst);
+    builder.CreateStore(ConstantInt::get(nativeInt, 0, false), counterAlloca);
     Value *v;
     Value *load;
     std::vector<Type *> conv_ty;
