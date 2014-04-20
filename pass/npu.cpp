@@ -336,13 +336,23 @@ namespace {
     }
 
     // This will be used later in case the call instruction is
-    // the last instruction of its basic block.
+    // the last instruction of its basic block (it shouldn't be).
     // If this is the case, then the basic block cannot have
     // more than one successor.
     BasicBlock *after_callBB_tmp = (successorsOf(inst->getParent())).begin();
 
-    BasicBlock *newBB;
+    // If we buffered any input (n != 0) we have to check whether
+    // the buffer is not full yet.
+    // TODO: for now we're assuming the buffer size is a multiple of
+    // the number of inputs.
+    // Since we have to check the iBuff counter at the end, we have to
+    // split the current basic block. It's always safe to do so because
+    // we have already buffered something (so there're instructions
+    // *before* the call) and the call itself will be on the other BB.
+    BasicBlock *callBB = inst->getParent();
     if (n != 0) {
+
+      // First get an iterator to the call inst and split the BB there.
       BasicBlock *currBB = inst->getParent();
       for (BasicBlock::iterator ii = currBB->begin();
             ii != currBB->end();
@@ -351,31 +361,48 @@ namespace {
         if (i != inst)
           continue;
 
-        newBB = currBB->splitBasicBlock(
+        callBB = currBB->splitBasicBlock(
             ii,
             "npu_call_block"
         );
         break;
       }
+
+      // The new BB (without the call inst) will have an unconditional
+      // branch at the end to the call block. This will have to be replaced
+      // by a conditional branch that will either jump to the call block
+      // (if the iBuff is full) or to the loop latch to buffer more inputs.
       Instruction *new_uncond_branch_term = currBB->getTerminator();
       builder.SetInsertPoint(new_uncond_branch_term);
+
+      // Load the input reading loop's induction variable.
       v = builder.CreateLoad(counterAlloca, "npu_counter_load");
+
+      // Add the number of inputs stored in iBuff.
       v = builder.CreateAdd(v,
                             ConstantInt::get(nativeInt, n, false),
                             "npu_counter_add");
+
+      // Store the result back.
       builder.CreateStore(v, counterAlloca);
+
+      // Compare the new value of the induction variable to the buffer size.
       v = builder.CreateICmpEQ(v,
                                 ConstantInt::get(nativeInt,
                                                   buffer_size,
                                                   false),
                                 "npu_icmp_iBuffSize");
-      builder.CreateCondBr(v, newBB, loop->getLoopLatch());
 
+      // If they're the same, the buffer is full and we jump to
+      // the call block. Otherwise, jump to the loop latch to buffer
+      // more inputs.
+      builder.CreateCondBr(v, callBB, loop->getLoopLatch());
+
+      // Remove the unconditional branch and add the new block to the loop.
       new_uncond_branch_term->eraseFromParent();
-      loop->addBasicBlockToLoop(newBB, LI->getBase());
+      loop->addBasicBlockToLoop(callBB, LI->getBase());
     }
 
-    BasicBlock *callBB = newBB;
     BasicBlock *after_callBB;
     bool created_emptyBB = false;
     if (callBB->getTerminator() != inst) {
