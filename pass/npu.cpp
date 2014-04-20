@@ -142,34 +142,6 @@ namespace {
       rso << *inst;
       std::cerr << "\n" << rso.str() << std::endl;
           if (!c_inst) continue;
-          /*
-    std::cerr << "------------------------ uses --------------" << std::endl;
-      for (Loop::block_iterator bi2 = loop->block_begin();
-            bi2 != loop->block_end(); ++bi2) {
-        BasicBlock *bb2 = *bi2;
-        for (BasicBlock::iterator ii2 = bb2->begin();
-          ii2 != bb2->end(); ++ii2) {
-          Instruction *inst2 = ii2;
-          Value *v = (Value*) inst2;
-      std::string type_str;
-      llvm::raw_string_ostream rso(type_str);
-      rso << *inst2 << "\n";
-      rso << "===== value: " << *v;
-      std::cerr << "\n" << rso.str() << std::endl;
-        }
-      }
-
-
-    unsigned int n = inst->getNumOperands();
-    for (unsigned int i = 0; i < n; ++i) {
-      std::string type_str;
-      llvm::raw_string_ostream rso(type_str);
-      rso << *(inst->getOperandUse(i));
-      std::cerr << "\n" << rso.str() << std::endl;
-    }
-    std::cerr << "------------------------ end uses --------------" << std::endl;
-    */
-
           Function *callee = c_inst->getCalledFunction();
 
           testSubFunctions(callee);
@@ -184,18 +156,6 @@ namespace {
         } // for instructions
 
       } // for basic blocks
-
-      // Finding smaller regions inside the loop.
-      /*
-      for (Loop::block_iterator bi = loop->block_begin();
-            bi != loop->block_end(); ++bi) {
-        std::set<BasicBlock *> region;
-        build_region(*bi, region);
-        if ((AI->preciseEscapeCheck(region)).size() == 0) { // no blockers
-          std::cerr << "\nFound region of approx code" << std::endl;
-        }
-      } // end basic blocks
-      */
 
   } // tryToOptimizeLoop
 
