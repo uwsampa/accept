@@ -206,18 +206,28 @@ namespace {
   }
 
   void tryToNPU(Loop *loop, Instruction *inst, Instruction *prev_inst) {
+    // We need a loop latch to jump to after reading oBuff
+    // and executing the instructions after the function call.
     if (!loop->getLoopLatch())
       return;
 
     const CallInst *c_inst = dyn_cast<CallInst>(inst);
     Function *f = c_inst->getCalledFunction();
 
+    // Region is the entire called function. All of its instructions.
+    // "Stores" is all the store instructions in the called function.
     std::set<Instruction *> region;
     std::vector<StoreInst *> stores;
     for (Function::iterator bi = f->begin(); bi != f->end(); ++bi) {
       BasicBlock *bb = bi;
       Loop *in_loop = LI->getLoopFor(bb);
+
+      // No escaping stores inside loops allowed for now.
+      // We would need to determine how many times the store would
+      // be executed and whether it would write to the same address
+      // or not in order to know how much buffer space we need.
       if (in_loop) return;
+
       for (BasicBlock::iterator ii = bb->begin(); ii != bb->end(); ++ii) {
         Instruction *inst = ii;
         region.insert(ii);
@@ -226,6 +236,9 @@ namespace {
       }
     }
     int n_stores = stores.size();
+
+    // Get a list of all the stores that escape the function
+    // (approx or not).
     std::vector<StoreInst *> escaped_stores;
     for (int i = 0; i < n_stores; ++i)
       if (AI->storeEscapes(stores[i], region, false))
@@ -234,6 +247,9 @@ namespace {
     std::vector<std::string> outputs;
     std::vector<int> n_written;
 
+    // The list of parameters as in the function prototype.
+    // Both in string and Value formats.
+    // Not sure if the string version is needed. If not, remove it.
     typedef iplist<Argument> ArgumentListType;
     std::vector<std::string> callee_args_str;
     std::vector<Value *> callee_args_value;
@@ -247,28 +263,43 @@ namespace {
       callee_args_value.push_back(ai);
     }
 
+    // The list of arguments as in the instruction that calls
+    // the function.
     std::vector<Value *> caller_args;
     for (int i = 0; i < c_inst->getNumArgOperands(); ++i)
       caller_args.push_back(c_inst->getArgOperand(i));
 
 
+    // Assume a constant buffer size for now.
     int buffer_size = 1024;
-    IRBuilder<> builder(module->getContext());
-    builder.SetInsertPoint(loop->getLoopPreheader()->getParent()->getEntryBlock().begin());
+    unsigned int ibuff_addr = 0xFFFF8000;
+    unsigned int obuff_addr = 0xFFFFF000;
     IntegerType *nativeInt = getNativeIntegerType();
+    IRBuilder<> builder(module->getContext());
+
+    // First insert all the needed allocas in the beginning of
+    // the function (which is where they MUST be).
+    builder.SetInsertPoint(loop->getLoopPreheader()->getParent()->getEntryBlock().begin());
+
+    // A counter for buffering the function inputs.
     AllocaInst *counterAlloca = builder.CreateAlloca(nativeInt,
                                                       0,
                                                       "npu_ibuff_counter");
+
+    // iBuff and oBuff
     AllocaInst *iBuffAlloca = builder.CreateAlloca(Type::getFloatPtrTy(module->getContext()),
                                                    0,
                                                    "npu_ibuff_alloca");
     AllocaInst *oBuffAlloca = builder.CreateAlloca(Type::getFloatPtrTy(module->getContext()),
                                                    0,
                                                    "npu_obuff_alloca");
+
+    // A counter for reading the function outputs.
     AllocaInst *outLoopCounterAlloca = builder.CreateAlloca(nativeInt,
                                                             0,
                                                             "npu_out_loop_counter");
 
+    // Number of inputs passed to the function call.
     unsigned int n = inst->getNumOperands();
 
     builder.SetInsertPoint(prev_inst);
@@ -309,8 +340,6 @@ namespace {
         converted[i] = 4;
       }
 
-      unsigned int ibuff_addr = 0xFFFF8000;
-      unsigned int obuff_addr = 0xFFFFF000;
       if (i == 0) {
         Constant *constInt = ConstantInt::get(nativeInt, ibuff_addr, false);
         Value *constPtr = ConstantExpr::getIntToPtr(constInt,
