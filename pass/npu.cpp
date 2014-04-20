@@ -206,6 +206,9 @@ namespace {
   }
 
   void tryToNPU(Loop *loop, Instruction *inst, Instruction *prev_inst) {
+    if (!loop->getLoopLatch())
+      return;
+
     const CallInst *c_inst = dyn_cast<CallInst>(inst);
     Function *f = c_inst->getCalledFunction();
 
