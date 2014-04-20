@@ -262,7 +262,7 @@ namespace {
     // Number of inputs passed to the function call.
     unsigned int n = inst->getNumOperands();
 
-    builder.SetInsertPoint(prev_inst);
+    builder.SetInsertPoint(inst);
     builder.CreateStore(ConstantInt::get(nativeInt, 0, false), counterAlloca);
     Value *v;
     Value *load;
