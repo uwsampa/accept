@@ -298,6 +298,10 @@ namespace {
 
       // Only once (when i == 0) initialize the iBuff and oBuff pointers
       // and load the iBuff one.
+      // TODO: maybe this can be optimized. We already know the initial address
+      // of iBuff and oBuff so we can just use a constant as the initial value
+      // and go from there. At this point register allocation hasn't been
+      // performed yet, so we have to load/store everything though.
       if (i == 0) {
         Constant *constInt = ConstantInt::get(nativeInt, ibuff_addr, false);
         Value *constPtr = ConstantExpr::getIntToPtr(constInt,
@@ -310,6 +314,8 @@ namespace {
         load = builder.CreateLoad(iBuffAlloca, true, "npu_load_ibuff");
       }
 
+      // Now that the input has been converted and iBuff has been loaded, get
+      // the address of the next iBuff element.
       s = "npu_iBuffGEP_" + i;
       Value *GEP;
       // is the 1 signed? (the true parameter)
@@ -317,11 +323,15 @@ namespace {
                                       ConstantInt::get(nativeInt, 1, true),
                                       s.c_str());
 
+      // Store the (converted) input in the current iBuff position.
+      builder.CreateStore(v, load, false); //is this store volatile?
+
+      // After storing the last input, store the final address of iBuff.
       if (i == (n - 1))
         builder.CreateStore(GEP, iBuffAlloca, true);
 
-      builder.CreateStore(v, load, false); //is this store volatile?
-
+      // The next iBuff element to be written is the result of the
+      // GEP instruction above.
       load = GEP;
     }
 
