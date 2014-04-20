@@ -3,6 +3,8 @@
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/IRBuilder.h"
 #include "llvm/Module.h"
+#include "llvm/Function.h"
+#include "llvm/Argument.h"
 
 #include <sstream>
 #include <iostream>
@@ -173,7 +175,7 @@ namespace {
           testSubFunctions(callee);
           if (AI->isPrecisePure(callee)) {
             std::cerr << callee->getName().str() << " is precise pure!\n\n" << std::endl;
-            //tryToNPU(loop, inst, prev_inst);
+            tryToNPU(loop, inst, prev_inst);
           } else {
             std::cerr << callee->getName().str() << " is NOT precise pure!\n\n" << std::endl;
           }
@@ -197,47 +199,132 @@ namespace {
 
   } // tryToOptimizeLoop
 
+  IntegerType *getNativeIntegerType() {
+    DataLayout layout(module->getDataLayout());
+    return Type::getIntNTy(module->getContext(),
+                            layout.getPointerSizeInBits());
+  }
+
   void tryToNPU(Loop *loop, Instruction *inst, Instruction *prev_inst) {
+    const CallInst *c_inst = dyn_cast<CallInst>(inst);
+    Function *f = c_inst->getCalledFunction();
+
+    std::set<Instruction *> region;
+    std::vector<StoreInst *> stores;
+    for (Function::iterator bi = f->begin(); bi != f->end(); ++bi) {
+      BasicBlock *bb = bi;
+      Loop *in_loop = LI->getLoopFor(bb);
+      if (in_loop) return;
+      for (BasicBlock::iterator ii = bb->begin(); ii != bb->end(); ++ii) {
+        Instruction *inst = ii;
+        region.insert(ii);
+        if (StoreInst *s = dyn_cast<StoreInst>(inst))
+          stores.push_back(s);
+      }
+    }
+    int n_stores = stores.size();
+    std::vector<StoreInst *> escaped_stores;
+    for (int i = 0; i < n_stores; ++i)
+      if (AI->storeEscapes(stores[i], region, false))
+        escaped_stores.push_back(stores[i]);
+
+    std::vector<std::string> outputs;
+    std::vector<int> n_written;
+
+    typedef iplist<Argument> ArgumentListType;
+    std::vector<std::string> callee_args_str;
+    std::vector<Value *> callee_args_value;
+    for (ArgumentListType::iterator ai = (f->getArgumentList()).begin();
+          ai != (f->getArgumentList()).end();
+          ++ai) {
+      std::string type_str;
+      llvm::raw_string_ostream rso(type_str);
+      rso << *ai;
+      callee_args_str.push_back(rso.str());
+      callee_args_value.push_back(ai);
+    }
+
+    std::vector<Value *> caller_args;
+    for (int i = 0; i < c_inst->getNumArgOperands(); ++i)
+      caller_args.push_back(c_inst->getArgOperand(i));
+
+
+    int buffer_size = 1024;
     IRBuilder<> builder(module->getContext());
     builder.SetInsertPoint(loop->getLoopPreheader()->getParent()->getEntryBlock().begin());
     IntegerType *nativeInt = getNativeIntegerType();
-    AllocaInst *counterAlloca = builder.CreateAlloca(nativeInt, 0, "npu_ibuff_counter");
+    AllocaInst *counterAlloca = builder.CreateAlloca(nativeInt,
+                                                      0,
+                                                      "npu_ibuff_counter");
+    AllocaInst *iBuffAlloca = builder.CreateAlloca(Type::getFloatPtrTy(module->getContext()),
+                                                   0,
+                                                   "npu_ibuff_alloca");
+    AllocaInst *oBuffAlloca = builder.CreateAlloca(Type::getFloatPtrTy(module->getContext()),
+                                                   0,
+                                                   "npu_obuff_alloca");
+    AllocaInst *outLoopCounterAlloca = builder.CreateAlloca(nativeInt,
+                                                            0,
+                                                            "npu_out_loop_counter");
 
     unsigned int n = inst->getNumOperands();
-    //std::vector<AllocaInst *> funcIn_allocas;
-
-    for (unsigned int i = 0; i < n; ++i) {
-      std::string alloca_name = "npu_funcIn_alloca_" + i;
-      AllocaInst *funcIn_alloca = builder.CreateAlloca(Type::getFloatTy(), 0, alloca_name.c_str());
-      //funcIn_allocas.push_back(funcIn_alloca);
-
-      rso << inst->getOperandUse(i);
-    }
 
     builder.SetInsertPoint(prev_inst);
     Value *v;
     Value *load;
+    std::vector<Type *> conv_ty;
+    std::vector<int> converted;
+    // 1 - SI
+    // 2 - UI
+    // 3 - Double truncation
+    // 4 - No conversion
     for (unsigned int i = 0; i < n; ++i) {
       std::string s = "npu_conv_" + i;
       Type *type = inst->getOperandUse(i)->getType();
+      conv_ty[i] = type;
       v = inst->getOperandUse(i);
       if (type->isIntegerTy()) {
         IntegerType *it = static_cast<IntegerType *>(type);
-        if (it->getSignBit())
-          v = builder.CreateSIToFP(v, Type::getFloatTy(), s.c_str());
-        else
-          v = builder.CreateUIToFP(v, Type::getFloatTy(), s.c_str());
+        if (it->getSignBit()) {
+          converted[i] = 1;
+          v = builder.CreateSIToFP(v,
+                                    Type::getFloatTy(module->getContext()),
+                                    s.c_str());
+        }
+        else {
+          converted[i] = 2;
+          v = builder.CreateUIToFP(v,
+                                    Type::getFloatTy(module->getContext()),
+                                    s.c_str());
+        }
       } else if (type->isDoubleTy()) {
-        v = builder.CreateFPTrunc(v, Type::getFloatTy(), s.c_str());
+        converted[i] = 3;
+        v = builder.CreateFPTrunc(v,
+                                  Type::getFloatTy(module->getContext()),
+                                  s.c_str());
+      } else {
+        converted[i] = 4;
       }
 
-      if (i == 0)
+      unsigned int ibuff_addr = 0xFFFF8000;
+      unsigned int obuff_addr = 0xFFFFF000;
+      if (i == 0) {
+        Constant *constInt = ConstantInt::get(nativeInt, ibuff_addr, false);
+        Value *constPtr = ConstantExpr::getIntToPtr(constInt,
+                                                    Type::getFloatPtrTy(module->getContext()));
+        builder.CreateStore(constPtr, iBuffAlloca, true);
+        constInt = ConstantInt::get(nativeInt, obuff_addr, false);
+        constPtr = ConstantExpr::getIntToPtr(constInt,
+                                             Type::getFloatPtrTy(module->getContext()));
+        builder.CreateStore(constPtr, oBuffAlloca, true);
         load = builder.CreateLoad(iBuffAlloca, true, "npu_load_ibuff");
+      }
 
       s = "npu_iBuffGEP_" + i;
       Value *GEP;
       // is the 1 signed? (the true parameter)
-      GEP = builder.CreateInBoundsGEP(load, ConstantInt::get(nativeInt, 1, true), s.c_str());
+      GEP = builder.CreateInBoundsGEP(load,
+                                      ConstantInt::get(nativeInt, 1, true),
+                                      s.c_str());
 
       if (i == (n - 1))
         builder.CreateStore(GEP, iBuffAlloca, true);
@@ -247,63 +334,219 @@ namespace {
       load = GEP;
     }
 
+    // This will be used later in case the call instruction is
+    // the last instruction of its basic block.
+    // If this is the case, then the basic block cannot have
+    // more than one successor.
+    BasicBlock *after_callBB_tmp = (successorsOf(inst->getParent())).begin();
 
-    if (n == 0) {
-      // Invoke npu. No inputs...
-    } else {
+    BasicBlock *newBB;
+    if (n != 0) {
+      BasicBlock *currBB = inst->getParent();
+      for (BasicBlock::iterator ii = currBB->begin();
+            ii != currBB->end();
+            ++ii) {
+        Instruction *i = ii;
+        if (i != inst)
+          continue;
+
+        newBB = currBB->splitBasicBlock(
+            ii,
+            "npu_call_block"
+        );
+        break;
+      }
+      Instruction *new_uncond_branch_term = currBB->getTerminator();
+      builder.SetInsertPoint(new_uncond_branch_term);
       v = builder.CreateLoad(counterAlloca, "npu_counter_load");
-      v = builder.CreateAdd(v, ConstantInt::get(nativeInt, n, false), "npu_counter_add");
+      v = builder.CreateAdd(v,
+                            ConstantInt::get(nativeInt, n, false),
+                            "npu_counter_add");
       builder.CreateStore(v, counterAlloca);
+      v = builder.CreateICmpEQ(v,
+                                ConstantInt::get(nativeInt,
+                                                  buffer_size,
+                                                  false),
+                                "npu_icmp_iBuffSize");
+      builder.CreateCondBr(v, newBB, loop->getLoopLatch());
+
+      new_uncond_branch_term->eraseFromParent();
+      loop->addBasicBlockToLoop(newBB, LI->getBase());
     }
 
-  }
+    BasicBlock *callBB = newBB;
+    BasicBlock *after_callBB;
+    bool created_emptyBB = false;
+    if (callBB->getTerminator() != inst) {
+      Instruction *after_call_inst;
+      for (BasicBlock::iterator ii = callBB->begin();
+            ii != currBB->end();
+            ++ii) {
+        Instruction *i = ii;
+        if (i != inst)
+          continue;
+
+        after_call_inst = ++ii;
+        break;
+      }
 
 
-    /*
-    const CallInst *c_inst = dyn_cast<CallInst>(inst);
-    unsigned int n = c_inst->getNumArgOperands();
-    for (unsigned int i = 0; i < n; ++i) {
-      std::string type_str;
-      llvm::raw_string_ostream rso(type_str);
-      rso << c_inst->
-      std::cerr << "\n" << rso.str() << std::endl;
+      after_callBB = callBB->splitBasicBlock(
+          after_call_inst,
+          "npu_after_call_block"
+      );
+    } else {
+      after_callBB = BasicBlock::Create(
+          module->getContext(),
+          "npu_after_call_block",
+          loop->getParent(),
+          after_callBB_tmp
+      );
+      created_emptyBB = true;
     }
-    */
+    loop->addBasicBlockToLoop(after_callBB, LI->getBase());
+
+    // Invoke npu. No inputs, or buffered inputs.
+    // ==============================================
+
+    builder.setInsertPoint(callBB->getTerminator());
+
+    // Initialize "oBuff read" loop induction variable
+    builder.CreateStore(
+        ConstantInt::get(nativeInt, 0, false),
+        outLoopCounterAlloca
+    );
+    load = builder.CreateLoad(oBuffAlloca, true, "npu_load_obuff");
+
+    // We'll use this latter
+    Value *ibuff_used = builder.CreateLoad(counterAlloca,
+                                           "npu_ibuff_used");
+    ibuff_used = builder.CreateUDiv(ibuff_used,
+        ConstantInt::get(nativeInt, n, false));
 
 
+    if (created_emptyBB)
+      builder.setInsertPoint(after_callBB);
+    else
+      builder.setInsertPoint(after_callBB->begin());
 
+    for (int i = 0; i < escaped_stores.size(); ++i) {
+      // First find out where we are storing to (for now it *must*
+      // be one of the function arguments.
+      Value *arg = escaped_stores[i]->getPointerOperand();
+      int j;
+      for (j = 0; j < callee_args_value.size(); ++j)
+        if (callee_args_value[j] == arg)
+          break;
 
+      // Now:
+      // 2 - Advance oBuff by one
+      // 3 - Load the value oBuff had in step (1)
+      // 4 - Convert the value from float to the original type
+      // 5 - Store the oBuff value into the argument
 
+      // (2)
+      Value *GEP;
+      std::string s1 = "npu_gep_oBuff";
+      std::string s2 = "npu_load_oBuffResult";
+      GEP = builder.CreateInBoundsGEP(load,
+                                      ConstantInt::get(nativeInt, 1, true),
+                                      s1.c_str());
 
+      // (3)
+      Value *v = builder.CreateLoad(load, s2.c_str());
 
+      // (4)
+      // No need to convert back for now
+      //if (converted[i] == 1)
+      //  v = builder.CreateFPToSI(v, conv_ty[i], "npu_conv_oBuff");
+      //else if (converted[i] == 2)
+      //  v = builder.CreateFPToUI(v, conv_ty[i], "npu_conv_oBuff");
+      //else if (converted[i] == 3) 
+      //  v = builder.CreateFPExt(v, conv_ty[i], "npu_conv_oBuff");
 
+      builder.CreateStore(v, caller_args[j], false);
 
+      load = GEP;
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  void build_region(BasicBlock *bb, std::set<BasicBlock *> &region) {
-    region.insert(bb);
-    std::set<BasicBlock *> suc = AI->successorsOf(bb);
-    BasicBlock *sucBB = *(suc.begin());
-    while ((suc.size() == 1) && sucBB->getUniquePredecessor()) {
-      region.insert(sucBB);
-      suc = AI->successorsOf(sucBB);
+      // Code that is *inside* the loop and depends on either
+      // the outputs of the function call or something that was
+      // buffered before making the call goes here.
     }
+
+    std::set<BasicBlock *> jump_to_latch;
+    
+    std::queue<BasicBlock *> bfs_q;
+    std::set<BasicBlock *> seen;
+
+    seen.insert(after_callBB);
+    bfs_q.push(after_callBB);
+
+    while (!bfs_q.empty()) {
+      BasicBlock *bb = bfs_q.pop();
+      std::set<BasicBlock *> suc = successorsOf(bb);
+      for (std::set<BasicBlock *>::iterator it = suc.begin();
+           it != suc.end();
+           ++suc) {
+        BasicBlock *child = it;
+        if (seen.count(child))
+          continue;
+
+        if (child == loop->getLoopLatch()) {
+          jump_to_latch.insert(bb);
+        } else if (!loop->contains(child)) {
+          continue;
+        } else {
+          seen.insert(child);
+          bfs_q.insert(child);
+        }
+      }
+    }
+
+    BasicBlock *checkBB = BasicBlock::Create(
+        module->getContext(),
+        "npu_checkBB"
+    );
+
+    for (std::set<BasicBlock *>::iterator bi = jump_to_latch.begin();
+         bi != jump_to_latch.end();
+         ++bi) {
+      Instruction *term = bi->getTerminator();
+      if (isa<BranchInst>(term)) {
+        BranchInst *branch = term;
+        for (int i = 0; i < branch->getNumSuccessors(); ++i) {
+          if (branch->getSuccessor(i) == loop->getLoopLatch())
+            branch->setSuccessor(i, checkBB);
+        }
+      } else {
+        builder.setInsertPoint(term);
+        builder.CreateBr(checkBB);
+      }
+    }
+
+    builder.setInsertPoint(checkBB);
+
+    v = builder.CreateLoad(
+            outLoopCounterAlloca,
+            "out_loop_count_load"
+    );
+
+    v = builder.CreateAdd(
+            v,
+            ConstantInt::get(nativeInt, 1, false),
+            "out_loop_count_add"
+    );
+
+    builder.CreateStore(
+        v,
+        outLoopCounterAlloca
+    );
+
+    // Function would be called ibuff_used times
+    v = builder.CreateICmpEQ(v, ibuff_used, "npu_icmp_obuff_count");
+
+    builder.CreateCondBr(v, loop->getLoopLatch(), after_callBB);
+
   }
 
 };

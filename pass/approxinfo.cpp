@@ -286,22 +286,26 @@ struct ApproxCaptureTracker : public CaptureTracker {
   bool Captured;
   std::set<Instruction *> *region;
   ApproxInfo *ai;
+  bool approx;
 
   explicit ApproxCaptureTracker(std::set<Instruction *> *_region,
-                                ApproxInfo *_ai)
-    : Captured(false), region(_region), ai(_ai) {}
+                                ApproxInfo *_ai,
+                                bool appr = true)
+    : Captured(false), region(_region), ai(_ai), approx(appr) {}
 
   void tooManyUses() {
     Captured = true;
   }
 
   bool captured(Use *U) {
-    // Permit captures by precise-pure functions in the region.
-    CallInst *call = dyn_cast<CallInst>(U->getUser());
-    if (call && region->count(call)) {
-      Function *func = call->getCalledFunction();
-      if (func && ai->isPrecisePure(func)) {
-        return false;
+    if (approx) {
+      // Permit captures by precise-pure functions in the region.
+      CallInst *call = dyn_cast<CallInst>(U->getUser());
+      if (call && region->count(call)) {
+        Function *func = call->getCalledFunction();
+        if (func && ai->isPrecisePure(func)) {
+          return false;
+        }
       }
     }
 
@@ -311,15 +315,18 @@ struct ApproxCaptureTracker : public CaptureTracker {
 };
 
 bool ApproxInfo::pointerCaptured(const Value *ptr,
-                                 std::set<Instruction*> &region) {
-  ApproxCaptureTracker ct(&region, this);
+                                 std::set<Instruction*> &region,
+                                 bool approx) {
+  ApproxCaptureTracker ct(&region, this, approx);
   PointerMayBeCaptured(ptr, &ct);
   return ct.Captured;
 }
 
 // Conservatively check whether a store instruction can be observed by any
 // load instructions *other* than those in the specified set of instructions.
-bool ApproxInfo::storeEscapes(StoreInst *store, std::set<Instruction*> insts) {
+bool ApproxInfo::storeEscapes(StoreInst *store,
+                              std::set<Instruction*> insts,
+                              bool approx) {
   Value *ptr = store->getPointerOperand();
 
   // Traverse bitcasts from one pointer type to another.
@@ -332,7 +339,7 @@ bool ApproxInfo::storeEscapes(StoreInst *store, std::set<Instruction*> insts) {
     Value *innerPtr = bitcast->getOperand(0);
     // We should probably recurse into the value here (e.g., through multiple
     // bitcasts), but for now we just do a shallow escape check.
-    if (!isa<AllocaInst>(innerPtr) || pointerCaptured(innerPtr, insts))
+    if (!isa<AllocaInst>(innerPtr) || pointerCaptured(innerPtr, insts, approx))
       return true;
 
   // Make sure the pointer was created locally. That is, conservatively assume
@@ -343,7 +350,7 @@ bool ApproxInfo::storeEscapes(StoreInst *store, std::set<Instruction*> insts) {
   }
 
   // Give up if the pointer is copied and leaves the function.
-  if (pointerCaptured(ptr, insts))
+  if (pointerCaptured(ptr, insts, approx))
     return true;
 
   // Look for loads to the pointer not present in our exclusion set. We
