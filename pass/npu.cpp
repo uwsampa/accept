@@ -262,44 +262,42 @@ namespace {
     // Number of inputs passed to the function call.
     unsigned int n = inst->getNumOperands();
 
+    // Start inserting instructions to buffer the inputs of the function call
+    // right before the call itself.
     builder.SetInsertPoint(inst);
+
+    // Initialize the input buffering loop's induction variable to zero.
     builder.CreateStore(ConstantInt::get(nativeInt, 0, false), counterAlloca);
     Value *v;
     Value *load;
-    std::vector<Type *> conv_ty;
-    std::vector<int> converted;
-    // 1 - SI
-    // 2 - UI
-    // 3 - Double truncation
-    // 4 - No conversion
+
+    // The input buffer is always an array of floats. So, any input that is not a float
+    // must be converted.
+    // TODO: passing pointers as arguments:
+    // Shoud we buffer the address or the value pointed to? The function might be
+    // interested in either one (or both).
+    // For now we're buffering the address as in the benchmarks the function uses
+    // the pointer arguments to return values.
+    // TODO: if we're keeping the policy above, convert from other pointer
+    // types to float*.
     for (unsigned int i = 0; i < n; ++i) {
       std::string s = "npu_conv_" + i;
       Type *type = inst->getOperandUse(i)->getType();
-      conv_ty[i] = type;
+
+      // Get the next argument and convert it if it's not float.
       v = inst->getOperandUse(i);
       if (type->isIntegerTy()) {
         IntegerType *it = static_cast<IntegerType *>(type);
-        if (it->getSignBit()) {
-          converted[i] = 1;
-          v = builder.CreateSIToFP(v,
-                                    Type::getFloatTy(module->getContext()),
-                                    s.c_str());
-        }
-        else {
-          converted[i] = 2;
-          v = builder.CreateUIToFP(v,
-                                    Type::getFloatTy(module->getContext()),
-                                    s.c_str());
-        }
+        if (it->getSignBit())
+          v = builder.CreateSIToFP(v, Type::getFloatTy(module->getContext()), s.c_str());
+        else
+          v = builder.CreateUIToFP(v, Type::getFloatTy(module->getContext()), s.c_str());
       } else if (type->isDoubleTy()) {
-        converted[i] = 3;
-        v = builder.CreateFPTrunc(v,
-                                  Type::getFloatTy(module->getContext()),
-                                  s.c_str());
-      } else {
-        converted[i] = 4;
+        v = builder.CreateFPTrunc(v, Type::getFloatTy(module->getContext()), s.c_str());
       }
 
+      // Only once (when i == 0) initialize the iBuff and oBuff pointers
+      // and load the iBuff one.
       if (i == 0) {
         Constant *constInt = ConstantInt::get(nativeInt, ibuff_addr, false);
         Value *constPtr = ConstantExpr::getIntToPtr(constInt,
@@ -448,15 +446,6 @@ namespace {
 
       // (3)
       Value *v = builder.CreateLoad(load, s2.c_str());
-
-      // (4)
-      // No need to convert back for now
-      //if (converted[i] == 1)
-      //  v = builder.CreateFPToSI(v, conv_ty[i], "npu_conv_oBuff");
-      //else if (converted[i] == 2)
-      //  v = builder.CreateFPToUI(v, conv_ty[i], "npu_conv_oBuff");
-      //else if (converted[i] == 3) 
-      //  v = builder.CreateFPExt(v, conv_ty[i], "npu_conv_oBuff");
 
       builder.CreateStore(v, caller_args[j], false);
 
