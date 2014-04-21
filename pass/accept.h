@@ -45,6 +45,7 @@ typedef enum {
 // chunks are approximate. It is consumed by our various optimizations.
 class ApproxInfo : public llvm::FunctionPass {
 public:
+  bool isWhiteList(std::string s);
   std::set<std::string> approx_funcs;
   static char ID;
   ApproxInfo();

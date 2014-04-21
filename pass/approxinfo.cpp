@@ -216,6 +216,13 @@ const std::set<std::string> funcWhitelist(
                         sizeof(_funcWhitelistArray[0])
 );
 
+bool ApproxInfo::isWhiteList(std::string s) {
+  int n = sizeof(_funcWhitelistArray) / sizeof(_funcWhitelistArray[0]);
+  for (int i = 0; i < n; ++i)
+    if (s == std::string(_funcWhitelistArray[i]))
+      return true;
+  return false;
+}
 
 
 /**** ANALYSIS PASS WORKFLOW ****/

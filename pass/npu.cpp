@@ -5,6 +5,7 @@
 #include "llvm/Module.h"
 #include "llvm/Function.h"
 #include "llvm/Argument.h"
+#include "llvm/IntrinsicInst.h"
 
 #include <sstream>
 #include <iostream>
@@ -60,9 +61,17 @@ namespace {
         std::cerr << rso.str() << std::endl;
     }
     */
+    std::vector<Loop *> loops_to_npu;
+    std::vector<Instruction *> calls_to_npu;
+    bool find_inst(Instruction *inst) {
+      for (int i = 0; i < calls_to_npu.size(); ++i)
+        if (calls_to_npu[i] == inst)
+          return true;
+      return false;
+    }
 
     // Not handling recursive or cyclic function calls.
-    void testSubFunctions(Function *f) {
+    void testSubFunctions(Function *f, Loop *loop) {
       for (Function::iterator bi = f->begin(); bi != f->end(); ++bi) {
         BasicBlock *bb = bi;
         for (BasicBlock::iterator ii = bb->begin();
@@ -73,9 +82,13 @@ namespace {
 
           Function *callee = c_inst->getCalledFunction();
 
-          testSubFunctions(callee);
-          if (AI->isPrecisePure(callee)) {
+          testSubFunctions(callee, loop);
+          if (!isa<IntrinsicInst>(inst) && !AI->isWhiteList(callee->getName()) && AI->isPrecisePure(callee)) {
             std::cerr << callee->getName().str() << " is precise pure!\n\n" << std::endl;
+            if (!find_inst(inst)) {
+              loops_to_npu.push_back(loop);
+              calls_to_npu.push_back(inst);
+            }
           } else {
             std::cerr << callee->getName().str() << " is NOT precise pure!\n\n" << std::endl;
           }
@@ -130,7 +143,6 @@ namespace {
       */
 
       // Finding functions amenable to NPU.
-      Instruction *prev_inst = NULL;
       for (Loop::block_iterator bi = loop->block_begin();
             bi != loop->block_end(); ++bi) {
         BasicBlock *bb = *bi;
@@ -145,18 +157,37 @@ namespace {
           if (!c_inst) continue;
           Function *callee = c_inst->getCalledFunction();
 
-          testSubFunctions(callee);
-          if (AI->isPrecisePure(callee)) {
+          testSubFunctions(callee, loop);
+          if (!isa<IntrinsicInst>(inst) && !AI->isWhiteList(callee->getName()) && AI->isPrecisePure(callee)) {
             std::cerr << callee->getName().str() << " is precise pure!\n\n" << std::endl;
-            tryToNPU(loop, inst, prev_inst);
+            if (!find_inst(inst)) {
+              loops_to_npu.push_back(loop);
+              calls_to_npu.push_back(inst);
+            }
           } else {
             std::cerr << callee->getName().str() << " is NOT precise pure!\n\n" << std::endl;
           }
 
-        prev_inst = inst;
         } // for instructions
 
       } // for basic blocks
+
+      for (int i = 0; i < calls_to_npu.size(); ++i) {
+        std::cerr << "++++ begin" << std::endl;
+        tryToNPU(loops_to_npu[i], calls_to_npu[i]);
+        std::cerr << "++++ middle" << std::endl;
+        for (Loop::block_iterator bi = loop->block_begin(); bi != loop->block_end(); ++bi) {
+          BasicBlock *bb = *bi;
+          for (BasicBlock::iterator ii = bb->begin(); ii != bb->end(); ++ii) {
+            Instruction *inst = ii;
+            std::string type_str;
+            llvm::raw_string_ostream rso(type_str);
+            rso << *inst;
+            std::cerr << "\n" << rso.str() << std::endl;
+          }
+        }
+        std::cerr << "++++ end" << std::endl;
+      }
 
   } // tryToOptimizeLoop
 
@@ -166,7 +197,7 @@ namespace {
                             layout.getPointerSizeInBits());
   }
 
-  void tryToNPU(Loop *loop, Instruction *inst, Instruction *prev_inst) {
+  void tryToNPU(Loop *loop, Instruction *inst) {
     // We need a loop latch to jump to after reading oBuff
     // and executing the instructions after the function call.
     if (!loop->getLoopLatch())
@@ -261,7 +292,8 @@ namespace {
                                                             "npu_out_loop_counter");
 
     // Number of inputs passed to the function call.
-    unsigned int n = inst->getNumOperands();
+    // It looks like the code of the function itself is the last element.
+    unsigned int n = inst->getNumOperands() - 1;
 
     // Start inserting instructions to buffer the inputs of the function call
     // right before the call itself.
@@ -274,13 +306,6 @@ namespace {
 
     // The input buffer is always an array of floats. So, any input that is not a float
     // must be converted.
-    // TODO: passing pointers as arguments:
-    // Shoud we buffer the address or the value pointed to? The function might be
-    // interested in either one (or both).
-    // For now we're buffering the address as in the benchmarks the function uses
-    // the pointer arguments to return values.
-    // TODO: if we're keeping the policy above, convert from other pointer
-    // types to float*.
     for (unsigned int i = 0; i < n; ++i) {
       std::string s = "npu_conv_" + i;
       Type *type = inst->getOperandUse(i)->getType();
@@ -295,6 +320,10 @@ namespace {
           v = builder.CreateUIToFP(v, Type::getFloatTy(module->getContext()), s.c_str());
       } else if (type->isDoubleTy()) {
         v = builder.CreateFPTrunc(v, Type::getFloatTy(module->getContext()), s.c_str());
+      } else if (type->isPointerTy()) {
+        // TODO: Didn't find a way to discover the type of the pointer.
+        // If this is possible, convert the value loaded below.
+        v = builder.CreateLoad(v);
       }
 
       // Only once (when i == 0) initialize the iBuff and oBuff pointers
@@ -325,7 +354,7 @@ namespace {
                                       s.c_str());
 
       // Store the (converted) input in the current iBuff position.
-      builder.CreateStore(v, load, false); //is this store volatile?
+      builder.CreateStore(v, load); //is this store volatile?
 
       // After storing the last input, store the final address of iBuff.
       if (i == (n - 1))
