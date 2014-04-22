@@ -2,11 +2,30 @@
 
 Type `accept help` to see the available commands. You can also type `accept help COMMAND` to see more documentation for a specific command.
 
-There are a couple of important (and possibly surprising) aspects that all of the commands have in common:
+Keep in mind that most actions in the `accept` tool are both *memoized* and *sandboxed*. This can be somewhat surprising at first, so read on to see what these do.
 
-**Memoization.** All of the commands save intermediate results to help save time when iterating. This means that, after executing a command successfully once, it won't respond to any changes you make out of band (e.g., updating source files). Use `accept -f COMMAND` to force re-computation.
+## Memoization
 
-**Sandboxing.** Builds are performed in a temporary directory to avoid cluttering your filesystem. This is why you won't see build products in your working directory after running commands.
+Commands *save intermediate results* to help save time when iterating. For example, when you type `accept build` the first time, your project is actually built and the log captured. The next time you run `accept build`, the command returns immediately with the saved log text; it doesn't actually rebuild your project.
+
+This means that, after executing a command successfully once, it won't respond to any changes you make (e.g., modifying source files). Use the [force flag][force] (e.g., `accept -f build`) to ensure you re-compute.
+
+[force]: #-force-f
+
+## Sandboxing
+
+Builds are performed in a temporary directory to avoid cluttering your filesystem. This is why you won't see build products in your working directory after running commands.
+
+If you need to inspect the results of a computation, supply the ["keep sandboxes" flag][keep]. By combining this with the [force][] and [verbose][] flags, you can see where your build products end up. For example:
+
+    $ accept -kfv build
+    building in directory: /private/var/folders/py/tyzbll7117l90mv29bnlrtl80000gn/T/tmpldzE8z 
+    [...]
+
+Now you can follow that long, garbled path to find your executable and intermediate files.
+
+[keep]: -keep-sandboxes-k
+[verbose]: -verbose-v
 
 ## Commands
 

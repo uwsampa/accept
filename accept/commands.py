@@ -87,6 +87,9 @@ def log_and_output(directory, fn='accept_log.txt'):
     """
     with core.chdir(directory):
         with core.sandbox(True, _keep_sandboxes):
+            if _keep_sandboxes:
+                logging.info('building in directory: {0}'.format(os.getcwd()))
+
             if os.path.exists(fn):
                 os.remove(fn)
 
