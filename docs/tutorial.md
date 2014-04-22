@@ -89,28 +89,6 @@ Here's an example `eval.py` to start with:
             total += min(abs(a - b), 1.0)
         return total / len(orig)
 
-**File caching.** Parsed program outputs—values returned by `load`—are stored serialized in an SQLite database for safekeeping and reuse. The idea is to avoid re-parsing the same output multiple times. Sometimes, however, it can be inefficient to store parsed and serialized values: when outputs are very large, it's better to just keep the file itself around and parse it on the fly each time. For example, if your program outputs an image, you probably don't want to store that in the database. In these cases, return a string starting with the prefix `file:` from your `load` function. Output files will then be cached and their *filenames* (rather than contents) passed to `score`.
-
-Here's an example `eval.py` using this approach:
-
-    import itertools
-
-    def load():
-        return 'file:my_output.txt'
-
-    def score(orig, relaxed):
-        total = 0.0
-        count = 0
-        with open(orig) as orig_f:
-            with open(relaxed) as relaxed_f:
-                for orig_line, relaxed_line in itertools.izip(orig_f, relaxed_f):
-                    a = int(line.split(None, 1)[0])
-                    b = int(line.split(None, 1)[0])
-                    total += min(abs(a - b), 1.0)
-                    count += 1
-        return total / count
-
-
 ## Run the Toolchain
 
 Once you're happy with your annotations, you can run the full toolchain to optimize your program. Run this command:

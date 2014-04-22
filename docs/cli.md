@@ -119,6 +119,14 @@ When running an experiment, ACCEPT does roughly the following:
 
 This means you never have to worry about *calling* the two functions; ACCEPT itself will call them during the experiment process.
 
-The tutorial contains [examples][evalex] of eval.py.
+The tutorial contains [an example][evalex] of eval.py.
 
 [evalex]: tutorial.md#write-a-quality-metric
+
+### Dealing With Large Files
+
+If your program's output is big (e.g., an image), it might be inefficient to store the data in our database. For that reason, ACCEPT provides an alternate way to write eval.py for large outputs.
+
+To store entire output files instead of putting parsed results in a database, write your `load()` function to just return a string containing the filename you want to save, prefixed with `file:`.
+Then, your `score()` function will receive cached filenames instead of output data.
+In this style, your `score()` function will need to parse both files (something that is `load()`'s job in the small-outputs style).
