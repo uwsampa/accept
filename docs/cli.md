@@ -4,6 +4,7 @@ Type `accept help` to see the available commands. You can also type `accept help
 
 Keep in mind that most actions in the `accept` tool are both *memoized* and *sandboxed*. This can be somewhat surprising at first, so read on to see what these do.
 
+
 ## Memoization
 
 Commands *save intermediate results* to help save time when iterating. For example, when you type `accept build` the first time, your project is actually built and the log captured. The next time you run `accept build`, the command returns immediately with the saved log text; it doesn't actually rebuild your project.
@@ -11,6 +12,7 @@ Commands *save intermediate results* to help save time when iterating. For examp
 This means that, after executing a command successfully once, it won't respond to any changes you make (e.g., modifying source files). Use the [force flag][force] (e.g., `accept -f build`) to ensure you re-compute.
 
 [force]: #-force-f
+
 
 ## Sandboxing
 
@@ -26,6 +28,7 @@ Now you can follow that long, garbled path to find your executable and intermedi
 
 [keep]: -keep-sandboxes-k
 [verbose]: -verbose-v
+
 
 ## Commands
 
@@ -97,3 +100,25 @@ For some of the benchmarks, you will need some large input files that are not in
 * x264: "simmedium" input (`eledream_640x360_32.y4m`)
 
 Run the experiments by typing `accept exp`.
+
+
+## eval.py
+
+The ACCEPT tool uses a per-application Python script for collecting and evaluating the application's output quality. This means that applications need to be accompanied by an `eval.py` file. This file should define two Python functions:
+
+* `load()`: This function takes no arguments, loads the output of a program execution (either precise or approximate), and returns this output.
+* `score(orig, relaxed)`: This function takes two arguments, both of which are *outputs* returned by the `load()` function. It should return a number between 0.0 and 1.0 describing the *accuracy* of the `relaxed` output with respect to the `orig` output. For example, if `load()` just returns a number, `score` might compute the difference between the two (e.g., `return abs(orig - relaxed)`).
+
+When running an experiment, ACCEPT does roughly the following:
+
+* Runs the precise version of your program.
+* Call your `load()` function and store that in a database under the name "orig".
+* Run an approximate version of your program.
+* Call `load()` again and store that in a database too under the name "relaxed".
+* Finally, call your `score()` function with those two "orig" and "relaxed" values.
+
+This means you never have to worry about *calling* the two functions; ACCEPT itself will call them during the experiment process.
+
+The tutorial contains [examples][evalex] of eval.py.
+
+[evalex]: tutorial.md#write-a-quality-metric
