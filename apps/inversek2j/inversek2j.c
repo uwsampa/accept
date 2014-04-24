@@ -14,6 +14,11 @@
 #include "xil_types.h"
 */
 
+#define wfe()             __asm__ __volatile__ ("WFE\n")
+#define sev()             __asm__ __volatile__ ("SEV\n")
+#define dsb()             __asm__ __volatile__ ("dsb" : : : "memory")
+#define npu()             dsb(); sev(); wfe(); wfe();
+
 #define PI 3.14159265
 
 // Inversek2j parameters
@@ -86,6 +91,7 @@ int main (int argc, const char* argv[]) {
     
     // Init rand number generator:
     srand (1);
+    npu();
     
     // Set input size to 100000 if not set
     if (argc < 2) {
@@ -149,8 +155,6 @@ int main (int argc, const char* argv[]) {
             t_kernel_precise_start();
 #endif //PROFILE_MODE == 2
 */
-          *p = i + 3;
-          p++;
 
             inversek2j(xy[i + 0], xy[i + 1], t1t2_precise + (i + 0), t1t2_precise + (i + 1));
 

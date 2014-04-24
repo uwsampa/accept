@@ -157,7 +157,7 @@ namespace {
           if (!c_inst) continue;
           Function *callee = c_inst->getCalledFunction();
 
-          testSubFunctions(callee, loop);
+          //testSubFunctions(callee, loop);
           if (!isa<IntrinsicInst>(inst) && !AI->isWhiteList(callee->getName()) && AI->isPrecisePure(callee)) {
             std::cerr << callee->getName().str() << " is precise pure!\n\n" << std::endl;
             if (!find_inst(inst)) {
@@ -174,6 +174,8 @@ namespace {
 
       for (int i = 0; i < calls_to_npu.size(); ++i) {
         std::cerr << "++++ begin" << std::endl;
+        CallInst *c = dyn_cast<CallInst>(calls_to_npu[i]);
+        std::cerr << "Function npu: " << (c->getCalledFunction()->getName()).str() << std::endl;
         tryToNPU(loops_to_npu[i], calls_to_npu[i]);
         std::cerr << "++++ middle" << std::endl;
         for (Loop::block_iterator bi = loop->block_begin(); bi != loop->block_end(); ++bi) {
@@ -546,6 +548,13 @@ namespace {
 
       // And store the read value where the function would
       // have stored.
+      /*
+      std::string type_str3;
+      llvm::raw_string_ostream rso3(type_str3);
+      rso3 << "Arg being used: " << *(caller_args[j]);
+      std::cerr << "\n" << rso3.str() << std::endl;
+      */
+
       builder.CreateStore(v, caller_args[j], false);
 
       // On the next iteration we read from the next oBuff position
@@ -601,7 +610,9 @@ namespace {
     // check whether we're done reading the oBuff.
     BasicBlock *checkBB = BasicBlock::Create(
         module->getContext(),
-        "npu_checkBB"
+        "npu_checkBB",
+        loop->getHeader()->getParent(),
+        loop->getLoopLatch()
     );
 
     // For each BB that jumps to the latch, change the corresponding
@@ -657,6 +668,8 @@ namespace {
     // If so, jump to the loop latch.
     // Otherwise, read more outputs.
     builder.CreateCondBr(v, loop->getLoopLatch(), after_callBB);
+
+    loop->addBasicBlockToLoop(checkBB, LI->getBase());
 
     // Invoke npu. No inputs, or buffered inputs.
     // TODO: replace the call inst by the assembly code
