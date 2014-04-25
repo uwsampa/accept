@@ -48,6 +48,11 @@ You should now be able to use the `bin/enerclang` and `bin/enerclang++` programs
 ## Using
 
 The main entry point to the ACCEPT toolchain is the `bin/accept` script. For
-convenience, you can put this on your `$PATH` by running `source activate.sh`.
+convenience, you can put this on your `$PATH` by running `source activate.sh`. Or you can add something like this to your [shell profile (.profile or .bashrc file)][dotprofile]:
+
+    accept=~/path/to/your/git/checkout
+    export PATH=$accept/bin:$PATH
+
+[dotprofile]: http://askubuntu.com/questions/148337/adding-a-directory-to-a-path-in-profile
 
 Follow the [tutorial](tutorial.md) to learn how to use ACCEPT to optimize your favorite program. If you get stuck, check out the [command-line interface reference](cli.md).
