@@ -1,3 +1,11 @@
 #!/bin/sh
-export PYTHONPATH=`dirname $0`/..:$PYTHONPATH
-exec python -m accept.commands $@
+base=`dirname $0`/..
+
+# Use the virtualenv python if available. This takes advantage of dependencies
+# automatically installed by the Makefile.
+python=python
+vepython=$base/venv/bin/python
+[ -e $vepython ] && python=$vepython
+
+export PYTHONPATH=$base:$PYTHONPATH
+exec $python -m accept.commands $@

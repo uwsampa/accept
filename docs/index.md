@@ -16,9 +16,16 @@ the project's dependencies:
 
     $ git clone --recurse-submodules https://github.com/uwsampa/accept.git
 
-#### CMake and Ninja
+#### CMake, Ninja, and virtualenv
 
-Install [CMake][] and [Ninja][], which our build scripts use to build to tool. (If you like, you can of course edit the relevant scripts to use make or another build tool instead of Ninja.)
+There are three dependencies you need to install yourself before getting started. How you install them depends on your OS:
+
+* [CMake][], which the easiest route to building LLVM.
+* [Ninja][], a nice companion to CMake.
+* [virtualenv][], a Python packaging tool. You can usually get this just by
+  typing `pip install virtualenv`.
+
+(If you prefer not to use Ninja, you can fairly easily edit the relevant scripts to have CMake write Makefiles instead.)
 
 #### make setup
 
@@ -27,24 +34,15 @@ Inside this directory (the repository containing this README file), type `make s
 * Download and extract the [LLVM][llvm-dl] source.
 * Build LLVM and our modified Clang frontend using CMake and Ninja. (This can take a long time.) The programs and libraries are installed into the `build/built/` subdirectory.
 * Build the ACCEPT-specific extensions to LLVM and Clang.
+* Create a Python [virtual environment][venv] and install the driver's dependencies therein.
 Take a look inside the Makefile if you're curious about how to run any of these steps individually.
 
 You should now be able to use the `bin/enerclang` and `bin/enerclang++` programs to compile EnerC programs. You can type `make test` to make sure everything's working.
 
-#### Python Dependencies
-
-Finally, ensure that you have the dependencies for the Python-based driver component. Use [pip][], the standard Python package installer:
-
-    $ pip install -r requirements.txt
-
-If pip complains about permissions, you may need to use `sudo` with this command.
-
-Now you're ready to approximate! Make sure the driver script is working by typing `./bin/accept help`.
-
 [llvm-dl]: http://llvm.org/releases/index.html
 [Ninja]: http://martine.github.com/ninja/
 [CMake]: http://www.cmake.org/
-[pip]: https://github.com/pypa/pip
+[virtualenv]: http://www.virtualenv.org/
 
 
 ## Using

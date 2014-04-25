@@ -2,7 +2,13 @@ BUILD := build
 BUILT := $(BUILD)/built
 CMAKE_FLAGS := -G Ninja -DCMAKE_BUILD_TYPE:STRING=Debug -DCMAKE_INSTALL_PREFIX:PATH=$(shell pwd)/$(BUILT)
 LLVM_VERSION := 3.2
+
+# Program names.
 CMAKE := cmake
+VIRTUALENV := virtualenv
+
+# Location of the Python virtual environment.
+VENV := venv
 
 ifeq ($(shell uname -s),Darwin)
         LIBEXT := dylib
@@ -48,7 +54,7 @@ llvm: llvm/CMakeLists.txt llvm/tools/clang check_cmake check_ninja
 
 .PHONY: setup test clean
 
-setup: llvm accept
+setup: llvm accept driver
 
 test:
 	$(BUILT)/bin/llvm-lit -v test
@@ -76,7 +82,7 @@ llvm/tools/clang: llvm/CMakeLists.txt
 
 # Friendly error messages when tools don't exist.
 
-.PHONY: check_cmake check_ninja
+.PHONY: check_cmake check_ninja check_virtualenv
 
 check_cmake:
 	@if ! $(CMAKE) --version > /dev/null ; then \
@@ -91,6 +97,25 @@ check_ninja:
 		echo "http://martine.github.io/ninja/"; \
 		exit 2; \
 	else true; fi
+
+check_virtualenv:
+	@if ! $(VIRTUALENV) --version > /dev/null ; then \
+		echo "Please install Virtualenv to use the ACCEPT driver."; \
+		echo "http://www.virtualenv.org/"; \
+		exit 2; \
+	else true; fi
+
+
+# Python driver installation.
+
+.PHONY: driver
+
+driver:
+	# Make a virtualenv and install all our dependencies there. This avoids
+	# needing to clutter the system Python libraries (and possibly requiring
+	# sudo).
+	[ -e $(VENV)/bin/pip ] || virtualenv $(VENV)
+	./$(VENV)/bin/pip install -r requirements.txt
 
 
 # Documentation.
