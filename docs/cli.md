@@ -13,6 +13,8 @@ This means that, after executing a command successfully once, it won't respond t
 
 [force]: #-force-f
 
+You can also completely remove all of the memoized results and start over. Just delete the `memo.db` file from the ACCEPT directory. (This is also the solution to any SQLite errors that might occur if the database is corrupted.)
+
 
 ## Sandboxing
 
