@@ -541,6 +541,8 @@ class Result(object):
             try:
                 error = scorefunc(precise_output, output)
             except Exception as exc:
+                logging.warn('Exception in score() function:\n' +
+                             traceback.format_exc())
                 self.error = 1.0
                 self.desc = 'error in scoring function, replica {}: {}'.format(
                     i, exc
