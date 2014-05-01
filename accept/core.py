@@ -12,6 +12,7 @@ import string
 import random
 import locale
 import logging
+import traceback
 from .uncertain import umean
 from collections import namedtuple
 import itertools
@@ -264,20 +265,28 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
                 loadfunc, _ = load_eval_funcs(directory)
                 try:
                     output = loadfunc()
-                except Exception as exc:
+                except:
                     # Error reading benchmark output; this is a broken
                     # execution.
                     output = None
-                    status = 'error loading output: ' + str(exc)
+                    status = 'Exception in load() call:\n' + \
+                        traceback.format_exc()
 
                 # Load ROI duration.
                 try:
                     with open('accept_time.txt') as f:
                         roitime = float(f.read())
-                except Exception as exc:
-                    # Error loading time.
+                except (OSError, IOError) as exc:
+                    # Can't open time file.
                     roitime = None
-                    status = 'error loading time: ' + str(exc)
+                    status = 'Could not open timing file ({0}). This is ' \
+                             'probably because the ROI markers were not ' \
+                             'called.'
+                except:
+                    # Other error loading time.
+                    roitime = None
+                    status = 'Exception while loading time:\n' + \
+                        traceback.format_exc()
 
             # Sequester filesystem output.
             if isinstance(output, basestring) and output.startswith('file:'):
@@ -291,7 +300,8 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
                 except IOError as exc:
                     # Error copying output file.
                     roitime = None
-                    status = 'error copying output file: {}'.format(exc)
+                    status = 'Exception while copying output file:\n' + \
+                        traceback.format_exc()
 
             if not relax_config:
                 with open(CONFIGFILE) as f:
@@ -653,7 +663,23 @@ class Evaluation(object):
         for rep in range(self.reps):
             ex = self.client.get(build_and_execute, self.appdir, None, rep)
             if ex.status != 0:
-                raise UserError('Precise run failed: {}'.format(ex.status))
+                if isinstance(ex.status, int):
+                    # Error status.
+                    raise UserError(
+                        'Precise execution exited '
+                        'with status {}'.format(ex.status),
+                        'The program exited with an error when ACCEPT tried '
+                        'to run it with no approximations. For example, the '
+                        'program may have failed to find an input file.'
+                    )
+                else:
+                    # The status field of Execution is overloaded to
+                    # also indicate other kinds of errors. It is an
+                    # explanatory string in this case.
+                    raise UserError(
+                        'Precise execution failed.',
+                        ex.status
+                    )
             yield ex.roitime
 
     def submit_approx_runs(self, config):
