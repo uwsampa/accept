@@ -34,6 +34,23 @@ EPSILON_ERROR = 0.001
 EPSILON_SPEEDUP = 0.01
 BUILD_TIMEOUT = 60 * 20
 
+
+# Exceptions.
+
+class UserError(Exception):
+    """Raised when the user does something wrong.
+    """
+    def __init__(self, synopsis, detail=None):
+        super(UserError, self).__init__(synopsis, detail)
+    
+    def __str__(self):
+        out = self.synopsis
+        if detail:
+            out += '\n' + self.detail
+        return out
+
+
+
 # Utilities.
 
 @contextmanager
@@ -200,7 +217,12 @@ def load_eval_funcs(appdir):
         mod = imp.load_source('evalscript',
                               os.path.join(appdir, EVALSCRIPT))
     except IOError:
-        raise Exception('no eval.py found in {}'.format(appdir))
+        raise UserError(
+            'No eval.py found in {}'.format(appdir),
+            'You need to provide an evaluation script for your '
+            'application. See: '
+            'https://sampa.cs.washington.edu/accept/cli/#evalpy'
+        )
     return mod.load, mod.score
 
 
@@ -626,7 +648,7 @@ class Evaluation(object):
         for rep in range(self.reps):
             ex = self.client.get(build_and_execute, self.appdir, None, rep)
             if ex.status != 0:
-                raise Exception('precise run failed: {}'.format(ex.status))
+                raise UserError('Precise run failed: {}'.format(ex.status))
             yield ex.roitime
 
     def submit_approx_runs(self, config):
