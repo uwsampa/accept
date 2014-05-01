@@ -7,6 +7,7 @@ import sys
 import os
 import subprocess
 import json
+import traceback
 from . import experiments
 from . import core
 from . import cwmemo
@@ -184,7 +185,13 @@ def main():
     parser.add_argument('--keep-sandboxes', '-k', action='store_true',
                         dest='keep_sandboxes', default=False,
                         help='keep intermediate sandbox directories')
-    parser.dispatch(pre_call=global_config, completion=False)
+                        
+    try:
+        parser.dispatch(pre_call=global_config, completion=False)
+    except core.UserError as exc:
+        logging.debug(traceback.format_exc())
+        logging.error(exc.log())
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()

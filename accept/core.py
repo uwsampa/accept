@@ -42,10 +42,15 @@ class UserError(Exception):
     """
     def __init__(self, synopsis, detail=None):
         super(UserError, self).__init__(synopsis, detail)
+        self.synopsis = synopsis
+        self.detail = detail
     
     def __str__(self):
+        return self.synopsis
+    
+    def log(self):
         out = self.synopsis
-        if detail:
+        if self.detail:
             out += '\n' + self.detail
         return out
 
@@ -220,7 +225,7 @@ def load_eval_funcs(appdir):
         raise UserError(
             'No eval.py found in {}'.format(appdir),
             'You need to provide an evaluation script for your '
-            'application. See: '
+            'application. See:\n'
             'https://sampa.cs.washington.edu/accept/cli/#evalpy'
         )
     return mod.load, mod.score
