@@ -152,7 +152,9 @@ def run_experiments(ev, only=None):
 
     # "Testing" phase.
     if main_results:
-        testing_results(ev, main_results)
+        # FIXME disabled for now.
+        # testing_results(ev, main_results)
+        pass
 
     # Experiments with only one optimization type at a time.
     kind_results = {}
