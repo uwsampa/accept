@@ -163,16 +163,17 @@ class BuildError(Exception):
         return '\n' + self.args[0]
 
 def execute(timeout, approx=False):
-    """Run the application in the working directory and return the
-    wall-clock duration (in seconds) of the execution and the exit
-    status (or None if the process timed out).
+    """Run the application in the working directory and return:
+    - The wall-clock duration (in seconds) of the execution
+    - The exit status (or None if the process timed out)
+    - The combined stderr/stdout from the execution
     """
     command = ['make', 'run_opt' if approx else 'run_orig']
     command += _make_args()
     start_time = time.time()
-    status, _ = run_cmd(command, timeout)
+    status, output = run_cmd(command, timeout)
     end_time = time.time()
-    return end_time - start_time, status
+    return end_time - start_time, status, output
 
 def build(approx=False, require=True):
     """Compile the application in the working directory. If `approx`,
@@ -235,7 +236,7 @@ def load_eval_funcs(appdir):
 # High-level profiling driver.
 
 Execution = namedtuple('Execution', ['output', 'elapsed', 'status',
-                                     'config', 'roitime'])
+                                     'config', 'roitime', 'execlog'])
 
 def build_and_execute(directory, relax_config, rep, timeout=None):
     """Build the application in the given directory (which must contain
@@ -255,7 +256,7 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
 
             approx = bool(relax_config)
             build(approx)
-            elapsed, status = execute(timeout, approx)
+            elapsed, status, execlog = execute(timeout, approx)
             if elapsed is None or status or status is None:
                 # Timeout or error.
                 output = None
@@ -307,7 +308,8 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
                 with open(CONFIGFILE) as f:
                     relax_config = list(parse_relax_config(f))
 
-    return Execution(output, elapsed, status, relax_config, roitime)
+    return Execution(output, elapsed, status, relax_config,
+                     roitime, execlog)
 
 
 # Configuration space exploration.
@@ -670,7 +672,9 @@ class Evaluation(object):
                         'with status {}'.format(ex.status),
                         'The program exited with an error when ACCEPT tried '
                         'to run it with no approximations. For example, the '
-                        'program may have failed to find an input file.'
+                        'program may have failed to find an input file. '
+                        'The output from the failed run is below.\n' +
+                        ex.execlog
                     )
                 else:
                     # The status field of Execution is overloaded to
