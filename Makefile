@@ -34,6 +34,13 @@ ifneq ($(shell c++ --version | grep clang),)
 endif
 endif
 
+# On platforms that ship Python 3 as `python`, force Python 2 to be used in
+# CMake. I don't think CMake itself has a problem with py3k, but LLVM's
+# scripts do.
+ifeq ($(shell which python2 >/dev/null 2>&1 ; echo $$?),0)
+	CMAKE_FLAGS += -DPYTHON_EXECUTABLE:PATH=$(shell which python2)
+endif
+
 
 # Actually building stuff.
 
