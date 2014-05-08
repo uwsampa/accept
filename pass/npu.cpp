@@ -16,6 +16,7 @@ using namespace llvm;
 namespace {
   struct LoopNPUPass : public LoopPass {
     static char ID;
+    bool modified;
     ACCEPTPass *transformPass;
     ApproxInfo *AI;
     Module *module;
@@ -31,6 +32,7 @@ namespace {
       return false;
     }
     virtual bool runOnLoop(Loop *loop, LPPassManager &LPM) {
+      modified = false;
       if (transformPass->shouldSkipFunc(*(loop->getHeader()->getParent())))
           return false;
       module = loop->getHeader()->getParent()->getParent();
@@ -176,7 +178,7 @@ namespace {
         std::cerr << "++++ begin" << std::endl;
         CallInst *c = dyn_cast<CallInst>(calls_to_npu[i]);
         std::cerr << "Function npu: " << (c->getCalledFunction()->getName()).str() << std::endl;
-        tryToNPU(loops_to_npu[i], calls_to_npu[i]);
+        modified = tryToNPU(loops_to_npu[i], calls_to_npu[i]);
         std::cerr << "++++ middle" << std::endl;
         for (Loop::block_iterator bi = loop->block_begin(); bi != loop->block_end(); ++bi) {
           BasicBlock *bb = *bi;
@@ -190,6 +192,10 @@ namespace {
         }
         std::cerr << "++++ end" << std::endl;
       }
+      calls_to_npu.clear();
+      loops_to_npu.clear();
+
+      return modified;
 
   } // tryToOptimizeLoop
 
@@ -199,11 +205,11 @@ namespace {
                             layout.getPointerSizeInBits());
   }
 
-  void tryToNPU(Loop *loop, Instruction *inst) {
+  bool tryToNPU(Loop *loop, Instruction *inst) {
     // We need a loop latch to jump to after reading oBuff
     // and executing the instructions after the function call.
-    if (!loop->getLoopLatch())
-      return;
+    if (!loop->getLoopLatch() || !loop->getLoopPreheader())
+      return false;
 
     const CallInst *c_inst = dyn_cast<CallInst>(inst);
     Function *f = c_inst->getCalledFunction();
@@ -220,7 +226,7 @@ namespace {
       // We would need to determine how many times the store would
       // be executed and whether it would write to the same address
       // or not in order to know how much buffer space we need.
-      if (in_loop) return;
+      if (in_loop) return false;
 
       for (BasicBlock::iterator ii = bb->begin(); ii != bb->end(); ++ii) {
         Instruction *inst = ii;
@@ -297,12 +303,22 @@ namespace {
     // It looks like the code of the function itself is the last element.
     unsigned int n = inst->getNumOperands() - 1;
 
+    // Initialize oBuff, iBuff and iBuff counter
+    builder.SetInsertPoint(loop->getLoopPreheader()->getTerminator());
+    Constant *constInt = ConstantInt::get(nativeInt, ibuff_addr, false);
+    Value *constPtr = ConstantExpr::getIntToPtr(constInt,
+                                                Type::getFloatPtrTy(module->getContext()));
+    builder.CreateStore(constPtr, iBuffAlloca, true);
+    constInt = ConstantInt::get(nativeInt, obuff_addr, false);
+    constPtr = ConstantExpr::getIntToPtr(constInt,
+                                             Type::getFloatPtrTy(module->getContext()));
+    builder.CreateStore(constPtr, oBuffAlloca, true);
+    builder.CreateStore(ConstantInt::get(nativeInt, 0, false), counterAlloca);
+
     // Start inserting instructions to buffer the inputs of the function call
     // right before the call itself.
     builder.SetInsertPoint(inst);
 
-    // Initialize the input buffering loop's induction variable to zero.
-    builder.CreateStore(ConstantInt::get(nativeInt, 0, false), counterAlloca);
     Value *v;
     Value *load;
 
@@ -328,23 +344,13 @@ namespace {
         v = builder.CreateLoad(v);
       }
 
-      // Only once (when i == 0) initialize the iBuff and oBuff pointers
-      // and load the iBuff one.
+      // Only once (when i == 0) load iBuffAlloca
       // TODO: maybe this can be optimized. We already know the initial address
       // of iBuff and oBuff so we can just use a constant as the initial value
       // and go from there. At this point register allocation hasn't been
       // performed yet, so we have to load/store everything though.
-      if (i == 0) {
-        Constant *constInt = ConstantInt::get(nativeInt, ibuff_addr, false);
-        Value *constPtr = ConstantExpr::getIntToPtr(constInt,
-                                                    Type::getFloatPtrTy(module->getContext()));
-        builder.CreateStore(constPtr, iBuffAlloca, true);
-        constInt = ConstantInt::get(nativeInt, obuff_addr, false);
-        constPtr = ConstantExpr::getIntToPtr(constInt,
-                                             Type::getFloatPtrTy(module->getContext()));
-        builder.CreateStore(constPtr, oBuffAlloca, true);
+      if (i == 0)
         load = builder.CreateLoad(iBuffAlloca, true, "npu_load_ibuff");
-      }
 
       // Now that the input has been converted and iBuff has been loaded, get
       // the address of the next iBuff element.
@@ -382,18 +388,18 @@ namespace {
     // we have already buffered something (so there're instructions
     // *before* the call) and the call itself will be on the other BB.
     BasicBlock *callBB = inst->getParent();
+    BasicBlock *before_callBB = inst->getParent();
     if (n != 0) {
 
       // First get an iterator to the call inst and split the BB there.
-      BasicBlock *currBB = inst->getParent();
-      for (BasicBlock::iterator ii = currBB->begin();
-            ii != currBB->end();
+      for (BasicBlock::iterator ii = before_callBB->begin();
+            ii != before_callBB->end();
             ++ii) {
         Instruction *i = ii;
         if (i != inst)
           continue;
 
-        callBB = currBB->splitBasicBlock(
+        callBB = before_callBB->splitBasicBlock(
             ii,
             "npu_call_block"
         );
@@ -404,7 +410,7 @@ namespace {
       // branch at the end to the call block. This will have to be replaced
       // by a conditional branch that will either jump to the call block
       // (if the iBuff is full) or to the loop latch to buffer more inputs.
-      Instruction *new_uncond_branch_term = currBB->getTerminator();
+      Instruction *new_uncond_branch_term = before_callBB->getTerminator();
       builder.SetInsertPoint(new_uncond_branch_term);
 
       // Load the input reading loop's induction variable.
@@ -621,6 +627,9 @@ namespace {
          bi != jump_to_latch.end();
          ++bi) {
 
+      if ((*bi) == before_callBB)
+        continue;
+
       // Get the last inst, which should be a branch and change the
       // jump target to the new BB.
       Instruction *term = (*bi)->getTerminator();
@@ -674,6 +683,9 @@ namespace {
     // Invoke npu. No inputs, or buffered inputs.
     // TODO: replace the call inst by the assembly code
     // that invokes the npu.
+
+    //inst->eraseFromParent();
+    return true;
   }
 
 };

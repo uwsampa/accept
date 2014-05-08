@@ -30,6 +30,11 @@ ifeq ($(shell uname -s),Darwin)
 	endif
 	LIBEXT := dylib
 else
+#CFLAGS += -L/home/andreolb/accept-git/accept/apps/npu/lib -I/usr/arm-linux-gnueabi/include/c++/4.7.3/arm-linux-gnueabi/ -I/usr/arm-linux-gnueabi/include/ -I/usr/arm-linux-gnueabi/include/c++/4.7.3
+#CFLAGS += -I/usr/arm-linux-gnueabi/include/c++/4.7.3/arm-linux-gnueabi/ -I/usr/arm-linux-gnueabi/include/ -I/usr/arm-linux-gnueabi/include/c++/4.7.3
+#CXXFLAGS += -I/usr/arm-linux-gnueabi/include/c++/4.7.3/arm-linux-gnueabi/ -I/usr/arm-linux-gnueabi/include/ -I/usr/arm-linux-gnueabi/include/c++/4.7.3
+	CFLAGS += -I../lib -I../lib/bsp/include
+	CXXFLAGS += -I../lib -I../lib/bsp/include
 	LIBEXT := so
 endif
 ENERCLIB ?= $(BUILTDIR)/lib/EnerCTypeChecker.$(LIBEXT)
@@ -37,10 +42,11 @@ PASSLIB ?= $(BUILTDIR)/lib/enerc.$(LIBEXT)
 PROFLIB ?= $(BUILTDIR)/../enerc/rt/enercrt.bc
 LIBPROFILERT := $(BUILTDIR)/lib/libprofile_rt.$(LIBEXT)
 
-override CFLAGS += -Xclang -load -Xclang $(ENERCLIB) \
+#override CFLAGS += -Xclang -load -Xclang $(ENERCLIB)
+override CFLAGS += -target arm-none-linux-gnueabi -ccc-gcc-name arm-linux-gnueabi-gcc --static -Xclang -load -Xclang $(ENERCLIB) \
 	-Xclang -add-plugin -Xclang enerc-type-checker \
 	-g -fno-use-cxa-atexit \
-	-I$(INCLUDEDIR) -emit-llvm
+	-I$(INCLUDEDIR) -I/home/andreolb/accept-git/accept/apps/npu/lib -I/home/andreolb/accept-git/accept/apps/npu/include -emit-llvm
 override CXXFLAGS += $(CFLAGS)
 
 # SOURCES is a list of source files, *.{c,cpp} by default
@@ -100,28 +106,35 @@ endif
 $(TARGET).prof.bc: $(LINKEDBC)
 	$(LLVMOPT) -insert-edge-profiling $< -o $@
 $(TARGET).orig.bc: $(LINKEDBC)
-	$(LLVMOPT) -load $(PASSLIB) -O3 $< -o $@
+	$(LLVMOPT) -print-after-all -load $(PASSLIB) -O1  $< -o $@
 $(TARGET).opt.bc: $(LINKEDBC) accept_config.txt
-	$(LLVMOPT) -load $(PASSLIB) -accept-relax -O3 $< -o $@
+	$(LLVMOPT) -print-after-all -load $(PASSLIB) -accept-relax -O1  $< -o $@
 
 # .bc -> .o
 ifeq ($(ARCH),msp430)
 # llc cannot generate object code for msp430, so emit assembly
-.INTERMEDIATE: $(TARGET).%.s
+#.INTERMEDIATE: $(TARGET).%.s
 $(TARGET).%.s: $(TARGET).%.bc
 	$(LLVMOPT) -strip $< | \
 	$(LLVMLLC) -march=msp430 > $@
 $(TARGET).%.o: $(TARGET).%.s
 	msp430-gcc $(MSPGCC_CFLAGS) -c $<
 else
-$(TARGET).%.o: $(TARGET).%.bc
+$(TARGET).%.s: $(TARGET).%.bc
 	$(LLVMOPT) -strip $< | \
-	$(LLVMLLC) -filetype=obj > $@
+	$(LLVMLLC) -march=arm -float-abi=soft > inversek2j.s
 endif
 
+#/usr/bin/arm-linux-gnueabihf-gcc-4.7 -Wl,-T -Wl,/home/andreolb/accept-git/accept/apps/npu/lscript.ld,/home/andreolb/accept-git/accept/apps/npu/lib/libxil.a -march=armv7-a -static -mfloat-abi=hard -o $@ $< -lm
+#/usr/bin/arm-linux-gnueabihf-gcc-4.7 -march=armv7-a -static -mfloat-abi=hard -o $@ $< -lm -Wl,/home/andreolb/accept-git/accept/apps/npu/lib/libxil.a 
+#/usr/bin/arm-linux-gnueabihf-gcc-4.7 -Wl,-T -Wl,/home/andreolb/accept-git/accept/apps/npu/lscript.ld -march=armv7-a -static -mfloat-abi=hard -o $@ $< -lm
+#/usr/bin/arm-linux-gnueabihf-gcc-4.7 -march=armv7-a -static -mfloat-abi=hard -o $@ $< -lm
 # .o -> executable
-$(TARGET).%: $(TARGET).%.o
-	$(LINKER) $(LDFLAGS) -o $@ $<
+#source /opt/Xilinx/14.6/ISE_DS/settings64.sh
+$(TARGET).%: $(TARGET).%.s
+	echo "bla"
+#/opt/Xilinx/14.6/ISE_DS/EDK/gnu/arm/lin/bin/arm-xilinx-eabi-gcc -Wl,-T -Wl,/opt/Xilinx/14.6/ISE_DS/EDK/sw/lib/sw_apps/fsbl/src/lscript.ld -o $@ $< -Wl,--start-group,-lxil,-lgcc,-lc,-lm,--end-group
+#/usr/bin/arm-linux-gnueabihf-gcc-4.7 -Wl,-T -Wl,/home/andreolb/accept-git/accept/apps/npu/lscript.ld -Wl,--build-id=none -march=armv7-a -static -mfloat-abi=hard -o $@ $< /home/andreolb/accept-git/accept/apps/npu/lib/libxil.a -lm
 
 # LLVM profiling pipeline.
 llvmprof.out: $(TARGET).prof
@@ -133,7 +146,7 @@ $(TARGET).prof: $(TARGET).prof.o
 
 clean:
 	$(RM) $(TARGET) $(TARGET).o $(BCFILES) $(LLFILES) $(LINKEDBC) \
-	accept-approxRetValueFunctions-info.txt accept-globals-info.txt accept_config.txt accept_config_desc.txt accept_log.txt accept_time.txt \
+	accept-approxRetValueFunctions-info.txt accept-globals-info.txt accept_config.txt accept_config_desc.txt accept_log.txt accept_time.txt inversek2j.s \
 	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
 	llvmprof.out \
 	$(CLEANMETOO)

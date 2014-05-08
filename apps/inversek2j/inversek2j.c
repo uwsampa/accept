@@ -91,7 +91,7 @@ int main (int argc, const char* argv[]) {
     
     // Init rand number generator:
     srand (1);
-    npu();
+    //npu();
     
     // Set input size to 100000 if not set
     if (argc < 2) {
@@ -99,7 +99,7 @@ int main (int argc, const char* argv[]) {
     } else {
         n = atoi(argv[1]);
     }
-    assert (n%(BUFFER_SIZE)==0);
+    //assert (n%(BUFFER_SIZE)==0);
     
     // Allocate input and output arrays
     float* xy           = (float*)malloc(n * 2 * sizeof (float));

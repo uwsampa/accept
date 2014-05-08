@@ -1,8 +1,8 @@
-#include <sys/time.h>
 #include <stdio.h>
 
 static double time_begin;
 
+/*
 void accept_roi_begin() {
     struct timeval t;
     gettimeofday(&t,NULL);
@@ -19,3 +19,5 @@ void accept_roi_end() {
     fprintf(f, "%f\n", delta);
     fclose(f);
 }
+*/
+
