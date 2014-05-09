@@ -6,6 +6,7 @@
 #include "llvm/Function.h"
 #include "llvm/Argument.h"
 #include "llvm/IntrinsicInst.h"
+#include "llvm/InlineAsm.h"
 
 #include <sstream>
 #include <iostream>
@@ -309,10 +310,6 @@ namespace {
     Value *constPtr = ConstantExpr::getIntToPtr(constInt,
                                                 Type::getFloatPtrTy(module->getContext()));
     builder.CreateStore(constPtr, iBuffAlloca, true);
-    constInt = ConstantInt::get(nativeInt, obuff_addr, false);
-    constPtr = ConstantExpr::getIntToPtr(constInt,
-                                             Type::getFloatPtrTy(module->getContext()));
-    builder.CreateStore(constPtr, oBuffAlloca, true);
     builder.CreateStore(ConstantInt::get(nativeInt, 0, false), counterAlloca);
 
     // Start inserting instructions to buffer the inputs of the function call
@@ -496,14 +493,16 @@ namespace {
     // execute remaining code.
     builder.SetInsertPoint(callBB->getTerminator());
 
+    Constant *constInt = ConstantInt::get(nativeInt, obuff_addr, false);
+    Value *constPtr = ConstantExpr::getIntToPtr(constInt,
+                                             Type::getFloatPtrTy(module->getContext()));
+    builder.CreateStore(constPtr, oBuffAlloca, true);
+
     // Initialize "oBuff read" loop induction variable
     builder.CreateStore(
         ConstantInt::get(nativeInt, 0, false),
         outLoopCounterAlloca
     );
-
-    // Load the oBuff pointer.
-    load = builder.CreateLoad(oBuffAlloca, true, "npu_load_obuff");
 
     // Load the iBuff writing induction variable so we know how many
     // positions we wrote to in the iBuff.
@@ -515,6 +514,18 @@ namespace {
                                            "npu_ibuff_used");
     ibuff_used = builder.CreateUDiv(ibuff_used,
         ConstantInt::get(nativeInt, n, false));
+
+
+    // Reset "iBuff read counter" for the next time.
+    // Also reset iBuff itself.
+    builder.CreateStore(
+        ConstantInt::get(nativeInt, 0, false),
+        counterAlloca
+    );
+    constInt = ConstantInt::get(nativeInt, ibuff_addr, false);
+    constPtr = ConstantExpr::getIntToPtr(constInt,
+                                         Type::getFloatPtrTy(module->getContext()));
+    builder.CreateStore(constPtr, iBuffAlloca, true);
 
     // Now we move to the block after the call BB (probably split
     // from it) to start reading the oBuff.
@@ -541,6 +552,11 @@ namespace {
       // 4 - Convert the value from float to the original type
       // 5 - Store the oBuff value into the argument
 
+      if (i == 0)
+        // Load the oBuff pointer.
+        load = builder.CreateLoad(oBuffAlloca, true, "npu_load_obuff");
+
+
       // Then, get the address of next position of oBuff
       Value *GEP;
       std::string s1 = "npu_gep_oBuff";
@@ -562,6 +578,9 @@ namespace {
       */
 
       builder.CreateStore(v, caller_args[j], false);
+
+      if (i == (escaped_stores.size() - 1))
+        builder.CreateStore(GEP, oBuffAlloca, true);
 
       // On the next iteration we read from the next oBuff position
       // (already found out by GEP).
@@ -684,7 +703,30 @@ namespace {
     // TODO: replace the call inst by the assembly code
     // that invokes the npu.
 
-    //inst->eraseFromParent();
+    builder.SetInsertPoint(inst);
+
+    InlineAsm *asm1 = InlineAsm::get(FunctionType::get(builder.getVoidTy(), false),
+                                      StringRef("dsb"),
+                                      StringRef(""),
+                                      true);
+    InlineAsm *asm2 = InlineAsm::get(FunctionType::get(builder.getVoidTy(), false),
+                                      StringRef("SEV"),
+                                      StringRef(""),
+                                      true);
+    InlineAsm *asm3 = InlineAsm::get(FunctionType::get(builder.getVoidTy(), false),
+                                      StringRef("WEF"),
+                                      StringRef(""),
+                                      true);
+    InlineAsm *asm4 = InlineAsm::get(FunctionType::get(builder.getVoidTy(), false),
+                                      StringRef("WEF"),
+                                      StringRef(""),
+                                      true);
+    builder.CreateCall(asm1);
+    builder.CreateCall(asm2);
+    builder.CreateCall(asm3);
+    builder.CreateCall(asm4);
+
+    inst->eraseFromParent();
     return true;
   }
 
