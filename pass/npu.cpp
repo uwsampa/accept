@@ -699,10 +699,6 @@ namespace {
 
     loop->addBasicBlockToLoop(checkBB, LI->getBase());
 
-    // Invoke npu. No inputs, or buffered inputs.
-    // TODO: replace the call inst by the assembly code
-    // that invokes the npu.
-
     builder.SetInsertPoint(inst);
 
     InlineAsm *asm1 = InlineAsm::get(FunctionType::get(builder.getVoidTy(), false),
