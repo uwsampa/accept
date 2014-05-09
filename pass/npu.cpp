@@ -278,6 +278,10 @@ namespace {
     IntegerType *nativeInt = getNativeIntegerType();
     IRBuilder<> builder(module->getContext());
 
+    // Number of inputs passed to the function call.
+    // It looks like the code of the function itself is the last element.
+    unsigned int n = inst->getNumOperands() - 1;
+
     // First insert all the needed allocas in the beginning of
     // the function (which is where they MUST be).
     builder.SetInsertPoint(loop->getHeader()->getParent()->getEntryBlock().begin());
@@ -300,9 +304,26 @@ namespace {
                                                             0,
                                                             "npu_out_loop_counter");
 
-    // Number of inputs passed to the function call.
-    // It looks like the code of the function itself is the last element.
-    unsigned int n = inst->getNumOperands() - 1;
+    int n_ptr_args = 0;
+    for (unsigned int i = 0; i < n; ++i) {
+      Type *type = inst->getOperandUse(i)->getType();
+      // Assuming that any pointer argument is a float*
+      if (type->isPointerTy())
+        ++n_ptr_args;
+    }
+
+    // An auxiliary buffer to store function arguments' addresses.
+    AllocaInst *addrBuffAlloca = builder.CreateAlloca(Type::getFloatPtrTy(module->getContext()),
+                                                      ConstantInt::get(nativeInt, buffer_size, false),
+                                                      "npu_addrBuff_alloca");
+
+    AllocaInst *iAddrCounterAlloca = builder.CreateAlloca(nativeInt,
+                                                          0,
+                                                          "npu_iAddr_counter_alloca");
+
+    AllocaInst *oAddrCounterAlloca = builder.CreateAlloca(nativeInt,
+                                                          0,
+                                                          "npu_oAddr_counter_alloca");
 
     // Initialize oBuff, iBuff and iBuff counter
     builder.SetInsertPoint(loop->getLoopPreheader()->getTerminator());
@@ -312,12 +333,17 @@ namespace {
     builder.CreateStore(constPtr, iBuffAlloca, true);
     builder.CreateStore(ConstantInt::get(nativeInt, 0, false), counterAlloca);
 
+    if (n_ptr_args)
+      builder.CreateStore(ConstantInt::get(nativeInt, 0, false), iAddrCounterAlloca);
+
     // Start inserting instructions to buffer the inputs of the function call
     // right before the call itself.
     builder.SetInsertPoint(inst);
 
     Value *v;
     Value *load;
+    Value *iAddrChainCounter;
+    Value *iAddrChainPosition;
 
     // The input buffer is always an array of floats. So, any input that is not a float
     // must be converted.
@@ -346,8 +372,25 @@ namespace {
       // of iBuff and oBuff so we can just use a constant as the initial value
       // and go from there. At this point register allocation hasn't been
       // performed yet, so we have to load/store everything though.
-      if (i == 0)
+      if (i == 0) {
         load = builder.CreateLoad(iBuffAlloca, true, "npu_load_ibuff");
+        if (n_ptr_args) {
+          iAddrChainCounter = builder.CreateLoad(iAddrCounterAlloca, false, "npu_load_iAddrC");
+          //iAddrChainPosition = builder.CreateLoad(addrBuffAlloca, false, "npu_load_addrBuffAlloca");
+        }
+      }
+
+      if (type->isPointerTy()) {
+        s = "npu_iAddrGEP_" + i;
+        iAddrChainPosition = builder.CreateInBoundsGEP(addrBuffAlloca,
+                                                      iAddrChainCounter,
+                                                      s.c_str());
+        builder.CreateStore(inst->getOperandUse(i), iAddrChainPosition);
+        s = "npu_iAddrCounter_add_" + i;
+        iAddrChainCounter = builder.CreateAdd(iAddrChainCounter,
+                                              ConstantInt::get(nativeInt, 1, false),
+                                              s.c_str());
+      }
 
       // Now that the input has been converted and iBuff has been loaded, get
       // the address of the next iBuff element.
@@ -362,8 +405,11 @@ namespace {
       builder.CreateStore(v, load); //is this store volatile?
 
       // After storing the last input, store the final address of iBuff.
-      if (i == (n - 1))
+      if (i == (n - 1)) {
         builder.CreateStore(GEP, iBuffAlloca, true);
+        if (n_ptr_args)
+          builder.CreateStore(iAddrChainCounter, iAddrCounterAlloca);
+      }
 
       // The next iBuff element to be written is the result of the
       // GEP instruction above.
@@ -493,15 +539,23 @@ namespace {
     // execute remaining code.
     builder.SetInsertPoint(callBB->getTerminator());
 
-    Constant *constInt = ConstantInt::get(nativeInt, obuff_addr, false);
-    Value *constPtr = ConstantExpr::getIntToPtr(constInt,
+    Constant *constInt2 = ConstantInt::get(nativeInt, obuff_addr, false);
+    Value *constPtr2 = ConstantExpr::getIntToPtr(constInt2,
                                              Type::getFloatPtrTy(module->getContext()));
-    builder.CreateStore(constPtr, oBuffAlloca, true);
+    builder.CreateStore(constPtr2, oBuffAlloca, true);
 
     // Initialize "oBuff read" loop induction variable
     builder.CreateStore(
         ConstantInt::get(nativeInt, 0, false),
         outLoopCounterAlloca
+    );
+    builder.CreateStore(
+        ConstantInt::get(nativeInt, 0, false),
+        iAddrCounterAlloca
+    );
+    builder.CreateStore(
+        ConstantInt::get(nativeInt, 0, false),
+        oAddrCounterAlloca
     );
 
     // Load the iBuff writing induction variable so we know how many
@@ -538,24 +592,23 @@ namespace {
     else
       builder.SetInsertPoint(after_callBB->begin());
 
+    Value *oAddrChainCounter;
+    Value *oAddrChainPosition;
+    int ptr_args_i = 0;
     // Now we read all the output values generated by *one* call
     // For each output (escaped_stores) we:
     for (int i = 0; i < escaped_stores.size(); ++i) {
-      // First find out where we are storing to (for now it *must*
-      // be one of the function arguments.)
+      // First we store the function arguments.
+      // For now we only consider escaped stores to function arguments.
       // TODO: remove this restriction.
-      Value *arg = escaped_stores[i]->getPointerOperand();
-      int j;
-      for (j = 0; j < callee_args_value.size(); ++j)
-        if (callee_args_value[j] == arg)
-          break;
-      // 4 - Convert the value from float to the original type
-      // 5 - Store the oBuff value into the argument
-
-      if (i == 0)
+      if (i == 0) {
         // Load the oBuff pointer.
         load = builder.CreateLoad(oBuffAlloca, true, "npu_load_obuff");
-
+        if (n_ptr_args) {
+          oAddrChainCounter = builder.CreateLoad(oAddrCounterAlloca, false, "npu_load_oAddrC");
+          //oAddrChainPosition = builder.CreateLoad(addrBuffAlloca, false, "npu_load_addrBuffAlloca");
+        }
+      }
 
       // Then, get the address of next position of oBuff
       Value *GEP;
@@ -568,19 +621,25 @@ namespace {
       // Then, read the oBuff value
       Value *v = builder.CreateLoad(load, s2.c_str());
 
-      // And store the read value where the function would
-      // have stored.
-      /*
-      std::string type_str3;
-      llvm::raw_string_ostream rso3(type_str3);
-      rso3 << "Arg being used: " << *(caller_args[j]);
-      std::cerr << "\n" << rso3.str() << std::endl;
-      */
+      if (ptr_args_i < n_ptr_args) {
+        std::string s3 = "npu_oAddrGEP_" + ptr_args_i;
+        oAddrChainPosition = builder.CreateInBoundsGEP(addrBuffAlloca,
+                                                        oAddrChainCounter,
+                                                        s3.c_str());
+        Value *addr_buffer_value = builder.CreateLoad(oAddrChainPosition);
+        builder.CreateStore(v, addr_buffer_value, false);
+        s3 = "npu_oAddrCounter_add_" + ptr_args_i;
+        oAddrChainCounter = builder.CreateAdd(oAddrChainCounter,
+                                              ConstantInt::get(nativeInt, 1, false),
+                                              s3.c_str());
+        ++ptr_args_i;
+      }
 
-      builder.CreateStore(v, caller_args[j], false);
-
-      if (i == (escaped_stores.size() - 1))
+      if (i == (escaped_stores.size() - 1)) {
         builder.CreateStore(GEP, oBuffAlloca, true);
+        if (n_ptr_args)
+          builder.CreateStore(oAddrChainCounter, oAddrCounterAlloca);
+      }
 
       // On the next iteration we read from the next oBuff position
       // (already found out by GEP).
@@ -710,11 +769,11 @@ namespace {
                                       StringRef(""),
                                       true);
     InlineAsm *asm3 = InlineAsm::get(FunctionType::get(builder.getVoidTy(), false),
-                                      StringRef("WEF"),
+                                      StringRef("WFE"),
                                       StringRef(""),
                                       true);
     InlineAsm *asm4 = InlineAsm::get(FunctionType::get(builder.getVoidTy(), false),
-                                      StringRef("WEF"),
+                                      StringRef("WFE"),
                                       StringRef(""),
                                       true);
     builder.CreateCall(asm1);

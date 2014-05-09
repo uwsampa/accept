@@ -653,7 +653,7 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   // execute and must do so *precisely*.
   // However, this is still local and doesn't prevent the function from
   // being suitable for NPU execution.
-  // Only exception is when argument is reference (something&)
+  // TODO: Only exception is when argument is reference (something&)
   //
   // Stores to the return value of a function that returns an approx value
   // do not prevent the function from being precise-pure.
