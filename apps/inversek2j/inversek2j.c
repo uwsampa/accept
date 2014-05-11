@@ -6,18 +6,13 @@
 #include <enerc.h>
 
 // andreolb: we are not executing in NPU.
-/*
+
 #include "npu.h"
 #include "profile.h"
 #include "xil_io.h"
 #include "xil_mmu.h"
 #include "xil_types.h"
-*/
 
-#define wfe()             __asm__ __volatile__ ("WFE\n")
-#define sev()             __asm__ __volatile__ ("SEV\n")
-#define dsb()             __asm__ __volatile__ ("dsb" : : : "memory")
-#define npu()             dsb(); sev(); wfe(); wfe();
 
 #define PI 3.14159265
 
@@ -95,7 +90,7 @@ int main (int argc, const char* argv[]) {
     
     // Set input size to 100000 if not set
     if (argc < 2) {
-        n = 100000;
+        n = 32;
     } else {
         n = atoi(argv[1]);
     }
@@ -140,9 +135,8 @@ int main (int argc, const char* argv[]) {
     dynInsn_precise = get_eventcount(0);  
 */
 
-    float *p;
-    p = (float *)(1024 * sizeof(float));
-    
+    Xil_SetTlbAttributes(OCM_SRC,0x15C06);
+    Xil_SetTlbAttributes(OCM_DST,0x15C06);
 #if POWER_MODE == 1
     while (1) {
 #endif //POWER_MODE
@@ -166,6 +160,9 @@ int main (int argc, const char* argv[]) {
 */
 
         }
+
+        for (int k = 0; k < n * NUM_INPUTS; k += NUM_INPUTS)
+          printf("\n%f\t%f", *(t1t2_precise + (k + 0)), *(t1t2_precise + (k + 1)));
     
 #if POWER_MODE == 1
     }

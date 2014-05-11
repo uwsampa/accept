@@ -272,7 +272,7 @@ namespace {
 
 
     // Assume a constant buffer size for now.
-    int buffer_size = 1024;
+    int buffer_size = 64;
     unsigned int ibuff_addr = 0xFFFF8000;
     unsigned int obuff_addr = 0xFFFFF000;
     IntegerType *nativeInt = getNativeIntegerType();
