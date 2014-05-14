@@ -11,6 +11,7 @@
 #include <sstream>
 #include <iostream>
 #include <queue>
+#include <fstream>
 
 using namespace llvm;
 
@@ -23,6 +24,7 @@ namespace {
     Module *module;
     llvm::raw_fd_ostream *log;
     LoopInfo *LI;
+    //AliasAnalysis *AA;
 
     LoopNPUPass() : LoopPass(ID) {}
 
@@ -38,6 +40,7 @@ namespace {
           return false;
       module = loop->getHeader()->getParent()->getParent();
       LI = &getAnalysis<LoopInfo>();
+      //AA = &getAnalysis<AliasAnalysis>();
       return tryToOptimizeLoop(loop);
     }
     virtual bool doFinalization() {
@@ -46,6 +49,7 @@ namespace {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       LoopPass::getAnalysisUsage(AU);
       AU.addRequired<LoopInfo>();
+      //AU.addRequiredTransitive<AliasAnalysis>();
     }
 
     /*
@@ -250,7 +254,7 @@ namespace {
 
     // The list of parameters as in the function prototype.
     // Both in string and Value formats.
-    // Not sure if the string version is needed. If not, remove it.
+    // TODO: Not sure if the string version is needed. If not, remove it.
     typedef iplist<Argument> ArgumentListType;
     std::vector<std::string> callee_args_str;
     std::vector<Value *> callee_args_value;
@@ -264,12 +268,73 @@ namespace {
       callee_args_value.push_back(ai);
     }
 
+    /*
+    AliasSetTracker *st = new AliasSetTracker(*AA);
+    for (Function::iterator bi = f->begin(); bi != f->end(); ++bi)
+      st->add(*bi);
+    //if (st->getAliasSetForPointerIfExists(inst, AA->getDataLayout()->getTypeStoreSize(callee_args_value[i]->getType()), NULL))
+    std::cerr << "alias sets dump" << std::endl;
+    for (AliasSetTracker::iterator I = st->begin(); I != st->end(); ++I) {
+      AliasSet &AS = *I;
+      std::cerr << "=============== one more set" << std::endl;
+      AS.dump();
+    }
+    delete st;
+    */
+
+    // Number of inputs passed to the function call.
+    // It looks like the code of the function itself is the last element.
+    unsigned int n = inst->getNumOperands() - 1;
+
+    // For pointer arguments, determine first which ones will
+    // be passed as input to the NPU. Rules are:
+    // 1 - If it can be determined from the function signature
+    // how many elements the argument expects AND it's a small number.
+    // e.g void f(int a[5]);
+    // 2 - If it can be determined *exactly where the pointer points to*
+    // and it's a small declaration.
+    std::vector<int> op_size;
+    const int input_size_threshold = 5;
+    std::ifstream file("accept-npuArrayArgs-info.txt");
+    if (file.is_open()) {
+      while (file.good()) {
+        std::string line;
+        file >> line;
+        if (line == f->getName().str())
+          break;
+      }
+    }
+    for (unsigned int i = 0; i < n; ++i) {
+      int n_array;
+      file >> n_array;
+      op_size.push_back(n_array < input_size_threshold ? n_array : 0);
+    }
+    file.close();
+
+
+    // Check the declaration (alloca) to see if it is a "normal" variable (i.e. not a pointer)
+    // TODO: Also check whether it's an array whose size we can determine (and also check
+    // whether p[] allow p to point to anywhere else...
+    for (unsigned int i = 0; i < n; ++i) {
+      Type *type = inst->getOperandUse(i)->getType();
+      if (!type->isPointerTy())
+        continue;
+
+      if (!isa<AllocaInst>(*inst->getOperandUse(i)))
+        continue;
+
+      AllocaInst *allocai = static_cast<AllocaInst*>(*inst->getOperandUse(i));
+      Type *allocat = allocai->getAllocatedType();
+      if (type->isFloatingPointTy() || type->isIntegerTy())
+        op_size[i] = 1;
+    }
+
+
     // The list of arguments as in the instruction that calls
     // the function.
     std::vector<Value *> caller_args;
     for (int i = 0; i < c_inst->getNumArgOperands(); ++i)
       caller_args.push_back(c_inst->getArgOperand(i));
-
 
     // Assume a constant buffer size for now.
     int buffer_size = 64;
@@ -277,10 +342,6 @@ namespace {
     unsigned int obuff_addr = 0xFFFFF000;
     IntegerType *nativeInt = getNativeIntegerType();
     IRBuilder<> builder(module->getContext());
-
-    // Number of inputs passed to the function call.
-    // It looks like the code of the function itself is the last element.
-    unsigned int n = inst->getNumOperands() - 1;
 
     // First insert all the needed allocas in the beginning of
     // the function (which is where they MUST be).
