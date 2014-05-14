@@ -73,7 +73,9 @@ To write your application's quality metric, create a file called `eval.py` along
 
 **Score function.** The `score` function takes two arguments, which are both outputs returned by previous invocations of `load`: the first is the output of a *precise* execution and the second is the output from some *relaxed* execution. The scoring function should compute the "difference" (defined in a domain-specific way) between the two and return a value between 0.0 and 1.0, where 0.0 is perfectly correct and 1.0 is completely wrong.
 
-Here's an example `eval.py` to start with:
+It bears repeating that both of these functions are *application-specific*: there is no "standard" implementation of either `load` or `score`. Both functions convey unique information about your program to the ACCEPT system. This means that your program can have *any* output format as long as the output is written to a file (or even multiple files); you write `load` to explain your chosen format. Similarly, you get to decide what "quality" means for your program; you write `score` to mechanise your chosen notion of quality.
+
+Here's an example `eval.py` written for a notional program whose output consists of a text file, `my_output.txt`, containing a list of numbers. The `load` function here strips off some additional (irrelevant) text on each line and returns the parsed data as a list of floats. The `score` function takes the mean absolute difference, capped at 1, between the two lists of numbers:
 
     def load():
         out = []
