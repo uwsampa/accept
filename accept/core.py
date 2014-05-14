@@ -553,7 +553,7 @@ class Result(object):
 
         if self.error > MAX_ERROR:
             # Large output error.
-            self.desc = 'large error: {}'.format(self.error)
+            self.desc = 'large error: {} %'.format(self.error * 100)
             return
 
         # No error or large quality loss.

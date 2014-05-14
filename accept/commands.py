@@ -161,6 +161,9 @@ def approx(num=None, appdir='.'):
 
     for result in results:
         print(experiments.dump_config(result.config))
+        print('output:')
+        for output in result.outputs:
+            print('  {}'.format(output))
         print('time:')
         for t in result.durations:
             if t is None:
