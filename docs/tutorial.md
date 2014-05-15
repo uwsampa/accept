@@ -102,6 +102,7 @@ Unlike the other `accept` commands, the `exp` command needs the name of your app
 The following is a high-level description of the part of the workflow of an ACCEPT experiment involving eval.py.
 
 1. The program is first run once without approximation. This run without approximation is known as the precise run.
+
     a. During the precise run, the program writes precise data values to an output file.
     b. After the precise run, the `load()` function of the `eval.py` script stores those precise data values in a data
        structure that is in the database.
@@ -109,6 +110,7 @@ The following is a high-level description of the part of the workflow of an ACCE
 2. The program is then run several times with approximation. These runs with approximation are known as the approximate
    runs. The approximate runs differ slightly in their methods of relaxation, but each approximate run is evaluated in
    the same manner.
+
     a. During an approximate run, the program writes approximate data values to an output file.
     b. After the approximate run, the `load()` function of the `eval.py` script stores those approximate data values in a
        data structure that is in the database.
