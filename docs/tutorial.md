@@ -107,10 +107,10 @@ The following is a high-level description of the part of the workflow of an ACCE
 The program is first run once without approximation. This run without approximation is known as the precise run.
 
 * During the precise run, the program writes precise data values to an output file.
-* After the precise run, the `load()` function of the `eval.py` script stores those precise data values in a data structure that is in the database.
+* After the precise run, the `load` function of the `eval.py` script stores those precise data values in a data structure that is in the database.
 
 The program is then run several times with approximation. These runs with approximation are known as the approximate runs. The approximate runs differ slightly in their methods of relaxation, but each approximate run is evaluated in the same manner.
 
 * During an approximate run, the program writes approximate data values to an output file.
-* After the approximate run, the `load()` function of the `eval.py` script stores those approximate data values in a data structure that is in the database.
-* Finally, the `score()` function computes a correctness score for the approximate run. The correctness score is a metric of error between the values of the data structure filled by the precise run and the corresponding values of the data structure filled by the approximate run. A score of 0.0 indicates complete correctness, while a score of 1.0 indicates complete incorrectness.
+* After the approximate run, the `load` function of the `eval.py` script stores those approximate data values in a data structure that is in the database.
+* Finally, the `score` function computes a correctness score for the approximate run. The correctness score is a metric of error between the values of the data structure filled by the precise run and the corresponding values of the data structure filled by the approximate run. A score of 0.0 indicates complete correctness, while a score of 1.0 indicates complete incorrectness.
