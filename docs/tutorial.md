@@ -105,6 +105,7 @@ The following is a high-level description of the part of the workflow of an ACCE
     a. During the precise run, the program writes precise data values to an output file.
     b. After the precise run, the `load()` function of the `eval.py` script stores those precise data values in a data
        structure that is in the database.
+
 2. The program is then run several times with approximation. These runs with approximation are known as the approximate
    runs. The approximate runs differ slightly in their methods of relaxation, but each approximate run is evaluated in
    the same manner.
