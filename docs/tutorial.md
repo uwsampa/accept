@@ -20,11 +20,7 @@ Next, add a `Makefile` for your experiment. Your Makefile should include at leas
     APP_MK := ../app.mk
     include $(APP_MK)
 
-Of course, you'll want to change the name of your target to match your application's name.
-
-For simple programs, this is all you need; by default, the build system will compile any files ending in `.c` and `.cpp` into your executable.
-
-In more complex build scenarios, you can specify more variables and targets here. For example, you can specify `CFLAGS` and `LDFLAGS` to add to the compiler invocation command-lines. You can set the `SOURCES` variable to explicitly indicate which files should be compiled (rather than using `*.c *.cpp`). See the included benchmarks' Makefiles for examples.
+Change the name of the target to match your application's name. For simple programs, this is all you need; if you need more options (like specifying the source files to compile or the arguments to use during execution), see [the Makefile section of the tool documentation](cli.md#Makefile).
 
 ## Try Building
 

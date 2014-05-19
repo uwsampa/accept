@@ -132,3 +132,35 @@ If your program's output is big (e.g., an image), it might be inefficient to sto
 To store entire output files instead of putting parsed results in a database, write your `load()` function to just return a string containing the filename you want to save, prefixed with `file:`.
 Then, your `score()` function will receive cached filenames instead of output data.
 In this style, your `score()` function will need to parse both files (something that is `load()`'s job in the small-outputs style).
+
+
+## Makefile
+
+Applications tell ACCEPT how to build them using a standard Makefile. Your application's Makefile currently must contain at least these lines:
+
+    TARGET := foo
+    APP_MK := ../app.mk
+    include $(APP_MK)
+
+Replace `foo` with the name of your program. If necessary, you can change the `APP_MK` variable to point to where ACCEPT is installed. (This is only necessary if you placed your directory outside of ACCEPT's `apps` directory.)
+
+There are a number of other options you can specify here:
+
+### Sources
+
+By default, the build system will compile any files ending in `.c` and `.cpp` into your executable. You can set the `SOURCES` variable to explicitly indicate which files should be compiled (rather than using `*.c *.cpp`). For example:
+
+    SOURCES := foo.cpp src/bar.cpp
+
+### Build Flags
+
+The usual `CFLAGS` and `LDFLAGS` can be used to customize the build process. For example, here's how you might enable pthreads in the compiler:
+
+    CXXFLAGS += -pthread
+    LDFLAGS := -lpthread
+
+### Execution Flags
+
+The `RUNARGS` variable is used to specify command-line arguments to be used when executing your program. You might, for example, need to specify the input file. Here's an example from the fluidanimate program:
+
+    RUNARGS := 4 5 in_300K.fluid out.fluid
