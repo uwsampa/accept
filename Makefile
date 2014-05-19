@@ -127,7 +127,7 @@ driver:
 
 # Documentation.
 
-.PHONY: docs cleandocs deploydocs
+.PHONY: docs cleandocs deploy
 
 docs:
 	mkdocs build
@@ -138,6 +138,6 @@ cleandocs:
 # Upload the documentation to the Web server.
 CSEHOST := bicycle.cs.washington.edu
 CSEPATH := /cse/www2/sampa/accept
-deploydocs: cleandocs docs
+deploy: cleandocs docs
 	rsync --compress --recursive --checksum --itemize-changes --delete -e ssh site/ $(CSEHOST):$(CSEPATH)
 	ssh $(CSEHOST) "echo -e 'authtype csenetid\\nrequire valid-user' > $(CSEPATH)/.htaccess"
