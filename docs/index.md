@@ -34,7 +34,7 @@ Inside this directory (the repository containing this README file), type `make s
 * Download and extract the [LLVM][llvm-dl] source.
 * Build LLVM and our modified Clang frontend using CMake and Ninja. (This can take a long time.) The programs and libraries are installed into the `build/built/` subdirectory.
 * Build the ACCEPT-specific extensions to LLVM and Clang.
-* Create a Python [virtual environment][venv] and install the driver's dependencies therein.
+* Create a Python [virtual environment][virtualenv] and install the driver's dependencies therein.
 Take a look inside the Makefile if you're curious about how to run any of these steps individually.
 
 You should now be able to use the `bin/enerclang` and `bin/enerclang++` programs to compile EnerC programs. You can type `make test` to make sure everything's working.
