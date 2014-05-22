@@ -216,6 +216,11 @@ namespace {
     if (!loop->getLoopLatch() || !loop->getLoopPreheader())
       return false;
 
+    if (!inst->getType()->isIntegerTy() &&
+        !inst->getType()->isVoidTy() &&
+        !inst->getType()->isFloatTy())
+      return false;
+
     const CallInst *c_inst = dyn_cast<CallInst>(inst);
     Function *f = c_inst->getCalledFunction();
 
@@ -249,8 +254,9 @@ namespace {
       if (AI->storeEscapes(stores[i], region, false))
         escaped_stores.push_back(stores[i]);
 
-    std::vector<std::string> outputs;
-    std::vector<int> n_written;
+    const int output_threshold = 5;
+    if (escaped_stores.size() > output_threshold)
+      escaped_stores.clear();
 
     // The list of parameters as in the function prototype.
     // Both in string and Value formats.
@@ -323,7 +329,7 @@ namespace {
       if (!isa<AllocaInst>(*inst->getOperandUse(i)))
         continue;
 
-      AllocaInst *allocai = static_cast<AllocaInst*>(*inst->getOperandUse(i));
+      AllocaInst *allocai = dyn_cast<AllocaInst>(inst->getOperandUse(i));
       Type *allocat = allocai->getAllocatedType();
       if (type->isFloatingPointTy() || type->isIntegerTy())
         op_size[i] = 1;
@@ -335,6 +341,37 @@ namespace {
     std::vector<Value *> caller_args;
     for (int i = 0; i < c_inst->getNumArgOperands(); ++i)
       caller_args.push_back(c_inst->getArgOperand(i));
+
+    std::vector<bool> is_output_arg;
+    bool has_output_arg = false;
+    for (int i = 0; i < caller_args.size(); ++i) {
+      is_output_arg.push_back(false);
+      for (int j = 0; j < escaped_stores.size(); ++j) {
+        if ((callee_args_value[i])->getName().str() == (escaped_stores[j])->getPointerOperand()->getName().str()) {
+          has_output_arg = true;
+          is_output_arg[i] = true;
+          break;
+        }
+      }
+    }
+
+    int first_output_arg, last_output_arg = -1;
+    for (int i = 0; i < is_output_arg.size(); ++i) {
+      if (is_output_arg[i]) {
+        first_output_arg = i;
+        break;
+      }
+    }
+    for (int i = (is_output_arg.size() - 1); i >= 0; --i) {
+      if (is_output_arg[i]) {
+        last_output_arg = i;
+        break;
+      }
+    }
+    int n_ptr_args = 0;
+    for (int i = 0; i < is_output_arg.size(); ++i)
+      if (is_output_arg[i])
+        ++n_ptr_args;
 
     // Assume a constant buffer size for now.
     int buffer_size = 64;
@@ -364,14 +401,6 @@ namespace {
     AllocaInst *outLoopCounterAlloca = builder.CreateAlloca(nativeInt,
                                                             0,
                                                             "npu_out_loop_counter");
-
-    int n_ptr_args = 0;
-    for (unsigned int i = 0; i < n; ++i) {
-      Type *type = inst->getOperandUse(i)->getType();
-      // Assuming that any pointer argument is a float*
-      if (type->isPointerTy())
-        ++n_ptr_args;
-    }
 
     // An auxiliary buffer to store function arguments' addresses.
     AllocaInst *addrBuffAlloca = builder.CreateAlloca(Type::getFloatPtrTy(module->getContext()),
@@ -406,8 +435,25 @@ namespace {
     Value *iAddrChainCounter;
     Value *iAddrChainPosition;
 
+    int first_input_arg, last_input_arg = -1;
+    for (int i = 0; i < op_size.size(); ++i) {
+      Type *type = inst->getOperandUse(i)->getType();
+      if (!type->isPointerTy() || op_size[i]) {
+        first_input_arg = i;
+        break;
+      }
+    }
+    for (int i = (op_size.size() - 1); i >= 0; --i) {
+      Type *type = inst->getOperandUse(i)->getType();
+      if (!type->isPointerTy() || op_size[i]) {
+        last_input_arg = i;
+        break;
+      }
+    }
+
     // The input buffer is always an array of floats. So, any input that is not a float
     // must be converted.
+    int total_buffered = 0;
     for (unsigned int i = 0; i < n; ++i) {
       std::string s = "npu_conv_" + i;
       Type *type = inst->getOperandUse(i)->getType();
@@ -433,15 +479,12 @@ namespace {
       // of iBuff and oBuff so we can just use a constant as the initial value
       // and go from there. At this point register allocation hasn't been
       // performed yet, so we have to load/store everything though.
-      if (i == 0) {
+      if (i == first_input_arg)
         load = builder.CreateLoad(iBuffAlloca, true, "npu_load_ibuff");
-        if (n_ptr_args) {
-          iAddrChainCounter = builder.CreateLoad(iAddrCounterAlloca, false, "npu_load_iAddrC");
-          //iAddrChainPosition = builder.CreateLoad(addrBuffAlloca, false, "npu_load_addrBuffAlloca");
-        }
-      }
+      if (i == first_output_arg)
+        iAddrChainCounter = builder.CreateLoad(iAddrCounterAlloca, false, "npu_load_iAddrC");
 
-      if (type->isPointerTy()) {
+      if (is_output_arg[i]) {
         s = "npu_iAddrGEP_" + i;
         iAddrChainPosition = builder.CreateInBoundsGEP(addrBuffAlloca,
                                                       iAddrChainCounter,
@@ -453,28 +496,43 @@ namespace {
                                               s.c_str());
       }
 
-      // Now that the input has been converted and iBuff has been loaded, get
-      // the address of the next iBuff element.
-      s = "npu_iBuffGEP_" + i;
       Value *GEP;
-      // is the 1 signed? (the true parameter)
-      GEP = builder.CreateInBoundsGEP(load,
-                                      ConstantInt::get(nativeInt, 1, true),
-                                      s.c_str());
+      if (!type->isPointerTy() || op_size[i]) {
+        int n_to_buff = (type->isPointerTy()) ? op_size[i] : 1;
 
-      // Store the (converted) input in the current iBuff position.
-      builder.CreateStore(v, load); //is this store volatile?
+        for (int j = 0; j < n_to_buff; ++j) {
+          // Now that the input has been converted and iBuff has been loaded, get
+          // the address of the next iBuff element.
+          s = "npu_iBuffGEP_" + i;
+          // is the 1 signed? (the true parameter)
+          GEP = builder.CreateInBoundsGEP(load,
+                                          ConstantInt::get(nativeInt, 1, true),
+                                          s.c_str());
 
-      // After storing the last input, store the final address of iBuff.
-      if (i == (n - 1)) {
-        builder.CreateStore(GEP, iBuffAlloca, true);
-        if (n_ptr_args)
-          builder.CreateStore(iAddrChainCounter, iAddrCounterAlloca);
+          // Store the (converted) input in the current iBuff position.
+          builder.CreateStore(v, load); //is this store volatile?
+
+          // The next iBuff element to be written is the result of the
+          // GEP instruction above.
+          load = GEP;
+
+          if (j != n_to_buff - 1) {
+            s = "npu_auxGEP_" + (j+1);
+            Value *auxGEP = builder.CreateInBoundsGEP(inst->getOperandUse(i),
+                                                      ConstantInt::get(nativeInt, j+1),
+                                                      s.c_str());
+            v = builder.CreateLoad(auxGEP);
+          }
+        }
+        total_buffered += n_to_buff;
+
       }
 
-      // The next iBuff element to be written is the result of the
-      // GEP instruction above.
-      load = GEP;
+      // After storing the last input, store the final address of iBuff.
+      if (i == last_input_arg)
+        builder.CreateStore(GEP, iBuffAlloca, true);
+      if (i == last_output_arg)
+        builder.CreateStore(iAddrChainCounter, iAddrCounterAlloca);
     }
 
     // This will be used later in case the call instruction is
@@ -522,7 +580,7 @@ namespace {
 
       // Add the number of inputs stored in iBuff.
       v = builder.CreateAdd(v,
-                            ConstantInt::get(nativeInt, n, false),
+                            ConstantInt::get(nativeInt, total_buffered, false),
                             "npu_counter_add");
 
       // Store the result back.
@@ -628,7 +686,7 @@ namespace {
     Value *ibuff_used = builder.CreateLoad(counterAlloca,
                                            "npu_ibuff_used");
     ibuff_used = builder.CreateUDiv(ibuff_used,
-        ConstantInt::get(nativeInt, n, false));
+        ConstantInt::get(nativeInt, total_buffered, false));
 
 
     // Reset "iBuff read counter" for the next time.
@@ -658,18 +716,34 @@ namespace {
     int ptr_args_i = 0;
     // Now we read all the output values generated by *one* call
     // For each output (escaped_stores) we:
+    //
+    // Alternatively, we can see whether anyone depends on inst
+    bool gotRetVal = false;
+    Value *retVal;
+    if (f->getReturnType()->isIntegerTy() || f->getReturnType()->isFloatingPointTy()) {
+      gotRetVal = true;
+      load = builder.CreateLoad(oBuffAlloca, true, "npu_load_obuff");
+      Value *GEP;
+      std::string s1 = "npu_gepRetVal_oBuff";
+      std::string s2 = "npu_loadRetVal_oBuffResult";
+      GEP = builder.CreateInBoundsGEP(load,
+                                      ConstantInt::get(nativeInt, 1, true),
+                                      s1.c_str());
+      retVal = builder.CreateLoad(load, s2.c_str());
+      if (!escaped_stores.size())
+        builder.CreateStore(GEP, oBuffAlloca, true);
+
+      load = GEP;
+    }
     for (int i = 0; i < escaped_stores.size(); ++i) {
       // First we store the function arguments.
       // For now we only consider escaped stores to function arguments.
       // TODO: remove this restriction.
-      if (i == 0) {
+      if (i == 0 && !gotRetVal)
         // Load the oBuff pointer.
         load = builder.CreateLoad(oBuffAlloca, true, "npu_load_obuff");
-        if (n_ptr_args) {
-          oAddrChainCounter = builder.CreateLoad(oAddrCounterAlloca, false, "npu_load_oAddrC");
-          //oAddrChainPosition = builder.CreateLoad(addrBuffAlloca, false, "npu_load_addrBuffAlloca");
-        }
-      }
+      if (i == 0 && n_ptr_args)
+        oAddrChainCounter = builder.CreateLoad(oAddrCounterAlloca, false, "npu_load_oAddrC");
 
       // Then, get the address of next position of oBuff
       Value *GEP;
@@ -705,6 +779,18 @@ namespace {
       // On the next iteration we read from the next oBuff position
       // (already found out by GEP).
       load = GEP;
+    }
+
+    // Replace all the uses of inst (the call) by retVal
+    if (gotRetVal) {
+      if (inst->getType()->isIntegerTy()) {
+        IntegerType *it = static_cast<IntegerType *>(inst->getType());
+        if (it->getSignBit())
+          retVal = builder.CreateFPToSI(retVal, nativeInt, "npu_conv_retval");
+        else
+          retVal = builder.CreateFPToUI(retVal, nativeInt, "npu_conv_retval");
+      }
+      inst->replaceAllUsesWith(retVal);
     }
 
     // Now that we have read the outputs for *one* function call,
