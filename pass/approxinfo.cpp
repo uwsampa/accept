@@ -288,6 +288,17 @@ std::set<BasicBlock*> ApproxInfo::successorsOf(BasicBlock *block) {
   successorsOfHelper(block, successors);
   return successors;
 }
+std::set<BasicBlock*> ApproxInfo::imSuccessorsOf(BasicBlock *block) {
+  std::set<BasicBlock*> successors;
+  TerminatorInst *term = block->getTerminator();
+  if (!term)
+    return successors;
+  for (int i = 0; i < term->getNumSuccessors(); ++i) {
+    BasicBlock *sb = term->getSuccessor(i);
+    successors.insert(sb);
+  }
+  return successors;
+}
 
 struct ApproxCaptureTracker : public CaptureTracker {
   bool Captured;

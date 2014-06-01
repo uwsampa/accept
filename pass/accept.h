@@ -22,6 +22,7 @@
 namespace llvm {
   ImmutablePass *createAcceptAAPass();
   void initializeAcceptAAPass(PassRegistry &Registry);
+  void initializeLoopNPUPass(PassRegistry &Registry);
   FunctionPass *createAcceptTransformPass();
   extern FunctionPass *sharedAcceptTransformPass;
   LoopPass *createLoopPerfPass();
@@ -75,6 +76,7 @@ public:
   LineMarker instMarker(llvm::Instruction *inst);
 
   std::set<llvm::BasicBlock*> successorsOf(llvm::BasicBlock *block);
+  std::set<llvm::BasicBlock*> imSuccessorsOf(llvm::BasicBlock *block);
   bool storeEscapes(llvm::StoreInst *store,
                     std::set<llvm::Instruction*> insts,
                     bool approx = true);

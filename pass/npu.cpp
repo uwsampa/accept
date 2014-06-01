@@ -7,6 +7,10 @@
 #include "llvm/Argument.h"
 #include "llvm/IntrinsicInst.h"
 #include "llvm/InlineAsm.h"
+#include "llvm/Analysis/AliasAnalysis.h"
+#include "llvm/Analysis/AliasSetTracker.h"
+#include "llvm/Analysis/Passes.h"
+#include "llvm/Pass.h"
 
 #include <sstream>
 #include <iostream>
@@ -16,7 +20,7 @@
 using namespace llvm;
 
 namespace {
-  struct LoopNPUPass : public LoopPass {
+  struct LoopNPU: public LoopPass {
     static char ID;
     bool modified;
     ACCEPTPass *transformPass;
@@ -24,9 +28,11 @@ namespace {
     Module *module;
     llvm::raw_fd_ostream *log;
     LoopInfo *LI;
-    //AliasAnalysis *AA;
+    AliasAnalysis *AA;
 
-    LoopNPUPass() : LoopPass(ID) {}
+    LoopNPU() : LoopPass(ID) {
+      initializeLoopNPUPass(*PassRegistry::getPassRegistry());
+    }
 
     virtual bool doInitialization(Loop *loop, LPPassManager &LPM) {
       transformPass = (ACCEPTPass*)sharedAcceptTransformPass;
@@ -40,7 +46,7 @@ namespace {
           return false;
       module = loop->getHeader()->getParent()->getParent();
       LI = &getAnalysis<LoopInfo>();
-      //AA = &getAnalysis<AliasAnalysis>();
+      AA = &getAnalysis<AliasAnalysis>();
       return tryToOptimizeLoop(loop);
     }
     virtual bool doFinalization() {
@@ -49,7 +55,7 @@ namespace {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       LoopPass::getAnalysisUsage(AU);
       AU.addRequired<LoopInfo>();
-      //AU.addRequiredTransitive<AliasAnalysis>();
+      AU.addRequiredTransitive<AliasAnalysis>();
     }
 
     /*
@@ -123,32 +129,6 @@ namespace {
         return false;
       }
 
-      /*
-      std::cerr << "\n--------------- loop body only---------------------" << std::endl;
-      for (Loop::block_iterator bi = loop->block_begin();
-            bi != loop->block_end(); ++bi) {
-        if (*bi == loop->getHeader()) {
-          // Even in perforated loops, the header gets executed every time. So we
-          // don't check it.
-          continue;
-        } else if (*bi == loop->getLoopLatch()) {
-          // When perforating for-like loops, we also execute the latch each
-          // time.
-          continue;
-        }
-        BasicBlock *bb = *bi;
-        for (BasicBlock::iterator ii = bb->begin();
-          ii != bb->end(); ++ii) {
-          Instruction *inst = ii;
-    	    std::string type_str;
-    	    llvm::raw_string_ostream rso(type_str);
-          rso << *inst << "\n";
-          std::cerr << rso.str() << std::endl;
-        }
-      }
-      std::cerr << "\n--------------- end loop  body---------------------" << std::endl;
-      */
-
       // Finding functions amenable to NPU.
       for (Loop::block_iterator bi = loop->block_begin();
             bi != loop->block_end(); ++bi) {
@@ -210,16 +190,172 @@ namespace {
                             layout.getPointerSizeInBits());
   }
 
+  // If there's anything in the latch or in the header that
+  // depends on the first set of instructions (i.e. before the call),
+  // the last time the first set of instructions executes we must
+  // buffer these dependencies to satisfy them when the latch and
+  // the header execute after the second set of instructions
+  // (i.e. the set of instructions after the call).
+
+  void getBeforeBBs(BasicBlock *currentBB, std::set<BasicBlock *> &seen, std::set<BasicBlock *> &before, BasicBlock *header, BasicBlock *callBB, Loop *loop) {
+    if (seen.count(currentBB))
+      return;
+    seen.insert(currentBB);
+
+    if (currentBB == callBB)
+      return;
+
+    std::set<BasicBlock *> sucs = AI->imSuccessorsOf(currentBB);
+    for(std::set<BasicBlock *>::iterator si = sucs.begin();
+        si != sucs.end();
+        ++si) {
+      if (currentBB == header) {
+        if (!loop->contains(*si))
+          continue;
+        before.insert(header);
+      }
+
+      before.insert(*si);
+      getBeforeBBs(*si, seen, before, header, callBB, loop);
+    }
+  }
+
+
+  void getAfterBBs(BasicBlock *currentBB, std::set<BasicBlock *> &seen, std::set<BasicBlock *> &after, BasicBlock* latch) {
+    if (currentBB == latch)
+      return;
+    if (seen.count(currentBB))
+      return;
+    seen.insert(currentBB);
+
+
+    std::set<BasicBlock *> sucs = AI->imSuccessorsOf(currentBB);
+    for(std::set<BasicBlock *>::iterator si = sucs.begin();
+        si != sucs.end();
+        ++si) {
+      if (*si == latch)
+        continue;
+      after.insert(*si);
+      getAfterBBs(*si, seen, after, latch);
+    }
+  }
+
+  bool pre_pos_call_dependency_check(Instruction *callinst, Loop *loop) {
+    BasicBlock *callBB = callinst->getParent();
+    std::set<Instruction *> before;
+    std::set<Instruction *> after;
+    bool past_callinst = false;
+    for (BasicBlock::iterator ii = callBB->begin(); ii != callBB->end(); ++ii) {
+      Instruction *inst = ii;
+      if (!past_callinst) { // Instructions before callinst
+        if (inst == callinst) {
+          past_callinst = true;
+          continue;
+        }
+        before.insert(inst);
+
+      } else { // Instruction after callinst
+        after.insert(inst);
+      }
+    }
+
+    std::set<BasicBlock *> beforeBBs;
+    std::set<BasicBlock *> afterBBs;
+    std::set<BasicBlock *> seen;
+    getAfterBBs(callBB, seen, afterBBs, loop->getLoopLatch());
+    seen.clear();
+    getBeforeBBs(loop->getHeader(), seen, beforeBBs, loop->getHeader(), callBB, loop);
+
+    // If there's an intersection between the BBs that come before and after
+    // the call, then it's possible to "jump" around the call inside the loop
+    // and we don't handle this case.
+    std::cerr << "Begin bb intersection" << std::endl;
+    for (std::set<BasicBlock *>::iterator bb = beforeBBs.begin(); bb != beforeBBs.end(); ++bb) {
+      if (afterBBs.count(*bb))
+        return true;
+      if (*bb != callBB) {
+        std::set<BasicBlock *> sucs = AI->imSuccessorsOf(*bb);
+        for (std::set<BasicBlock *>::iterator si = sucs.begin(); si != sucs.end(); ++si)
+          if (*si == loop->getLoopLatch())
+            return true;
+      }
+    }
+    std::cerr << "End bb intersection" << std::endl;
+
+    // Next, we do not allow instructions that come before to alias with
+    // those that come after.
+    // TODO: this condition can be relaxed. It's ok if there's a memory
+    // dependency from a instruction that comes before to a instruction
+    // that comes after, as long as it's *not loop carried*.
+    AliasSetTracker *st = new AliasSetTracker(*AA);
+    for (std::set<Instruction *>::iterator ii = before.begin(); ii != before.end(); ++ii)
+      st->add(*ii);
+    for (std::set<BasicBlock *>::iterator bi = beforeBBs.begin(); bi != beforeBBs.end(); ++bi) {
+      if (*bi == callBB)
+        continue;
+      for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii)
+        st->add(ii);
+    }
+
+    std::cerr << "Begin AA" << std::endl;
+    for (AliasSetTracker::iterator si = st->begin(); si != st->end(); ++si) {
+      for (std::set<Instruction *>::iterator ii = after.begin(); ii != after.end(); ++ii)
+        if ((*si).aliasesUnknownInst(*ii, *AA))
+          return true;
+
+      for (std::set<BasicBlock *>::iterator bi = afterBBs.begin(); bi != afterBBs.end(); ++bi)
+        for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii)
+          if ((*si).aliasesUnknownInst(ii, *AA))
+            return true;
+    }
+    std::cerr << "End AA" << std::endl;
+
+    std::set<Instruction *> beforei;
+    std::set<Instruction *> afteri;
+    for (std::set<Instruction *>::iterator ii = before.begin(); ii != before.end(); ++ii)
+      beforei.insert(*ii);
+    for (std::set<BasicBlock *>::iterator bi = beforeBBs.begin(); bi != beforeBBs.end(); ++bi) {
+      if (*bi == callBB)
+        continue;
+      for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii)
+        beforei.insert(ii);
+    }
+
+    for (std::set<Instruction *>::iterator ii = after.begin(); ii != after.end(); ++ii)
+      afteri.insert(*ii);
+    for (std::set<BasicBlock *>::iterator bi = afterBBs.begin(); bi != afterBBs.end(); ++bi)
+      for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii)
+        afteri.insert(ii);
+
+    // Dependencies flowing from instructions after the call
+    // to instructions before the call are not allowed.
+    std::cerr << "Begin use bottom to top" << std::endl;
+    for (std::set<Instruction *>::iterator ii = afteri.begin(); ii != afteri.end(); ++ii)
+      for (Value::use_iterator ui = (*ii)->use_begin(); ui != (*ii)->use_end(); ++ii)
+        if (beforei.count(cast<Instruction>(*ui)))
+          return true;
+    std::cerr << "End use bottom to top" << std::endl;
+
+
+
+    return false;
+  } // pre_pos_call_dependency_check
+
   bool tryToNPU(Loop *loop, Instruction *inst) {
     // We need a loop latch to jump to after reading oBuff
     // and executing the instructions after the function call.
-    if (!loop->getLoopLatch() || !loop->getLoopPreheader())
+    if (!loop->getLoopLatch() || !loop->getLoopPreheader() || !loop->getHeader())
       return false;
 
     if (!inst->getType()->isIntegerTy() &&
         !inst->getType()->isVoidTy() &&
         !inst->getType()->isFloatTy())
       return false;
+
+    if (pre_pos_call_dependency_check(inst, loop)) {
+      std::cerr << "BOSTA" << std::endl;
+      return false;
+    }
 
     const CallInst *c_inst = dyn_cast<CallInst>(inst);
     Function *f = c_inst->getCalledFunction();
@@ -935,13 +1071,15 @@ namespace {
 };
 }
 /*
- *
             std::string type_str;
             llvm::raw_string_ostream rso(type_str);
             rso << *ii;
             std::cerr << "\n" << rso.str() << std::endl;
  */
 
-char LoopNPUPass::ID = 0;
-LoopPass *llvm::createLoopNPUPass() { return new LoopNPUPass(); }
+char LoopNPU::ID = 0;
+INITIALIZE_PASS_BEGIN(LoopNPU, "npu-pass", "Loop NPU Pass", false, false)
+INITIALIZE_AG_DEPENDENCY(AliasAnalysis)
+INITIALIZE_PASS_END(LoopNPU, "npu-pass", "Loop NPU Pass", false, false)
+LoopPass *llvm::createLoopNPUPass() { return new LoopNPU(); }
 
