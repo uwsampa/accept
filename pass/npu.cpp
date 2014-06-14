@@ -287,18 +287,18 @@ namespace {
     // TODO: this condition can be relaxed. It's ok if there's a memory
     // dependency from a instruction that comes before to a instruction
     // that comes after, as long as it's *not loop carried*.
-    AliasSetTracker *st = new AliasSetTracker(*AA);
+    AliasSetTracker st(*AA);
     for (std::set<Instruction *>::iterator ii = before.begin(); ii != before.end(); ++ii)
-      st->add(*ii);
+      st.add(*ii);
     for (std::set<BasicBlock *>::iterator bi = beforeBBs.begin(); bi != beforeBBs.end(); ++bi) {
       if (*bi == callBB)
         continue;
       for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii)
-        st->add(ii);
+        st.add(ii);
     }
 
     std::cerr << "Begin AA" << std::endl;
-    for (AliasSetTracker::iterator si = st->begin(); si != st->end(); ++si) {
+    for (AliasSetTracker::iterator si = st.begin(); si != st.end(); ++si) {
       for (std::set<Instruction *>::iterator ii = after.begin(); ii != after.end(); ++ii)
         if ((*si).aliasesUnknownInst(*ii, *AA))
           return true;
