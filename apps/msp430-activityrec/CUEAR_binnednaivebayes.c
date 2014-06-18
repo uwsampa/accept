@@ -1,4 +1,5 @@
 #include "FeatureVector.h"
+#include <enerc.h>
 #define MODEL_SIZE 100
 
 static float stationary[MODEL_SIZE] = {
@@ -11,9 +12,10 @@ static float walking[MODEL_SIZE] = {
 
 int classify(featureVector *features){
 
-  int walk_less_error = 0;
-  int stat_less_error = 0;
+  APPROX int walk_less_error = 0;
+  APPROX int stat_less_error = 0;
   int i;
+  accept_roi_begin();
   for( i = 0; i < MODEL_SIZE; i+=NUM_FEATURES ){
 
     float stat_mean_err = (stationary[i] > features->features[0]) ?
@@ -22,7 +24,7 @@ int classify(featureVector *features){
     float stat_sd_err =   (stationary[i+1] > features->features[1]) ?
                           (stationary[i+1] - features->features[1]) :
                           (features->features[1] - stationary[i+1]);
-    
+
     float walk_mean_err = (walking[i] > features->features[0]) ?
                           (walking[i] - features->features[0]) :
                           (features->features[0] - walking[i]);
@@ -42,8 +44,9 @@ int classify(featureVector *features){
     }else{
       stat_less_error ++;
     }
-    
+
   }
+  accept_roi_end();
   if(walk_less_error > stat_less_error ){
     return 1;
   }else{
