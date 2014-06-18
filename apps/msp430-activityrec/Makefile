@@ -1,6 +1,6 @@
 # Run "make" to build with mspgcc
 
-CFLAGS=-g -O0 -fomit-frame-pointer 
+CFLAGS=-g -O0 -fomit-frame-pointer
 LDFLAGS=-lm -fomit-frame-pointer
 
 ACCELDIR=.
@@ -15,7 +15,7 @@ else
   LDFLAGS+=-L$(ACCELDIR) -l$(ACCELLIB)
 endif
 
-all: AR.cue.elf 
+all: AR.cue.elf
 
 .PRECIOUS: %.elf
 
@@ -48,4 +48,4 @@ libadxl362z.a: adxl362z.o
 	msp430-ranlib $@
 
 clean:
-	$(RM) *.o *.elf
+	$(RM) *.o *.elf libadxl362z.a
