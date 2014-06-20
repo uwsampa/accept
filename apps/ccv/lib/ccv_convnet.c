@@ -15,7 +15,7 @@
 #ifdef HAVE_CUDA
 #include "cuda/cwc.h"
 #endif
-#include "3rdparty/sqlite3/sqlite3.h"
+// #include "3rdparty/sqlite3/sqlite3.h"
 #include "inl/ccv_convnet_inl.h"
 
 #ifndef CASE_TESTS
@@ -1361,6 +1361,8 @@ void ccv_convnet_compact(ccv_convnet_t* convnet)
 	}
 }
 
+/*
+
 void ccv_convnet_write(ccv_convnet_t* convnet, const char* filename, ccv_convnet_write_param_t params)
 {
 	sqlite3* db = 0;
@@ -1621,6 +1623,8 @@ ccv_convnet_t* ccv_convnet_read(int use_cwc_accel, const char* filename)
 	}
 	return 0;
 }
+
+*/
 
 void ccv_convnet_input_formation(ccv_convnet_t* convnet, ccv_dense_matrix_t* a, ccv_dense_matrix_t** b)
 {
