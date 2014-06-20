@@ -64,7 +64,7 @@ public:
       std::set<llvm::BasicBlock*> blocks);
   bool isPrecisePure(llvm::Function *func);
   bool pointerCaptured(const llvm::Value *ptr,
-      std::set<llvm::Instruction*> &region);
+      const std::set<llvm::Instruction*> &region);
 
   std::map< std::string, std::map<int, LineMarker> > lineMarkers;
   LineMarker markerAtLine(std::string filename, int line);
@@ -75,7 +75,7 @@ private:
                           std::set<llvm::BasicBlock*> &succ);
   std::set<llvm::BasicBlock*> successorsOf(llvm::BasicBlock *block);
   bool storeEscapes(llvm::StoreInst *store,
-                    std::set<llvm::Instruction*> insts);
+                    const std::set<llvm::Instruction*> &insts);
   int preciseEscapeCheckHelper(std::map<llvm::Instruction*, bool> &flags,
                                const std::set<llvm::Instruction*> &insts);
   bool approxOrLocal(std::set<llvm::Instruction*> &insts,

@@ -275,10 +275,10 @@ std::set<BasicBlock*> ApproxInfo::successorsOf(BasicBlock *block) {
 
 struct ApproxCaptureTracker : public CaptureTracker {
   bool Captured;
-  std::set<Instruction *> *region;
+  const std::set<Instruction *> *region;
   ApproxInfo *ai;
 
-  explicit ApproxCaptureTracker(std::set<Instruction *> *_region,
+  explicit ApproxCaptureTracker(const std::set<Instruction *> *_region,
                                 ApproxInfo *_ai)
     : Captured(false), region(_region), ai(_ai) {}
 
@@ -302,7 +302,7 @@ struct ApproxCaptureTracker : public CaptureTracker {
 };
 
 bool ApproxInfo::pointerCaptured(const Value *ptr,
-                                 std::set<Instruction*> &region) {
+                                 const std::set<Instruction*> &region) {
   ApproxCaptureTracker ct(&region, this);
   PointerMayBeCaptured(ptr, &ct);
   return ct.Captured;
@@ -310,7 +310,8 @@ bool ApproxInfo::pointerCaptured(const Value *ptr,
 
 // Conservatively check whether a store instruction can be observed by any
 // load instructions *other* than those in the specified set of instructions.
-bool ApproxInfo::storeEscapes(StoreInst *store, std::set<Instruction*> insts) {
+bool ApproxInfo::storeEscapes(StoreInst *store,
+                              const std::set<Instruction*> &insts) {
   Value *ptr = store->getPointerOperand();
 
   // Traverse bitcasts from one pointer type to another.
