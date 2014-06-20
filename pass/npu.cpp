@@ -11,11 +11,17 @@
 #include "llvm/Analysis/AliasSetTracker.h"
 #include "llvm/Analysis/Passes.h"
 #include "llvm/Pass.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Analysis/PostDominators.h"
 
 #include <sstream>
 #include <iostream>
 #include <queue>
 #include <fstream>
+#define BUFFER_LOOP_DEPS 0
+#define BUFFER_STORE_LOOP_DEPS 1
+#define ALIAS 1
+#define ALIAS_DUMP 0
 
 using namespace llvm;
 
@@ -28,7 +34,11 @@ namespace {
     Module *module;
     llvm::raw_fd_ostream *log;
     LoopInfo *LI;
+#if ALIAS == 1
     AliasAnalysis *AA;
+#endif
+    PostDominatorTree *PDT;
+    DominatorTree *DT;
 
     LoopNPU() : LoopPass(ID) {
       initializeLoopNPUPass(*PassRegistry::getPassRegistry());
@@ -46,8 +56,32 @@ namespace {
           return false;
       module = loop->getHeader()->getParent()->getParent();
       LI = &getAnalysis<LoopInfo>();
+#if ALIAS == 1
       AA = &getAnalysis<AliasAnalysis>();
-      return tryToOptimizeLoop(loop);
+#endif
+      PDT = &getAnalysis<PostDominatorTree>();
+      DT = &getAnalysis<DominatorTree>();
+      bool retValue;
+      retValue = tryToOptimizeLoop(loop);
+      /*
+      std::set< std::set<BasicBlock*> > regions;
+      //getRegions(loop, regions);
+
+      std::string type_str;
+      llvm::raw_string_ostream rso(type_str);
+      for (std::set<std::set<BasicBlock*> >::iterator ri = regions.begin(); ri != regions.end(); ++ri) {
+        rso << "------ region:\n";
+        for (std::set<BasicBlock*>::iterator bi = ri->begin(); bi != ri->end(); ++bi) {
+          for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii) 
+            rso << *ii << "\n";
+          rso << "\n";
+        }
+      }
+      std::cerr << "\n" << rso.str() << std::endl;
+      */
+
+
+      return retValue;
     }
     virtual bool doFinalization() {
       return false;
@@ -55,7 +89,11 @@ namespace {
     virtual void getAnalysisUsage(AnalysisUsage &AU) const {
       LoopPass::getAnalysisUsage(AU);
       AU.addRequired<LoopInfo>();
+      AU.addRequired<DominatorTree>();
+      AU.addRequired<PostDominatorTree>();
+#if ALIAS == 1
       AU.addRequiredTransitive<AliasAnalysis>();
+#endif
     }
 
     /*
@@ -83,8 +121,45 @@ namespace {
       return false;
     }
 
+    void formRegionBetween(BasicBlock *entry, BasicBlock *exit, std::set<BasicBlock*> &region) {
+      if (region.count(entry))
+        return;
+      region.insert(entry);
+      if (entry == exit)
+        return;
+      TerminatorInst *term = entry->getTerminator();
+      if (!term)
+        return;
+      for (int i = 0; i < term->getNumSuccessors(); ++i)
+        formRegionBetween(term->getSuccessor(i), exit, region);
+    }
+
+    void getPostDominated(BasicBlock *block, std::set<BasicBlock*> &post_dominated) {
+      for (DomTreeNode::iterator pdi = PDT->getNode(block)->begin(); pdi != PDT->getNode(block)->end(); ++pdi) {
+        post_dominated.insert((*pdi)->getBlock());
+        getPostDominated((*pdi)->getBlock(), post_dominated);
+      }
+    }
+
+    void getRegions(Loop *loop, std::set< std::set<BasicBlock*> > &regions) {
+      for (Loop::block_iterator bi = loop->block_begin(); bi != loop->block_end(); ++bi) {
+        std::set<BasicBlock*> post_dominated;
+        getPostDominated(*bi, post_dominated);
+        for (std::set<BasicBlock*>::iterator pdi = post_dominated.begin(); pdi != post_dominated.end(); ++pdi)
+          if (DT->properlyDominates(*pdi, *bi)) { // Avoid single BB entries
+            std::set<BasicBlock*> tmp_region;
+            formRegionBetween(*pdi, *bi, tmp_region);
+            std::set<Instruction*> blockers = AI->preciseEscapeCheck(tmp_region);
+            if (blockers.empty())
+              regions.insert(tmp_region);
+          }
+      }
+    }
+
     // Not handling recursive or cyclic function calls.
-    void testSubFunctions(Function *f, Loop *loop) {
+    void testSubFunctions(Function *f, Loop *loop, bool &hasInlineAsm) {
+      if (hasInlineAsm)
+        return;
       for (Function::iterator bi = f->begin(); bi != f->end(); ++bi) {
         BasicBlock *bb = bi;
         for (BasicBlock::iterator ii = bb->begin();
@@ -95,7 +170,12 @@ namespace {
 
           Function *callee = c_inst->getCalledFunction();
 
-          testSubFunctions(callee, loop);
+          if (c_inst->isInlineAsm()) {
+            hasInlineAsm = true;
+            return;
+          }
+
+          testSubFunctions(callee, loop, hasInlineAsm);
           if (!isa<IntrinsicInst>(inst) && !AI->isWhiteList(callee->getName()) && AI->isPrecisePure(callee)) {
             std::cerr << callee->getName().str() << " is precise pure!\n\n" << std::endl;
             if (!find_inst(inst)) {
@@ -144,7 +224,14 @@ namespace {
           if (!c_inst) continue;
           Function *callee = c_inst->getCalledFunction();
 
-          //testSubFunctions(callee, loop);
+          if (c_inst->isInlineAsm())
+            return false;
+
+          bool hasInlineAsm = false;
+          testSubFunctions(callee, loop, hasInlineAsm);
+          if (hasInlineAsm)
+            return false;
+
           if (!isa<IntrinsicInst>(inst) && !AI->isWhiteList(callee->getName()) && AI->isPrecisePure(callee)) {
             std::cerr << callee->getName().str() << " is precise pure!\n\n" << std::endl;
             if (!find_inst(inst)) {
@@ -160,6 +247,7 @@ namespace {
       } // for basic blocks
 
       for (int i = 0; i < calls_to_npu.size(); ++i) {
+        std::cerr << "Calls to npu size: " << calls_to_npu.size() << std::endl;
         std::cerr << "++++ begin" << std::endl;
         CallInst *c = dyn_cast<CallInst>(calls_to_npu[i]);
         std::cerr << "Function npu: " << (c->getCalledFunction()->getName()).str() << std::endl;
@@ -240,7 +328,7 @@ namespace {
     }
   }
 
-  bool pre_pos_call_dependency_check(Instruction *callinst, Loop *loop) {
+  bool pre_pos_call_dependency_check(Instruction *callinst, Loop *loop, std::vector<Instruction*> &before_insts_tobuff, std::vector<Value*> &st_value, std::vector<Value*> &st_addr, std::vector<StoreInst*> &st_inst) {
     BasicBlock *callBB = callinst->getParent();
     std::set<Instruction *> before;
     std::set<Instruction *> after;
@@ -265,6 +353,8 @@ namespace {
     getAfterBBs(callBB, seen, afterBBs, loop->getLoopLatch());
     seen.clear();
     getBeforeBBs(loop->getHeader(), seen, beforeBBs, loop->getHeader(), callBB, loop);
+    beforeBBs.insert(loop->getLoopLatch());
+
 
     // If there's an intersection between the BBs that come before and after
     // the call, then it's possible to "jump" around the call inside the loop
@@ -282,36 +372,14 @@ namespace {
     }
     std::cerr << "End bb intersection" << std::endl;
 
-    // Next, we do not allow instructions that come before to alias with
-    // those that come after.
-    // TODO: this condition can be relaxed. It's ok if there's a memory
-    // dependency from a instruction that comes before to a instruction
-    // that comes after, as long as it's *not loop carried*.
-    AliasSetTracker st(*AA);
-    for (std::set<Instruction *>::iterator ii = before.begin(); ii != before.end(); ++ii)
-      st.add(*ii);
-    for (std::set<BasicBlock *>::iterator bi = beforeBBs.begin(); bi != beforeBBs.end(); ++bi) {
-      if (*bi == callBB)
-        continue;
+    std::set<Instruction*> afteri;
+    for (std::set<Instruction *>::iterator ii = after.begin(); ii != after.end(); ++ii)
+      afteri.insert(*ii);
+    for (std::set<BasicBlock *>::iterator bi = afterBBs.begin(); bi != afterBBs.end(); ++bi)
       for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii)
-        st.add(ii);
-    }
-
-    std::cerr << "Begin AA" << std::endl;
-    for (AliasSetTracker::iterator si = st.begin(); si != st.end(); ++si) {
-      for (std::set<Instruction *>::iterator ii = after.begin(); ii != after.end(); ++ii)
-        if ((*si).aliasesUnknownInst(*ii, *AA))
-          return true;
-
-      for (std::set<BasicBlock *>::iterator bi = afterBBs.begin(); bi != afterBBs.end(); ++bi)
-        for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii)
-          if ((*si).aliasesUnknownInst(ii, *AA))
-            return true;
-    }
-    std::cerr << "End AA" << std::endl;
+        afteri.insert(ii);
 
     std::set<Instruction *> beforei;
-    std::set<Instruction *> afteri;
     for (std::set<Instruction *>::iterator ii = before.begin(); ii != before.end(); ++ii)
       beforei.insert(*ii);
     for (std::set<BasicBlock *>::iterator bi = beforeBBs.begin(); bi != beforeBBs.end(); ++bi) {
@@ -321,22 +389,100 @@ namespace {
         beforei.insert(ii);
     }
 
+#if ALIAS == 1
+    std::cerr << "Begin AA" << std::endl;
+    AliasSetTracker st(*AA);
+    for (std::set<Instruction *>::iterator ii = afteri.begin(); ii != afteri.end(); ++ii)
+      if (isa<StoreInst>(*ii))
+        st.add(*ii);
+
+    for (AliasSetTracker::iterator si = st.begin(); si != st.end(); ++si)
+      for (std::set<Instruction *>::iterator ii = beforei.begin(); ii != beforei.end(); ++ii)
+        if (isa<LoadInst>(*ii) && si->aliasesUnknownInst(*ii, *AA)) {
+          std::cerr << "HERE" << std::endl;
+          return true;
+        }
+    std::cerr << "End AA" << std::endl;
+#endif
+
+#if ALIAS_DUMP == 1
+    std::cerr << "alias sets dump" << std::endl;
     for (std::set<Instruction *>::iterator ii = after.begin(); ii != after.end(); ++ii)
-      afteri.insert(*ii);
+      st->add(*ii);
     for (std::set<BasicBlock *>::iterator bi = afterBBs.begin(); bi != afterBBs.end(); ++bi)
       for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii)
-        afteri.insert(ii);
+        st->add(ii);
+    for (AliasSetTracker::iterator I = st->begin(); I != st->end(); ++I) {
+      AliasSet &AS = *I;
+      std::cerr << "=============== one more set" << std::endl;
+      AS.dump();
+    }
+    std::cerr << "end alias sets dump" << std::endl;
+#endif
+
+#if ALIAS_DUMP == 1
+    for (AliasSetTracker::iterator si = st->begin(); si != st->end(); ++si) {
+      for (std::set<Instruction *>::iterator ii = after.begin(); ii != after.end(); ++ii)
+        if ((*si).aliasesUnknownInst(*ii, *AA)) {
+            if (LoadInst *li = cast<LoadInst>(*ii)) {
+              Value *va = li->getOperand(0);
+              Instruction *v = cast<Instruction>(va);
+              if (AllocaInst *ai = dyn_cast<AllocaInst>(v)) {
+                std::cerr << "Allocated type: ";
+                ai->getAllocatedType()->dump();
+              }
+            }
+            std::string type_str;
+            llvm::raw_string_ostream rso(type_str);
+            Instruction *uu = *ii;
+            rso << "Problem: ";
+            rso << *uu;
+            Value *vvv = uu->getOperand(0);
+            Instruction *vv = cast<Instruction>(vvv);
+            rso << "\ngetOperand(0) of the problem: " << *vv;
+            std::cerr << "\n" << rso.str() << std::endl;
+          return true;
+        }
+
+      for (std::set<BasicBlock *>::iterator bi = afterBBs.begin(); bi != afterBBs.end(); ++bi)
+        for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii)
+          if ((*si).aliasesUnknownInst(ii, *AA))
+            return true;
+    }
+#endif
 
     // Dependencies flowing from instructions after the call
     // to instructions before the call are not allowed.
     std::cerr << "Begin use bottom to top" << std::endl;
     for (std::set<Instruction *>::iterator ii = afteri.begin(); ii != afteri.end(); ++ii)
-      for (Value::use_iterator ui = (*ii)->use_begin(); ui != (*ii)->use_end(); ++ii)
+      for (Value::use_iterator ui = (*ii)->use_begin(); ui != (*ii)->use_end(); ++ui)
         if (beforei.count(cast<Instruction>(*ui)))
           return true;
     std::cerr << "End use bottom to top" << std::endl;
 
 
+    // We are ok now.
+    std::cerr << "Begin buff" << std::endl;
+    for (std::set<Instruction *>::iterator ii = beforei.begin(); ii != beforei.end(); ++ii) {
+      for (Value::use_iterator ui = (*ii)->use_begin(); ui != (*ii)->use_end(); ++ui) {
+        Instruction *use = cast<Instruction>(*ui);
+        if (!afteri.count(use))
+          continue;
+
+        int size = before_insts_tobuff.size();
+        if (!size || before_insts_tobuff[size-1] != *ii) {
+          before_insts_tobuff.push_back(*ii);
+        }
+      }
+
+      Instruction *instr = *ii;
+      if (StoreInst *SI = dyn_cast<StoreInst>(instr)) {
+        st_value.push_back(SI->getValueOperand());
+        st_addr.push_back(SI->getPointerOperand());
+        st_inst.push_back(SI);
+      }
+    }
+    std::cerr << "End buff" << std::endl;
 
     return false;
   } // pre_pos_call_dependency_check
@@ -352,7 +498,11 @@ namespace {
         !inst->getType()->isFloatTy())
       return false;
 
-    if (pre_pos_call_dependency_check(inst, loop)) {
+    std::vector<Instruction*> before_insts_tobuff;
+    std::vector<Value*> st_value;
+    std::vector<Value*> st_addr;
+    std::vector<StoreInst*> st_inst;
+    if (pre_pos_call_dependency_check(inst, loop, before_insts_tobuff, st_value, st_addr, st_inst)) {
       std::cerr << "BOSTA" << std::endl;
       return false;
     }
@@ -510,7 +660,7 @@ namespace {
         ++n_ptr_args;
 
     // Assume a constant buffer size for now.
-    int buffer_size = 64;
+    int buffer_size = 576;
     unsigned int ibuff_addr = 0xFFFF8000;
     unsigned int obuff_addr = 0xFFFFF000;
     IntegerType *nativeInt = getNativeIntegerType();
@@ -551,6 +701,44 @@ namespace {
                                                           0,
                                                           "npu_oAddr_counter_alloca");
 
+    // An auxiliary buffer to store register dependencies inside the loop.
+    AllocaInst *depsAllocaFloat = builder.CreateAlloca(Type::getFloatPtrTy(module->getContext()),
+                                                       ConstantInt::get(nativeInt, buffer_size * before_insts_tobuff.size(), false),
+                                                       "npu_depsFloat_alloca");
+    AllocaInst *depsAllocaInt = builder.CreateAlloca(Type::getInt32PtrTy(module->getContext()),
+                                                     ConstantInt::get(nativeInt, buffer_size * before_insts_tobuff.size(), false),
+                                                     "npu_depsInt_alloca");
+
+    AllocaInst *depsFloatCounterAlloca = builder.CreateAlloca(nativeInt,
+                                                              0,
+                                                              "npu_depsFloat_counter_alloca");
+    AllocaInst *depsIntCounterAlloca = builder.CreateAlloca(nativeInt,
+                                                            0,
+                                                            "npu_depsInt_counter_alloca");
+
+    // -------------------------------------------------------------
+
+    AllocaInst *depsStoreAllocaFloat = builder.CreateAlloca(Type::getFloatTy(module->getContext()),
+                                                            ConstantInt::get(nativeInt, buffer_size * st_value.size(), false),
+                                                            "npu_depsStoreFloat_alloca");
+    AllocaInst *depsStoreAllocaInt = builder.CreateAlloca(Type::getInt32Ty(module->getContext()),
+                                                          ConstantInt::get(nativeInt, buffer_size * st_value.size(), false),
+                                                          "npu_depsStoreInt_alloca");
+    AllocaInst *depsStoreAllocaAddrFloat = builder.CreateAlloca(Type::getFloatPtrTy(module->getContext()),
+                                                                ConstantInt::get(nativeInt, buffer_size * st_value.size(), false),
+                                                                "npu_depsStoreAddrFloat_alloca");
+    AllocaInst *depsStoreAllocaAddrInt = builder.CreateAlloca(Type::getInt32PtrTy(module->getContext()),
+                                                              ConstantInt::get(nativeInt, buffer_size * st_value.size(), false),
+                                                              "npu_depsStoreAddrInt_alloca");
+
+    AllocaInst *depsStoreFloatCounterAlloca = builder.CreateAlloca(nativeInt,
+                                                                    0,
+                                                                    "npu_depsStoreFloat_counter_alloca");
+    AllocaInst *depsStoreIntCounterAlloca = builder.CreateAlloca(nativeInt,
+                                                                  0,
+                                                                  "npu_depsStoreInt_counter_alloca");
+
+
     // Initialize oBuff, iBuff and iBuff counter
     builder.SetInsertPoint(loop->getLoopPreheader()->getTerminator());
     Constant *constInt = ConstantInt::get(nativeInt, ibuff_addr, false);
@@ -558,6 +746,10 @@ namespace {
                                                 Type::getFloatPtrTy(module->getContext()));
     builder.CreateStore(constPtr, iBuffAlloca, true);
     builder.CreateStore(ConstantInt::get(nativeInt, 0, false), counterAlloca);
+    builder.CreateStore(ConstantInt::get(nativeInt, 0, false), depsFloatCounterAlloca);
+    builder.CreateStore(ConstantInt::get(nativeInt, 0, false), depsIntCounterAlloca);
+    builder.CreateStore(ConstantInt::get(nativeInt, 0, false), depsStoreIntCounterAlloca);
+    builder.CreateStore(ConstantInt::get(nativeInt, 0, false), depsStoreFloatCounterAlloca);
 
     if (n_ptr_args)
       builder.CreateStore(ConstantInt::get(nativeInt, 0, false), iAddrCounterAlloca);
@@ -670,6 +862,107 @@ namespace {
       if (i == last_output_arg)
         builder.CreateStore(iAddrChainCounter, iAddrCounterAlloca);
     }
+
+    // Buffer loop dependencies
+#if BUFFER_LOOP_DEPS == 1
+    int dsize = before_insts_tobuff.size();
+    Value *dcounterf;
+    Value *dcounteri;
+    if (dsize) {
+      dcounterf = builder.CreateLoad(depsFloatCounterAlloca, false, "npu_load_depsFcounter");
+      dcounteri = builder.CreateLoad(depsIntCounterAlloca, false, "npu_load_depsIcounter");
+    }
+
+    int buff_int = 0;
+    int buff_float = 0;
+    std::vector<int> inst_type;
+    for (int k = 0; k < dsize; ++k) {
+      Instruction *inst_tobuff = before_insts_tobuff[k];
+      Type *type = inst_tobuff->getType();
+      if (type->isIntegerTy()) {
+
+        inst_type.push_back(buff_int);
+        ++buff_int;
+        std::string s = "npu_dint_GEP_" + k;
+        Value *GEPi = builder.CreateInBoundsGEP(depsAllocaInt, dcounteri, s.c_str());
+        builder.CreateStore(inst_tobuff, GEPi);
+        s = "npu_dint_add_" + k;
+        dcounteri = builder.CreateAdd(dcounteri, ConstantInt::get(nativeInt, 1, false), s.c_str());
+
+      } else if (type->isFloatTy()) {
+
+        inst_type.push_back(buff_float);
+        ++buff_float;
+        std::string s = "npu_fint_GEP_" + k;
+        Value *GEPf = builder.CreateInBoundsGEP(depsAllocaFloat, dcounterf, s.c_str());
+        builder.CreateStore(inst_tobuff, GEPf);
+        s = "npu_fint_add_" + k;
+        dcounterf = builder.CreateAdd(dcounterf, ConstantInt::get(nativeInt, 1, false), s.c_str());
+
+      } else {
+        std::cerr << "\n\n\nBUFFERING SOMETHING OF UNKNOWN TYPE!!" << std::endl;
+      }
+    }
+
+    if (buff_int)
+      builder.CreateStore(dcounteri, depsIntCounterAlloca);
+    if (buff_float)
+      builder.CreateStore(dcounterf, depsFloatCounterAlloca);
+#endif //BUFFER_LOOP_DEPS
+
+
+#if BUFFER_STORE_LOOP_DEPS == 1
+    int ssize = st_value.size();
+    Value *scounterf;
+    Value *scounteri;
+    if (ssize) {
+      scounterf = builder.CreateLoad(depsStoreFloatCounterAlloca, false, "npu_load_depsSFcounter");
+      scounteri = builder.CreateLoad(depsStoreIntCounterAlloca, false, "npu_load_depsSIcounter");
+    }
+
+    int sbuff_int = 0;
+    int sbuff_float = 0;
+    for (int k = 0; k < ssize; ++k) {
+      Type *type = st_value[k]->getType();
+      if (type->isIntegerTy()) {
+        ++sbuff_int;
+        std::string sv = "npu_sint_GEPValue_" + k;
+        std::string sa = "npu_GEPAddr_" + k;
+        Value *GEPv = builder.CreateInBoundsGEP(depsStoreAllocaInt, scounteri, sv.c_str());
+        Value *GEPa = builder.CreateInBoundsGEP(depsStoreAllocaAddrInt, scounteri, sa.c_str());
+        if (DT->dominates(st_inst[k], inst->getParent())) {
+          builder.CreateStore(st_value[k], GEPv);
+        } else {
+          Value *ld = builder.CreateLoad(st_addr[k]);
+          builder.CreateStore(ld, GEPv);
+        }
+        builder.CreateStore(st_addr[k], GEPa);
+        scounteri = builder.CreateAdd(scounteri, ConstantInt::get(nativeInt, 1, false), "npu_sint_counter_add");
+      } else if (type->isFloatTy()) {
+        ++sbuff_float;
+        std::string sv = "npu_sfloat_GEPValue_" + k;
+        std::string sa = "npu_GEPAddr_" + k;
+        Value *GEPv = builder.CreateInBoundsGEP(depsStoreAllocaFloat, scounterf, sv.c_str());
+        Value *GEPa = builder.CreateInBoundsGEP(depsStoreAllocaAddrFloat, scounterf, sa.c_str());
+        if (DT->dominates(st_inst[k], inst->getParent())) {
+          builder.CreateStore(st_value[k], GEPv);
+        } else {
+          Value *ld = builder.CreateLoad(st_addr[k]);
+          builder.CreateStore(ld, GEPv);
+        }
+        builder.CreateStore(st_addr[k], GEPa);
+        scounterf = builder.CreateAdd(scounterf, ConstantInt::get(nativeInt, 1, false), "npu_sfloat_counter_add");
+      } else {
+        std::cerr << "\n\n\nBUFFERING SOMETHING OF UNKNOWN TYPE!!" << std::endl;
+      }
+    }
+
+    if (sbuff_int)
+      builder.CreateStore(scounteri, depsStoreIntCounterAlloca);
+    if (sbuff_float)
+      builder.CreateStore(scounterf, depsStoreFloatCounterAlloca);
+#endif //BUFFER_STORE_LOOP_DEPS
+
 
     // This will be used later in case the call instruction is
     // the last instruction of its basic block (it shouldn't be).
@@ -812,6 +1105,22 @@ namespace {
         ConstantInt::get(nativeInt, 0, false),
         oAddrCounterAlloca
     );
+    builder.CreateStore(
+        ConstantInt::get(nativeInt, 0, false),
+        depsIntCounterAlloca
+    );
+    builder.CreateStore(
+        ConstantInt::get(nativeInt, 0, false),
+        depsFloatCounterAlloca
+    );
+    builder.CreateStore(
+        ConstantInt::get(nativeInt, 0, false),
+        depsStoreIntCounterAlloca
+    );
+    builder.CreateStore(
+        ConstantInt::get(nativeInt, 0, false),
+        depsStoreFloatCounterAlloca
+    );
 
     // Load the iBuff writing induction variable so we know how many
     // positions we wrote to in the iBuff.
@@ -854,6 +1163,45 @@ namespace {
     // For each output (escaped_stores) we:
     //
     // Alternatively, we can see whether anyone depends on inst
+
+#if BUFFER_STORE_LOOP_DEPS == 1
+    Value *sint_counter_load;
+    Value *sfloat_counter_load;
+    if (sbuff_int)
+      sint_counter_load = builder.CreateLoad(depsStoreIntCounterAlloca, false, "npu_load_depsSIcounter_unbuffering");
+    if (sbuff_float)
+      sfloat_counter_load = builder.CreateLoad(depsStoreFloatCounterAlloca, false, "npu_load_depsSFcounter_unbuffering");
+
+    for (int k = 0; k < ssize; ++k) {
+      Type *type = st_value[k]->getType();
+      if (type->isIntegerTy()) {
+        std::string sv = "npu_sint_GEPValue_unbuff_" + k;
+        std::string sa = "npu_GEPAddr_unbuff_" + k;
+        Value *GEPv = builder.CreateInBoundsGEP(depsStoreAllocaInt, sint_counter_load, sv.c_str());
+        Value *GEPa = builder.CreateInBoundsGEP(depsStoreAllocaAddrInt, sint_counter_load, sa.c_str());
+        Value *LDv = builder.CreateLoad(GEPv);
+        Value *LDa = builder.CreateLoad(GEPa);
+        builder.CreateStore(LDv, LDa);
+        sint_counter_load = builder.CreateAdd(sint_counter_load, ConstantInt::get(nativeInt, 1, false), "npu_sint_counter_add_unbuff");
+      } else if (type->isFloatTy()) {
+        std::string sv = "npu_sfloat_GEPValue_unbuff_" + k;
+        std::string sa = "npu_GEPAddr_unbuff_" + k;
+        Value *GEPv = builder.CreateInBoundsGEP(depsStoreAllocaFloat, sfloat_counter_load, sv.c_str());
+        Value *addVA = builder.CreateAdd(sint_counter_load, sfloat_counter_load, "npu_store_fi_counter_add_unbuff");
+        Value *GEPa = builder.CreateInBoundsGEP(depsStoreAllocaAddrFloat, addVA, sa.c_str());
+        Value *LDv = builder.CreateLoad(GEPv);
+        Value *LDa = builder.CreateLoad(GEPa);
+        builder.CreateStore(LDv, LDa);
+        sfloat_counter_load = builder.CreateAdd(sfloat_counter_load, ConstantInt::get(nativeInt, 1, false), "npu_sfloat_counter_add_unbuff");
+      }
+    }
+
+    if (sbuff_int)
+      builder.CreateStore(sint_counter_load, depsStoreIntCounterAlloca);
+    if (sbuff_float)
+      builder.CreateStore(sfloat_counter_load, depsStoreFloatCounterAlloca);
+#endif // BUFFER_STORE_LOOP_DEPS
+
     bool gotRetVal = false;
     Value *retVal;
     if (f->getReturnType()->isIntegerTy() || f->getReturnType()->isFloatingPointTy()) {
@@ -929,11 +1277,55 @@ namespace {
       inst->replaceAllUsesWith(retVal);
     }
 
+
+#if BUFFER_LOOP_DEPS == 1
+    Value *int_counter_load;
+    Value *float_counter_load;
+    std::vector<Value*> int_loads;
+    std::vector<Value*> float_loads;
+    if (buff_int)
+      int_counter_load = builder.CreateLoad(depsIntCounterAlloca, false, "npu_load_depsIcounter_unbuffering");
+    for (int k = 0; k < buff_int; ++k) {
+      std::string s = "npu_dint_GEP_unbuffering_" + k;
+      Value *GEPi = builder.CreateInBoundsGEP(depsAllocaInt, int_counter_load, s.c_str());
+      int_loads.push_back(builder.CreateLoad(GEPi));
+      if (k != buff_int - 1) {
+        s = "npu_dint_add_unbuffering_" + k;
+        int_counter_load = builder.CreateAdd(int_counter_load, ConstantInt::get(nativeInt, 1, false), s.c_str());
+      } else {
+        builder.CreateStore(int_counter_load, depsIntCounterAlloca);
+      }
+    }
+
+    if (buff_float)
+      float_counter_load = builder.CreateLoad(depsFloatCounterAlloca, false, "npu_load_depsFcounter_unbuffering");
+    for (int k = 0; k < buff_float; ++k) {
+      std::string s = "npu_dfloat_GEP_unbuffering_" + k;
+      Value *GEPf = builder.CreateInBoundsGEP(depsAllocaFloat, float_counter_load, s.c_str());
+      float_loads.push_back(builder.CreateLoad(GEPf));
+      if (k != buff_float - 1) {
+        s = "npu_dfloat_add_unbuffering_" + k;
+        float_counter_load = builder.CreateAdd(float_counter_load, ConstantInt::get(nativeInt, 1, false), s.c_str());
+      } else {
+        builder.CreateStore(float_counter_load, depsFloatCounterAlloca);
+      }
+    }
+
+    for (int i = 0; i < dsize; ++i) {
+      Instruction *buffered_inst = before_insts_tobuff[i];
+      Type *type = buffered_inst->getType();
+      if (type->isIntegerTy())
+        buffered_inst->replaceAllUsesWith(int_loads[inst_type[i]]);
+      else
+        buffered_inst->replaceAllUsesWith(float_loads[inst_type[i]]);
+    }
+#endif // BUFFER_LOOP_DEPS
+
     // Now that we have read the outputs for *one* function call,
     // we have to:
     // (1) - execute the code that comes after the call
     // (2) - check whether we are done reading the buffer. If
-    // so, we jump tp the loop latch. Otherwise, we jump
+    // so, we jump to the loop latch. Otherwise, we jump
     // to this BB again.
     //
     // To accomplish this we simply create a new BB whose successor
@@ -972,6 +1364,34 @@ namespace {
       }
     }
 
+#if BUFFER_STORE_LOOP_DEPS == 1
+    BasicBlock *zeroStoreCountersBB = BasicBlock::Create(
+        module->getContext(),
+        "npu_zeroStoreCountersBB",
+        loop->getHeader()->getParent(),
+        loop->getLoopLatch()
+    );
+    builder.SetInsertPoint(zeroStoreCountersBB);
+    builder.CreateStore(
+        ConstantInt::get(nativeInt, 0, false),
+        depsIntCounterAlloca
+    );
+    builder.CreateStore(
+        ConstantInt::get(nativeInt, 0, false),
+        depsFloatCounterAlloca
+    );
+    builder.CreateStore(
+        ConstantInt::get(nativeInt, 0, false),
+        depsStoreIntCounterAlloca
+    );
+    builder.CreateStore(
+        ConstantInt::get(nativeInt, 0, false),
+        depsStoreFloatCounterAlloca
+    );
+    builder.CreateBr(loop->getLoopLatch());
+    loop->addBasicBlockToLoop(zeroStoreCountersBB, LI->getBase());
+#endif
+
     // Now that we have all the BB's that jump to the latch,
     // create the new BB that will come before the latch and
     // check whether we're done reading the oBuff.
@@ -979,7 +1399,11 @@ namespace {
         module->getContext(),
         "npu_checkBB",
         loop->getHeader()->getParent(),
+#if BUFFER_STORE_LOOP_DEPS == 1
+        zeroStoreCountersBB
+#else
         loop->getLoopLatch()
+#endif
     );
 
     // For each BB that jumps to the latch, change the corresponding
@@ -1037,7 +1461,11 @@ namespace {
 
     // If so, jump to the loop latch.
     // Otherwise, read more outputs.
+#if BUFFER_STORE_LOOP_DEPS == 1
+    builder.CreateCondBr(v, zeroStoreCountersBB, after_callBB);
+#else
     builder.CreateCondBr(v, loop->getLoopLatch(), after_callBB);
+#endif
 
     loop->addBasicBlockToLoop(checkBB, LI->getBase());
 
@@ -1079,7 +1507,11 @@ namespace {
 
 char LoopNPU::ID = 0;
 INITIALIZE_PASS_BEGIN(LoopNPU, "npu-pass", "Loop NPU Pass", false, false)
+INITIALIZE_PASS_DEPENDENCY(PostDominatorTree)
+INITIALIZE_PASS_DEPENDENCY(DominatorTree)
+#if ALIAS == 1
 INITIALIZE_AG_DEPENDENCY(AliasAnalysis)
+#endif
 INITIALIZE_PASS_END(LoopNPU, "npu-pass", "Loop NPU Pass", false, false)
 LoopPass *llvm::createLoopNPUPass() { return new LoopNPU(); }
 

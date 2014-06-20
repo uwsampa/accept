@@ -33,8 +33,8 @@ else
 #CFLAGS += -L/home/andreolb/accept-git/accept/apps/npu/lib -I/usr/arm-linux-gnueabi/include/c++/4.7.3/arm-linux-gnueabi/ -I/usr/arm-linux-gnueabi/include/ -I/usr/arm-linux-gnueabi/include/c++/4.7.3
 #CFLAGS += -I/usr/arm-linux-gnueabi/include/c++/4.7.3/arm-linux-gnueabi/ -I/usr/arm-linux-gnueabi/include/ -I/usr/arm-linux-gnueabi/include/c++/4.7.3
 #CXXFLAGS += -I/usr/arm-linux-gnueabi/include/c++/4.7.3/arm-linux-gnueabi/ -I/usr/arm-linux-gnueabi/include/ -I/usr/arm-linux-gnueabi/include/c++/4.7.3
-	CFLAGS += -I../lib -I../lib/bsp/include
-	CXXFLAGS += -I../lib -I../lib/bsp/include
+	CFLAGS += --verbose -I../lib -I../lib/bsp/include
+	CXXFLAGS += --verbose -I../lib -I../lib/bsp/include
 	LIBEXT := so
 endif
 ENERCLIB ?= $(BUILTDIR)/lib/EnerCTypeChecker.$(LIBEXT)
