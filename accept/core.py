@@ -45,16 +45,15 @@ class UserError(Exception):
         super(UserError, self).__init__(synopsis, detail)
         self.synopsis = synopsis
         self.detail = detail
-    
+
     def __str__(self):
         return self.synopsis
-    
+
     def log(self):
         out = self.synopsis
         if self.detail:
             out += '\n' + self.detail
         return out
-
 
 
 # Utilities.
@@ -67,6 +66,7 @@ def chdir(d):
     os.chdir(d)
     yield
     os.chdir(olddir)
+
 
 def symlink_all(src, dst):
     """Recursively symlink a file or a directory's contents.
@@ -82,6 +82,7 @@ def symlink_all(src, dst):
     else:
         # A file. Just symlink the file itself.
         os.symlink(src, dst)
+
 
 @contextmanager
 def sandbox(symlink=False, keep_sandbox=False):
@@ -103,15 +104,17 @@ def sandbox(symlink=False, keep_sandbox=False):
                 shutil.copyfile(src, dst)
 
     with chdir(sandbox_dir):
-        logging.debug('sandbox directory: {} (will{}keep)'.\
-                format(sandbox_dir, keep_sandbox and ' ' or ' not '))
+        logging.debug('sandbox directory: {} (will{}keep)'.
+                      format(sandbox_dir, keep_sandbox and ' ' or ' not '))
         yield
 
     if not keep_sandbox:
         shutil.rmtree(sandbox_dir)
 
+
 def _random_string(length=20, chars=(string.ascii_letters + string.digits)):
     return ''.join(random.choice(chars) for i in range(length))
+
 
 def normpath(path):
     enc = locale.getpreferredencoding()
@@ -131,6 +134,7 @@ class CommandThread(threading.Thread):
 
     def run(self):
         self.output, _ = self.proc.communicate()
+
 
 def run_cmd(command, timeout=None):
     """Run a process with an optional timeout. Return the process' exit
@@ -156,11 +160,13 @@ def _make_args():
         'CLANGARGS=-fcolor-diagnostics',
     ]
 
+
 class BuildError(Exception):
     """The application failed to build.
     """
     def __str__(self):
         return '\n' + self.args[0]
+
 
 def execute(timeout, approx=False):
     """Run the application in the working directory and return:
@@ -174,6 +180,7 @@ def execute(timeout, approx=False):
     status, output = run_cmd(command, timeout)
     end_time = time.time()
     return end_time - start_time, status, output
+
 
 def build(approx=False, require=True):
     """Compile the application in the working directory. If `approx`,
@@ -206,6 +213,7 @@ def parse_relax_config(f):
             param, ident = line.split(None, 1)
             yield ident, int(param)
 
+
 def dump_relax_config(config, f):
     """Write a relaxation configuration to a file-like object. The
     configuration should be a sequence of tuples.
@@ -237,6 +245,7 @@ def load_eval_funcs(appdir):
 
 Execution = namedtuple('Execution', ['output', 'elapsed', 'status',
                                      'config', 'roitime', 'execlog'])
+
 
 def build_and_execute(directory, relax_config, rep, timeout=None):
     """Build the application in the given directory (which must contain
@@ -277,7 +286,7 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
                 try:
                     with open('accept_time.txt') as f:
                         roitime = float(f.read())
-                except (OSError, IOError) as exc:
+                except (OSError, IOError):
                     # Can't open time file.
                     roitime = None
                     status = 'Could not open timing file ({0}). This is ' \
@@ -298,7 +307,7 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
                 output = os.path.join(OUTPUTS_DIR, _random_string() + ext)
                 try:
                     shutil.copyfile(fn, output)
-                except IOError as exc:
+                except IOError:
                     # Error copying output file.
                     roitime = None
                     status = 'Exception while copying output file:\n' + \
@@ -314,6 +323,7 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
 
 # Configuration space exploration.
 
+
 def permute_config(base):
     """Given a base (null) relaxation configuration, generate new
     (relaxed) configurations.
@@ -323,6 +333,7 @@ def permute_config(base):
         ident, _ = config[i]
         config[i] = ident, 1
         yield tuple(config)
+
 
 def combine_configs(configs):
     """Generate a new configuration that superimposes all the
@@ -346,6 +357,7 @@ def combine_configs(configs):
             out[i] = ident, sites[ident]
     return tuple(out)
 
+
 def increase_config(config, amount=1):
     """Generate a new configuration that applies the given configuration
     more aggressively.
@@ -357,6 +369,7 @@ def increase_config(config, amount=1):
         else:
             out.append((ident, param))
     return tuple(out)
+
 
 def config_subsumes(a, b):
     """Given two configurations with the same sites, determine whether
@@ -372,6 +385,7 @@ def config_subsumes(a, b):
             return False
     return True
 
+
 def cap_config(config):
     """Reduce configuration parameters that exceed their maxima,
     returning a new configuration.
@@ -383,6 +397,7 @@ def cap_config(config):
             param = max_param
         out.append((ident, param))
     return tuple(out)
+
 
 def _ratsum(vals):
     """Reciprocal of the sum or the reciprocal. Suitable for composing
@@ -399,12 +414,14 @@ def _ratsum(vals):
     else:
         return 0.0
 
+
 def _powerset(iterable, minsize=0):
     """From the itertools recipes."""
     s = list(iterable)
     return itertools.chain.from_iterable(
-        itertools.combinations(s, r) for r in range(minsize, len(s)+1)
+        itertools.combinations(s, r) for r in range(minsize, len(s) + 1)
     )
+
 
 def best_combined_configs(results):
     """Given a set of results, generate new configurations that compose
@@ -448,6 +465,7 @@ def best_combined_configs(results):
 
     logging.info('optimal combinations: {}'.format(len(optimal)))
     return [o[0] for o in optimal]
+
 
 def bce_greedy(results, max_error=MAX_ERROR):
     """Given a set of results and a maximum error constraint, choose a
@@ -495,6 +513,7 @@ def bce_greedy(results, max_error=MAX_ERROR):
 
 
 # Results.
+
 
 class Result(object):
     """Represents the result of executing one relaxed configuration of a
@@ -567,6 +586,7 @@ class Result(object):
         # All good!
         self.good = True
         self.desc = 'good'
+
 
 def triage_results(results):
     """Given a list of Result objects, splits the data set into three
@@ -647,7 +667,8 @@ class Evaluation(object):
         """
         # Precise (baseline) execution.
         for rep in range(self.reps):
-            self.client.submit(build_and_execute,
+            self.client.submit(
+                build_and_execute,
                 self.appdir, None, rep,
                 timeout=None
             )
@@ -692,7 +713,8 @@ class Evaluation(object):
         """Submit the executions for a given configuration.
         """
         for rep in range(self.reps):
-            self.client.submit(build_and_execute,
+            self.client.submit(
+                build_and_execute,
                 self.appdir, config, rep,
                 timeout=self.base_elapsed * TIMEOUT_FACTOR
             )
