@@ -84,7 +84,6 @@ def run_experiments(ev, only=None):
     results.
     """
     start_time = time.time()
-    ev.setup()
 
     # Main results.
     if only and 'main' not in only:

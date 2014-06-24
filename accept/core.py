@@ -662,9 +662,11 @@ class Evaluation(object):
     def setup(self):
         """Submit the baseline precise executions and gather some
         information about the first. Set the fields `pout` (the precise
-        output), `pout` (precise execution time), `base_config`, and
-        `base_configs`.
+        output), `base_elapsed` (precise execution time), `base_config`,
+        and `base_configs`.
         """
+        logging.info('starting baseline execution')
+
         # Precise (baseline) execution.
         for rep in range(self.reps):
             self.client.submit(
@@ -804,7 +806,6 @@ class Evaluation(object):
         """Compose the given configurations to evaluate some combined
         configurations.
         """
-        logging.info('evaluating combined configs')
         optimal, _, _ = triage_results(component_results)
         return self.run_approx(list(bce_greedy(optimal)))
 
@@ -820,13 +821,21 @@ class Evaluation(object):
         set.
 
         Return a set of unique results (`Result` objects).
+
+        Run the setup stage if it has not been executed yet.
         """
-        if base_configs is None:
+        if not self.pout:
+            self.setup()
+
+        if not base_configs:
             base_configs = self.base_configs
 
         # The phases.
+        logging.info('evaluating base configurations')
         base_results = self.run_approx(base_configs)
+        logging.info('evaluating tuned parameters')
         tuned_results = self.parameter_search(base_results)
+        logging.info('evaluating combined configs')
         composite_results = self.evaluate_composites(tuned_results)
 
         # Uniquify the results based on their configs.

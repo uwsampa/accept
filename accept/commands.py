@@ -92,10 +92,6 @@ def run(appdir='.', verbose=False):
     exp = core.Evaluation(appdir, _client, _reps)
 
     with _client:
-        logging.info('setting up')
-        exp.setup()
-
-        logging.info('running workflow')
         results = exp.run()
 
     output = experiments.dump_results_human(results, exp.pout, verbose)
