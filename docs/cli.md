@@ -138,11 +138,10 @@ In this style, your `score()` function will need to parse both files (something 
 
 Applications tell ACCEPT how to build them using a standard Makefile. Your application's Makefile currently must contain at least these lines:
 
-    TARGET := foo
     APP_MK := ../app.mk
     include $(APP_MK)
 
-Replace `foo` with the name of your program. If necessary, you can change the `APP_MK` variable to point to where ACCEPT is installed. (This is only necessary if you placed your directory outside of ACCEPT's `apps` directory.)
+If necessary, you can change the `APP_MK` variable to point to where ACCEPT is installed. (This is only necessary if you placed your directory outside of ACCEPT's `apps` directory.)
 
 There are a number of other options you can specify here:
 

@@ -9,6 +9,7 @@
 # subdirectory or else the paths to various tools will be wrong.
 ###
 
+# Paths to components of the ACCEPT toolchain.
 ENERCDIR := $(shell pwd)/$(dir $(lastword $(MAKEFILE_LIST)))/..
 INCLUDEDIR := $(ENERCDIR)/include
 BUILTDIR := $(ENERCDIR)/build/built
@@ -19,9 +20,8 @@ LLVMLINK := $(BUILTDIR)/bin/llvm-link
 LLVMOPT := $(BUILTDIR)/bin/opt
 LLVMLLC := $(BUILTDIR)/bin/llc
 LLVMLLI := $(BUILTDIR)/bin/lli
-LLVMPROF := $(BUILTDIR)/bin/llvm-prof
-SUMMARY := $(ENERCDIR)/bin/summary.py
 
+# Platform specifics.
 ifeq ($(shell uname -s),Darwin)
 	ifeq ($(shell uname -r | sed -e 's/\..*//'),13) # OS X 10.9
 		XCODEINCLUDES = $(shell xcrun --show-sdk-path)/usr/include
@@ -37,21 +37,24 @@ PASSLIB ?= $(BUILTDIR)/lib/enerc.$(LIBEXT)
 PROFLIB ?= $(BUILTDIR)/../enerc/rt/enercrt.bc
 LIBPROFILERT := $(BUILTDIR)/lib/libprofile_rt.$(LIBEXT)
 
+# Compiler flags to pass to Clang to add the ACCEPT machinery.
 override CFLAGS += -Xclang -load -Xclang $(ENERCLIB) \
 	-Xclang -add-plugin -Xclang enerc-type-checker \
 	-g -fno-use-cxa-atexit \
 	-I$(INCLUDEDIR) -emit-llvm
 override CXXFLAGS += $(CFLAGS)
 
-# SOURCES is a list of source files, *.{c,cpp} by default
+# SOURCES is a list of source files, *.{c,cpp} by default.
 SOURCES ?= $(wildcard *.c) $(wildcard *.cpp)
 
+# Build products.
+TARGET := app
 BCFILES := $(SOURCES:.c=.bc)
 BCFILES := $(BCFILES:.cpp=.bc)
 LINKEDBC := $(TARGET)_all.bc
 LLFILES := $(BCFILES:.bc=.ll)
 
-# attempt to guess which linker to use
+# Attempt to guess which linker to use.
 ifneq ($(filter %.cpp,$(SOURCES)),)
 	LINKER ?= $(CXX)
 else
@@ -72,9 +75,6 @@ $(BUILD_TARGETS): build_%: $(TARGET).%
 
 $(RUN_TARGETS): run_%: $(TARGET).%
 	$(RUNSHIM) ./$< $(RUNARGS)
-
-profile: $(TARGET).prof.bc llvmprof.out
-	$(LLVMPROF) $^
 #################################################################
 
 # make LLVM bitcode from C/C++ sources
@@ -123,17 +123,9 @@ endif
 $(TARGET).%: $(TARGET).%.o
 	$(LINKER) $(LDFLAGS) -o $@ $<
 
-# LLVM profiling pipeline.
-llvmprof.out: $(TARGET).prof
-	./$(TARGET).prof $(RUNARGS)
-# Profiling executable requires linking with an additional (native) library.
-.INTERMEDIATE: $(TARGET).prof.o
-$(TARGET).prof: $(TARGET).prof.o
-	$(LINKER) -lprofile_rt $(LDFLAGS) -o $@ $<
-
 clean:
 	$(RM) $(TARGET) $(TARGET).o $(BCFILES) $(LLFILES) $(LINKEDBC) \
-	accept-globals-info.txt accept_config.txt accept_config_desc.txt accept_log.txt accept_time.txt \
+	accept-globals-info.txt accept_config.txt accept_config_desc.txt \
+	accept_log.txt accept_time.txt \
 	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
-	llvmprof.out \
 	$(CLEANMETOO)

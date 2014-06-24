@@ -16,11 +16,10 @@ customize this later if need be.)
 
 Next, add a `Makefile` for your experiment. Your Makefile should include at least these incantations to make everything work:
 
-    TARGET := foo
     APP_MK := ../app.mk
     include $(APP_MK)
 
-Change the name of the target to match your application's name. For simple programs, this is all you need; if you need more options (like specifying the source files to compile or the arguments to use during execution), see [the Makefile section of the tool documentation](cli.md#Makefile).
+For simple programs, this is all you need; if you need more options (like specifying the source files to compile or the arguments to use during execution), see [the Makefile section of the tool documentation](cli.md#Makefile).
 
 ## Try Building
 
