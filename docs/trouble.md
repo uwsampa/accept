@@ -14,7 +14,7 @@ program?
 
 Or:
 
-    $ accept help
+    $ accept run
     accept: Operation failed: client-error-not-found
 
 This means that you're accidentally invoking a different program named `accept` installed elsewhere on your machine instead of our `accept`. To put the right program on your PATH, go to the ACCEPT directory and type:

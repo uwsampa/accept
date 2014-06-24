@@ -1,6 +1,6 @@
 # The "accept" Tool
 
-Type `accept help` to see the available commands. You can also type `accept help COMMAND` to see more documentation for a specific command.
+Type `accept` with no arguments to see the available commands. You can also type `accept COMMAND --help` to see more documentation for a specific command.
 
 Keep in mind that most actions in the `accept` tool are both *memoized* and *sandboxed*. This can be somewhat surprising at first, so read on to see what these do.
 

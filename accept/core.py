@@ -810,7 +810,8 @@ class Evaluation(object):
         return self.run_approx(list(bce_greedy(optimal)))
 
     def run(self, base_configs=None):
-        """Execute the entire ACCEPT workflow, including all three phases:
+        """Execute the entire ACCEPT workflow, including all three
+        phases:
 
         - Base (single-step) configurations.
         - Tuned single-site configurations (parameter_search).

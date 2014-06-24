@@ -1,2 +1,2 @@
-argh==0.23.1
+click>=2.1
 sqlite3dbm==0.1.4

@@ -1,13 +1,14 @@
 from __future__ import print_function
 from __future__ import division
 from __future__ import absolute_import
-import argh
+import click
 import logging
 import sys
 import os
 import subprocess
 import json
 import traceback
+from collections import namedtuple
 from . import experiments
 from . import core
 from . import cwmemo
@@ -20,36 +21,51 @@ APPS = ['streamcluster', 'sobel', 'canneal', 'fluidanimate',
 RESULTS_JSON = 'results.json'
 
 
-_client = None
-_reps = 1
-_keep_sandboxes = False
+GlobalConfig = namedtuple('GlobalConfig', 'client reps keep_sandboxes')
 
 
-def global_config(opts):
-    global _client
-    global _reps
-    global _keep_sandboxes
-    _client = cwmemo.get_client(cluster=opts.cluster, force=opts.force)
-    if opts.reps:
-        _reps = opts.reps
-    else:
-        _reps = CLUSTER_REPS if opts.cluster else LOCAL_REPS
-    if opts.keep_sandboxes:
-        _keep_sandboxes = True
-    if opts.verbose >= 2:
+@click.group(help='the ACCEPT approximate compiler driver')
+@click.option('--verbose', '-v', count=True, default=0,
+              help='log more output')
+@click.option('--cluster', '-c', default=False,
+              help='execute on Slurm cluster')
+@click.option('--force', '-f', default=False,
+              help='clear memoized results')
+@click.option('--reps', '-r', type=int, default=None,
+              help='replication factor')
+@click.option('--keep-sandboxes', '-k', default=False,
+              help='do not delete sandbox dirs')
+@click.pass_context
+def cli(ctx, verbose, cluster, force, reps, keep_sandboxes):
+    # Set up logging.
+    logging.getLogger().addHandler(logging.StreamHandler(sys.stderr))
+    if verbose >= 2:
         logging.getLogger().setLevel(logging.DEBUG)
-    elif opts.verbose >= 1:
+    elif verbose >= 1:
         logging.getLogger().setLevel(logging.INFO)
+
+    # Set up the parallelism/memoization client.
+    client = cwmemo.get_client(cluster=cluster, force=force)
+
+    # Default reps.
+    if reps is None:
+        reps = CLUSTER_REPS if cluster else LOCAL_REPS
+
+    ctx.obj = GlobalConfig(client, reps, keep_sandboxes)
 
 
 # Run the experiments.
 
-@argh.arg('appnames', metavar='NAME', default=APPS, nargs='*', type=unicode,
-          help='applications')
-@argh.arg('--json', '-j', dest='as_json')
-@argh.arg('--time', '-t', dest='include_time')
-@argh.arg('--only', '-o', dest='only', action='append')
-def exp(appnames, verbose=False, as_json=False, include_time=False, only=None):
+@cli.command()
+@click.argument('appnames', metavar='NAME', default=APPS, nargs=-1,
+                type=unicode)
+@click.option('--json', '-j', 'as_json', default=False)
+@click.option('--time', '-t', 'include_time', default=False)
+@click.option('--only', '-o', 'only', multiple=True)
+@click.option('--verbose', '-v', default=False, is_flag=True,
+              help='show suboptimal results')
+@click.pass_context
+def exp(ctx, appnames, verbose, as_json, include_time, only):
     """Run the entire ACCEPT pipeline, by default on all apps
     """
     # Load the current results, if any.
@@ -62,8 +78,8 @@ def exp(appnames, verbose=False, as_json=False, include_time=False, only=None):
 
     for appname in appnames:
         logging.info(appname)
-        res = experiments.evaluate(_client, appname, verbose, _reps, as_json,
-                                   only)
+        res = experiments.evaluate(ctx.obj.client, appname, verbose,
+                                   ctx.obj.reps, as_json, only)
 
         if as_json:
             if not include_time:
@@ -81,17 +97,21 @@ def exp(appnames, verbose=False, as_json=False, include_time=False, only=None):
                 json.dump(results_json, f, indent=2, sort_keys=True)
 
 
-@argh.arg('appdir', nargs='?', help='application directory')
-def run(appdir='.', verbose=False):
+@cli.command()
+@click.argument('appdir', default='.')
+@click.option('--verbose', '-v', default=False, is_flag=True,
+              help='show suboptimal results')
+@click.pass_context
+def run(ctx, appdir, verbose):
     """Run the ACCEPT workflow for a benchmark.
 
     Unlike the full experiments command (`accept exp`), this only gets
     the "headline" results for the benchmark; no characterization
     results for the paper are collected.
     """
-    exp = core.Evaluation(appdir, _client, _reps)
+    exp = core.Evaluation(appdir, ctx.obj.client, ctx.obj.reps)
 
-    with _client:
+    with ctx.obj.client:
         results = exp.run()
 
     output = experiments.dump_results_human(results, exp.pout, verbose)
@@ -101,13 +121,13 @@ def run(appdir='.', verbose=False):
 
 # Get the compilation log or compiler output.
 
-def log_and_output(directory, fn='accept_log.txt'):
+def log_and_output(directory, fn='accept_log.txt', keep=False):
     """Build the benchmark in `directory` and return the contents of the
     compilation log.
     """
     with core.chdir(directory):
-        with core.sandbox(True, _keep_sandboxes):
-            if _keep_sandboxes:
+        with core.sandbox(True, keep):
+            if keep:
                 logging.info('building in directory: {0}'.format(os.getcwd()))
 
             if os.path.exists(fn):
@@ -124,14 +144,17 @@ def log_and_output(directory, fn='accept_log.txt'):
             return log, output
 
 
-@argh.arg('appdir', nargs='?', help='application directory')
-def log(appdir='.'):
+@cli.command()
+@click.argument('appdir', default='.')
+@click.pass_context
+def log(ctx, appdir):
     """Compile a program and show ACCEPT optimization log
     """
     appdir = core.normpath(appdir)
-    with _client:
-        _client.submit(log_and_output, appdir)
-        logtxt, _ = _client.get(log_and_output, appdir)
+    with ctx.obj.client:
+        ctx.obj.client.submit(log_and_output, appdir,
+                              keep=ctx.obj.keep_sandboxes)
+        logtxt, _ = ctx.obj.client.get(log_and_output, appdir)
 
     # Pass the log file through c++filt.
     filtproc = subprocess.Popen(['c++filt'], stdin=subprocess.PIPE,
@@ -140,25 +163,29 @@ def log(appdir='.'):
     return out
 
 
-@argh.arg('appdir', nargs='?', help='application directory')
-def build(appdir='.'):
+@cli.command()
+@click.argument('appdir', default='.')
+@click.pass_context
+def build(ctx, appdir):
     """Compile a program and show compiler output
     """
     appdir = core.normpath(appdir)
-    with _client:
-        _client.submit(log_and_output, appdir)
-        _, output = _client.get(log_and_output, appdir)
+    with ctx.obj.client:
+        ctx.obj.client.submit(log_and_output, appdir, ctx.obj.keep_sandboxes)
+        _, output = ctx.obj.client.get(log_and_output, appdir)
     return output
 
 
 # Parts of the experiments.
 
-@argh.arg('appdir', nargs='?', help='application directory')
-def precise(appdir='.'):
+@cli.command()
+@click.argument('appdir', default='.')
+@click.pass_context
+def precise(ctx, appdir):
     """Execute the precise (baseline) version of a program
     """
-    ev = core.Evaluation(appdir, _client, _reps)
-    with _client:
+    ev = core.Evaluation(appdir, ctx.obj.client, ctx.obj.reps)
+    with ctx.obj.client:
         ev.setup()
         times = list(ev.precise_times())
 
@@ -168,13 +195,15 @@ def precise(appdir='.'):
         print('  {:.2f}'.format(t))
 
 
-@argh.arg('num', nargs='?', type=int, help='which configuration')
-@argh.arg('appdir', nargs='?', help='application directory')
-def approx(num=None, appdir='.'):
+@cli.command()
+@click.argument('num', type=int, default=None)
+@click.argument('appdir', default='.')
+@click.pass_context
+def approx(ctx, num, appdir):
     """Execute approximate versions of a program
     """
-    ev = core.Evaluation(appdir, _client, _reps)
-    with _client:
+    ev = core.Evaluation(appdir, ctx.obj.client, ctx.obj.reps)
+    with ctx.obj.client:
         experiments.run_experiments(ev)
     results = ev.results
 
@@ -196,23 +225,8 @@ def approx(num=None, appdir='.'):
 
 
 def main():
-    logging.getLogger().addHandler(logging.StreamHandler(sys.stderr))
-    parser = argh.ArghParser(prog='accept')
-    parser.add_commands([exp, log, build, precise, approx, run])
-    parser.add_argument('--cluster', '-c', default=False, action='store_true',
-                        help='execute on Slurm cluster')
-    parser.add_argument('--force', '-f', default=False, action='store_true',
-                        help='clear memoized results')
-    parser.add_argument('--reps', '-r', type=int,
-                        help='replication runs')
-    parser.add_argument('--verbose', '-v', action='count', default=0,
-                        help='enable verbose logging')
-    parser.add_argument('--keep-sandboxes', '-k', action='store_true',
-                        dest='keep_sandboxes', default=False,
-                        help='keep intermediate sandbox directories')
-
     try:
-        parser.dispatch(pre_call=global_config, completion=False)
+        cli()
     except core.UserError as exc:
         logging.debug(traceback.format_exc())
         logging.error(exc.log())
