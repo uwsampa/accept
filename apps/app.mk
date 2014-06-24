@@ -9,7 +9,7 @@
 # subdirectory or else the paths to various tools will be wrong.
 ###
 
-ENERCDIR := ../..
+ENERCDIR := $(shell pwd)/$(dir $(lastword $(MAKEFILE_LIST)))/..
 INCLUDEDIR := $(ENERCDIR)/include
 BUILTDIR := $(ENERCDIR)/build/built
 CC := $(BUILTDIR)/bin/clang
