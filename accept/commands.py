@@ -96,7 +96,7 @@ def run(appdir='.', verbose=False):
         exp.setup()
 
         logging.info('running workflow')
-        results = experiments.results_for_base(exp, exp.base_configs)
+        results = exp.run()
 
     output = experiments.dump_results_human(results, exp.pout, verbose)
     for line in output:

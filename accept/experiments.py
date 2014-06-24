@@ -78,22 +78,6 @@ def dump_results_json(results):
     return out
 
 
-def results_for_base(ev, configs):
-    """Given a set of base configurations, return a set of uniqued
-    results from all phases of the experiment workflow.
-    """
-    # The phases.
-    base_results = ev.run_approx(configs)
-    tuned_results = ev.parameter_search(base_results)
-    composite_results = ev.evaluate_composites(tuned_results)
-
-    # Uniquify the results based on their configs.
-    results = {}
-    for result in base_results + tuned_results + composite_results:
-        results[result.config] = result
-    return results.values()
-
-
 def run_experiments(ev, only=None):
     """Run all stages in the Evaluation for producing paper-ready
     results. Returns the main results and a dict of kind-restricted
@@ -106,7 +90,7 @@ def run_experiments(ev, only=None):
     if only and 'main' not in only:
         main_results = []
     else:
-        main_results = results_for_base(ev, ev.base_configs)
+        main_results = ev.run()
 
     end_time = time.time()
 
@@ -134,7 +118,7 @@ def run_experiments(ev, only=None):
 
         # Run the experiment workflow.
         logging.info('isolated configs: {}'.format(len(kind_configs)))
-        kind_results[kind] = results_for_base(ev, kind_configs)
+        kind_results[kind] = ev.run(kind_configs)
 
     return main_results, kind_results, end_time - start_time
 

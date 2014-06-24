@@ -807,3 +807,30 @@ class Evaluation(object):
         logging.info('evaluating combined configs')
         optimal, _, _ = triage_results(component_results)
         return self.run_approx(list(bce_greedy(optimal)))
+
+    def run(self, base_configs=None):
+        """Execute the entire ACCEPT workflow, including all three phases:
+
+        - Base (single-step) configurations.
+        - Tuned single-site configurations (parameter_search).
+        - Composite configurations (evaluate_composites).
+
+        The experiments can start either from the base configurations
+        discovered during `setup` (`self.base_configs`) or the specified
+        set.
+
+        Return a set of unique results (`Result` objects).
+        """
+        if base_configs is None:
+            base_configs = self.base_configs
+
+        # The phases.
+        base_results = self.run_approx(base_configs)
+        tuned_results = self.parameter_search(base_results)
+        composite_results = self.evaluate_composites(tuned_results)
+
+        # Uniquify the results based on their configs.
+        results = {}
+        for result in base_results + tuned_results + composite_results:
+            results[result.config] = result
+        return results.values()
