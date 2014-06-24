@@ -64,6 +64,15 @@ endif
 # The different executable configurations we can build.
 CONFIGS := orig opt prof
 
+# Determine which command-line arguments to use depending on whether we are
+# "training" (profiling/measuring) or "testing" (performing a final
+# evaluation).
+ifneq ($(ACCEPT_TEST),)
+	ifneq ($(TESTARGS),)
+		RUNARGS = $(TESTARGS)
+	endif
+endif
+
 #################################################################
 BUILD_TARGETS := $(CONFIGS:%=build_%)
 RUN_TARGETS := $(CONFIGS:%=run_%)
