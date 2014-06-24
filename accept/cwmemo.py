@@ -16,11 +16,6 @@ MEMO_DB = os.path.abspath(os.path.join(
     'memo.db'
 ))
 
-MEMO_DB2 = os.path.abspath(os.path.join(
-    os.path.dirname(os.path.dirname(__file__)),
-    'memo2.db'
-))
-
 
 class CWMemo(object):
     """A proxy for performing function calls that are both memoized and
@@ -158,10 +153,3 @@ def get_client(cluster=False, force=False):
     """
     master_host = cw.slurm_master_host() if cluster else None
     return CWMemo(dbname=MEMO_DB, host=master_host, force=force)
-
-def get_client2(cluster=False, force=True):
-    """Return a `CWMemo` instance for ACCEPT computations.
-    """
-    master_host = cw.slurm_master_host() if cluster else None
-    return CWMemo(dbname=MEMO_DB2, host=master_host, force=force)
-

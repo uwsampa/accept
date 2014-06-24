@@ -50,6 +50,10 @@ Build the program in the current working directory. Instead of showing the compi
 
 This explains which opportunities where analyzed for approximation, which are ready for relaxation, and which statements are preventing relaxation opportunities.
 
+### `accept run`
+
+Run the entire ACCEPT workflow for the program in the current working directory. Print out the optimal configurations discovered by ACCEPT.
+
 ### `accept precise`
 
 Build and execute a baseline, precise configuration of the program in the current working directory.

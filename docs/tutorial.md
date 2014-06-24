@@ -90,14 +90,13 @@ Here's an example `eval.py` written for a notional program whose output consists
 
 Once you're happy with your annotations, you can run the full toolchain to optimize your program. Run this command:
 
-    $ accept exp foo
+    $ accept run
 
-Unlike the other `accept` commands, the `exp` command needs the name of your application (i.e., the directory name containing your sources).
+from the directory containing your application (and its Makefile).
 
-#### Experiment Workflow
+### Experiment Workflow
 
-The following is a high-level description of the part of the workflow of an ACCEPT experiment involving eval.py.
-
+Here's what happens when you execute `accept run`.
 
 The program is first run once without approximation. This run without approximation is known as the precise run.
 

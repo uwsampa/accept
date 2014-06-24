@@ -24,6 +24,7 @@ _client = None
 _reps = 1
 _keep_sandboxes = False
 
+
 def global_config(opts):
     global _client
     global _reps
@@ -80,6 +81,28 @@ def exp(appnames, verbose=False, as_json=False, include_time=False, only=None):
                 json.dump(results_json, f, indent=2, sort_keys=True)
 
 
+@argh.arg('appdir', nargs='?', help='application directory')
+def run(appdir='.', verbose=False):
+    """Run the ACCEPT workflow for a benchmark.
+
+    Unlike the full experiments command (`accept exp`), this only gets
+    the "headline" results for the benchmark; no characterization
+    results for the paper are collected.
+    """
+    exp = core.Evaluation(appdir, _client, _reps)
+
+    with _client:
+        logging.info('setting up')
+        exp.setup()
+
+        logging.info('running workflow')
+        results = experiments.results_for_base(exp, exp.base_configs)
+
+    output = experiments.dump_results_human(results, exp.pout, verbose)
+    for line in output:
+        print(line)
+
+
 # Get the compilation log or compiler output.
 
 def log_and_output(directory, fn='accept_log.txt'):
@@ -104,6 +127,7 @@ def log_and_output(directory, fn='accept_log.txt'):
 
             return log, output
 
+
 @argh.arg('appdir', nargs='?', help='application directory')
 def log(appdir='.'):
     """Compile a program and show ACCEPT optimization log
@@ -118,6 +142,7 @@ def log(appdir='.'):
                                 stdout=subprocess.PIPE)
     out, _ = filtproc.communicate(logtxt)
     return out
+
 
 @argh.arg('appdir', nargs='?', help='application directory')
 def build(appdir='.'):
@@ -145,6 +170,7 @@ def precise(appdir='.'):
     print('time:')
     for t in times:
         print('  {:.2f}'.format(t))
+
 
 @argh.arg('num', nargs='?', type=int, help='which configuration')
 @argh.arg('appdir', nargs='?', help='application directory')
@@ -176,7 +202,7 @@ def approx(num=None, appdir='.'):
 def main():
     logging.getLogger().addHandler(logging.StreamHandler(sys.stderr))
     parser = argh.ArghParser(prog='accept')
-    parser.add_commands([exp, log, build, precise, approx])
+    parser.add_commands([exp, log, build, precise, approx, run])
     parser.add_argument('--cluster', '-c', default=False, action='store_true',
                         help='execute on Slurm cluster')
     parser.add_argument('--force', '-f', default=False, action='store_true',
@@ -188,13 +214,14 @@ def main():
     parser.add_argument('--keep-sandboxes', '-k', action='store_true',
                         dest='keep_sandboxes', default=False,
                         help='keep intermediate sandbox directories')
-                        
+
     try:
         parser.dispatch(pre_call=global_config, completion=False)
     except core.UserError as exc:
         logging.debug(traceback.format_exc())
         logging.error(exc.log())
         sys.exit(1)
+
 
 if __name__ == '__main__':
     main()

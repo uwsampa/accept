@@ -1,11 +1,10 @@
 from __future__ import print_function
 from __future__ import division
 import os
-import shutil
 import logging
 import time
 from . import core
-from . import cwmemo
+
 
 APPSDIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'apps')
 OPT_KINDS = {
@@ -13,6 +12,7 @@ OPT_KINDS = {
     'desync':   ('lock', 'barrier'),
     'aarelax':  ('alias',),
 }
+
 
 def dump_config(config):
     """Given a relaxation configuration and an accompanying description
@@ -26,6 +26,7 @@ def dump_config(config):
     for ident, param in optimizations:
         out.append(u'{} @ {}'.format(ident, param))
     return u', '.join(out)
+
 
 def dump_results_human(results, pout, verbose):
     """Generate human-readable text (as a sequence of lines) for
@@ -60,6 +61,7 @@ def dump_results_human(results, pout, verbose):
             yield dump_config(res.config)
             yield res.desc
 
+
 def dump_results_json(results):
     """Return a JSON-like representation of the results.
     """
@@ -74,6 +76,7 @@ def dump_results_json(results):
             'speedup_sigma': res.speedup.error,
         })
     return out
+
 
 def results_for_base(ev, configs):
     """Given a set of base configurations, return a set of uniqued
@@ -90,49 +93,6 @@ def results_for_base(ev, configs):
         results[result.config] = result
     return results.values()
 
-def testing_results(ev, training_results):
-    """Given a list of results from the training stage, generate a list
-    of results for executions on testing inputs.
-    """
-    print('DEBUG ===================================================>>>  Copying Makefile')
-    shutil.copyfile(
-        os.path.join(ev.appdir, 'Makefile2'),
-        os.path.join(ev.appdir, 'Makefile')
-    )
-    optimal, suboptimal, bad = core.triage_results(training_results)
-    new_client = cwmemo.get_client2(cluster=False, force=True)
-    ev2 = core.Evaluation(ev.appdir, new_client, ev.reps)
-    setup_script = os.path.join(ev.appdir, 'setup.sh')
-    if os.path.exists(setup_script):
-        print('running setup script')
-        with core.chdir(ev.appdir):
-            core.run_cmd(['sh', 'setup.sh'])
-    print('starting experiments')
-    with new_client:
-        ev2.setup()
-
-    # Evaluate the optimal configs again with the testing input.
-    configs = [r.config for r in optimal]
-    with new_client:
-        testing_results = ev2.run_approx(configs)
-
-    # Dump both results.
-    for training_res, testing_res in zip(optimal, testing_results):
-        print(dump_config(training_res.config))
-        if not testing_res.safe:
-            print('testing run unsafe!')
-            continue
-        print('error 1: {} % \t error 2: {} % \t diff: {}'.format(
-            training_res.error * 100,
-            testing_res.error * 100,
-            (training_res.error - testing_res.error) * 100,
-        ))
-        print('speedup 1: {} \t speedup 2: {} \t diff: {}'.format(
-            training_res.speedup,
-            testing_res.speedup,
-            training_res.speedup - testing_res.speedup,
-        ))
-    print('DEBUG ===================================================>>>  Enddd')
 
 def run_experiments(ev, only=None):
     """Run all stages in the Evaluation for producing paper-ready
@@ -177,6 +137,7 @@ def run_experiments(ev, only=None):
         kind_results[kind] = results_for_base(ev, kind_configs)
 
     return main_results, kind_results, end_time - start_time
+
 
 def evaluate(client, appname, verbose=False, reps=1, as_json=False,
              only=None):
