@@ -68,7 +68,10 @@ def cli(ctx, verbose, cluster, force, reps, keep_sandboxes):
               help='show suboptimal results')
 @click.pass_context
 def exp(ctx, appnames, verbose, as_json, include_time, only):
-    """Run the entire ACCEPT pipeline, by default on all apps
+    """Run experiments for the paper.
+
+    By default, all paper-ready applications are collected. You can also
+    specify specific applications to evaluate.
     """
     # Load the current results, if any.
     if as_json:
@@ -159,7 +162,10 @@ def log_and_output(directory, fn='accept_log.txt', keep=False):
 @click.argument('appdir', default='.')
 @click.pass_context
 def log(ctx, appdir):
-    """Compile a program and show ACCEPT optimization log
+    """Show ACCEPT optimization log.
+
+    Compile the program---using the same memoized compilation as the
+    `build` command---and show the resulting optimization log.
     """
     appdir = core.normpath(appdir)
     with ctx.obj.client:
@@ -178,7 +184,7 @@ def log(ctx, appdir):
 @click.argument('appdir', default='.')
 @click.pass_context
 def build(ctx, appdir):
-    """Compile a program and show compiler output
+    """Compile a program and show compiler output.
     """
     appdir = core.normpath(appdir)
     with ctx.obj.client:
@@ -194,7 +200,7 @@ def build(ctx, appdir):
 @click.argument('appdir', default='.')
 @click.pass_context
 def precise(ctx, appdir):
-    """Execute the precise (baseline) version of a program
+    """Execute the baseline version of a program.
     """
     ev = core.Evaluation(appdir, ctx.obj.client, ctx.obj.reps)
     with ctx.obj.client:
@@ -212,7 +218,7 @@ def precise(ctx, appdir):
 @click.argument('appdir', default='.')
 @click.pass_context
 def approx(ctx, num, appdir):
-    """Execute approximate versions of a program
+    """Execute approximate versions of a program.
     """
     ev = core.Evaluation(appdir, ctx.obj.client, ctx.obj.reps)
     with ctx.obj.client:
