@@ -176,7 +176,7 @@ def execute(timeout, approx=False, test=False):
     """
     command = ['make', 'run_opt' if approx else 'run_orig']
     if test:
-        command += 'ACCEPT_TEST=1'
+        command += ['ACCEPT_TEST=1']
     command += _make_args()
     start_time = time.time()
     status, output = run_cmd(command, timeout)
@@ -832,7 +832,9 @@ class Evaluation(object):
         configurations.
         """
         optimal, _, _ = triage_results(component_results)
-        return self.run_approx(list(bce_greedy(optimal)))
+        configs = list(bce_greedy(optimal))
+        logging.debug('{} composite configs'.format(len(configs)))
+        return self.run_approx(configs)
 
     def run(self, base_configs=None):
         """Execute the entire ACCEPT workflow, including all three
