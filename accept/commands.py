@@ -39,7 +39,9 @@ GlobalConfig = namedtuple('GlobalConfig', 'client reps keep_sandboxes')
 def cli(ctx, verbose, cluster, force, reps, keep_sandboxes):
     # Set up logging.
     logging.getLogger().addHandler(logging.StreamHandler(sys.stderr))
-    if verbose >= 2:
+    if verbose >= 3:
+        logging.getLogger().setLevel(core.FIREHOSE)
+    elif verbose >= 2:
         logging.getLogger().setLevel(logging.DEBUG)
     elif verbose >= 1:
         logging.getLogger().setLevel(logging.INFO)
@@ -206,7 +208,7 @@ def precise(ctx, appdir):
 
 
 @cli.command()
-@click.argument('num', type=int, default=None)
+@click.argument('num', type=int, default=-1)
 @click.argument('appdir', default='.')
 @click.pass_context
 def approx(ctx, num, appdir):
@@ -214,11 +216,11 @@ def approx(ctx, num, appdir):
     """
     ev = core.Evaluation(appdir, ctx.obj.client, ctx.obj.reps)
     with ctx.obj.client:
-        experiments.run_experiments(ev)
+        ev.run()
     results = ev.results
 
     # Possibly choose a specific result.
-    results = [results[num]] if num is not None else results
+    results = [results[num]] if num != -1 else results
 
     for result in results:
         print(experiments.dump_config(result.config))
@@ -231,6 +233,8 @@ def approx(ctx, num, appdir):
                 print('  (error)')
             else:
                 print('  {:.2f}'.format(t))
+        if result.desc != 'good':
+            print(result.desc)
         print()
 
 

@@ -34,6 +34,7 @@ PARAM_MAX = {
 EPSILON_ERROR = 0.001
 EPSILON_SPEEDUP = 0.01
 BUILD_TIMEOUT = 60 * 20
+FIREHOSE = 5  # Sub-debug logging level.
 
 
 # Exceptions.
@@ -178,9 +179,14 @@ def execute(timeout, approx=False, test=False):
     if test:
         command += ['ACCEPT_TEST=1']
     command += _make_args()
+    logging.debug(u'running execute command: {0}'.format(u' '.join(command)))
+
     start_time = time.time()
     status, output = run_cmd(command, timeout)
     end_time = time.time()
+
+    logging.log(FIREHOSE,
+                u'execution output (status {0}): {1}'.format(status, output))
     return end_time - start_time, status, output
 
 
@@ -194,7 +200,8 @@ def build(approx=False, require=True):
 
     logging.debug(u'running build command: {0}'.format(u' '.join(build_cmd)))
     status, output = run_cmd(build_cmd, BUILD_TIMEOUT)
-    logging.debug(u'build output (status {0}): {1}'.format(status, output))
+    logging.log(FIREHOSE,
+                u'build output (status {0}): {1}'.format(status, output))
 
     if status is None:
         raise BuildError('build timed out')

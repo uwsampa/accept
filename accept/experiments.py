@@ -32,9 +32,11 @@ def dump_result_human(res, verbose):
     """Dump a single Result object.
     """
     yield dump_config(res.config)
-    yield '{} % error'.format(res.error * 100)
-    yield '{} speedup'.format(res.speedup)
-    if verbose and isinstance(res.outputs[0], str):
+    if hasattr(res, 'error'):
+        yield '{} % error'.format(res.error * 100)
+    if hasattr(res, 'speedup'):
+        yield '{} speedup'.format(res.speedup)
+    if verbose and hasattr(res, 'outputs') and isinstance(res.outputs[0], str):
         yield 'output: {}'.format(res.outputs[0])
     if res.desc != 'good':
         yield res.desc
