@@ -48,7 +48,7 @@ override CXXFLAGS += $(CFLAGS)
 SOURCES ?= $(wildcard *.c) $(wildcard *.cpp)
 
 # Build products.
-TARGET := app
+TARGET ?= app
 BCFILES := $(SOURCES:.c=.bc)
 BCFILES := $(BCFILES:.cpp=.bc)
 LINKEDBC := $(TARGET)_all.bc
