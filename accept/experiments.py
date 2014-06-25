@@ -136,12 +136,6 @@ def evaluate(client, appname, verbose=False, reps=1, as_json=False,
     appdir = os.path.join(APPSDIR, appname)
     exp = core.Evaluation(appdir, client, reps)
 
-    setup_script = os.path.join(appdir, 'setup.sh')
-    if os.path.exists(setup_script):
-        logging.info('running setup script')
-        with core.chdir(appdir):
-            core.run_cmd(['sh', 'setup.sh'])
-
     logging.info('starting experiments')
     with client:
         main_results, kind_results, exp_time = run_experiments(exp, only)

@@ -73,6 +73,11 @@ ifneq ($(ACCEPT_TEST),)
 	endif
 endif
 
+# Blank setup target. Applications can use this to run one-time setup commands
+# before the workflow gets started.
+.PHONY: setup
+setup:
+
 #################################################################
 BUILD_TARGETS := $(CONFIGS:%=build_%)
 RUN_TARGETS := $(CONFIGS:%=run_%)

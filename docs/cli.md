@@ -177,3 +177,7 @@ It is also a good idea to provide a separate input for ACCEPT's *testing* phase,
 Use the `TESTARGS` variable to provide a second, potentially slower-running, invocation of your program. Again, here's an example from fluidanimate:
 
     TESTARGS := 4 5 in_300K.fluid out.fluid
+
+### Setup Tasks
+
+In rare cases, you may need to do some setup work before any ACCEPT tasks get started. In one of our benchmarks, for example, we need to build a tool to do the quality evaluation; in another, a `./configure` script is necessary to adapt to platform details. In this case, you can define a `setup` target in your Makefile describing tasks to be run before any invocation of the ACCEPT workflow.

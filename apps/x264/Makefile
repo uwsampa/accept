@@ -25,3 +25,6 @@ RUNARGS := --quiet --qp 20 --partitions b8x8,i4x4 --ref 5 --direct auto --b-pyra
 
 APP_MK := ../app.mk
 include $(APP_MK)
+
+setup:
+	./configure --enable-pthread --disable-asm

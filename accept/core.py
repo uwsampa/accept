@@ -672,6 +672,18 @@ class Evaluation(object):
         self.test_base_elapsed = None
         self.test_ptimes = []
 
+        self.source_setup_run = False
+
+    def _source_setup(self):
+        """Run the preliminary `make setup` target for the application,
+        if has not already been in this instance.
+        """
+        if not self.source_setup_run:
+            logging.info('executing setup target')
+            with chdir(self.appdir):
+                run_cmd(['make', 'setup'])
+            self.source_setup_run = True
+
     def setup(self, test=False):
         """Submit the baseline precise executions and gather some
         information about the first.
@@ -683,6 +695,8 @@ class Evaluation(object):
         When `test` is true, this is for the *testing* input. Set the
         fields `test_pout` and `test_base_elapsed`.
         """
+        self._source_setup()
+
         logging.info('starting baseline execution for {}'.format(
             'testing' if test else 'training'
         ))

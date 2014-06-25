@@ -15,3 +15,6 @@ include $(APP_MK)
 # Output evaluation tool. Not approximated.
 fluidcmp: fluidcmp.cpp
 	$(CXX) -I$(ENERCDIR)/include $< -o $@
+
+# Compile the evaluation tool before the workflow begins.
+setup: fluidcmp

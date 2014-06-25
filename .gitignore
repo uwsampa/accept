@@ -7,3 +7,4 @@ apps/blackscholes/in_*.txt
 apps/canneal/*.nets
 apps/fluidanimate/in_*.fluid
 site/
+venv/
