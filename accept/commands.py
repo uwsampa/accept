@@ -27,13 +27,13 @@ GlobalConfig = namedtuple('GlobalConfig', 'client reps keep_sandboxes')
 @click.group(help='the ACCEPT approximate compiler driver')
 @click.option('--verbose', '-v', count=True, default=0,
               help='log more output')
-@click.option('--cluster', '-c', default=False,
+@click.option('--cluster', '-c', is_flag=True,
               help='execute on Slurm cluster')
-@click.option('--force', '-f', default=False,
+@click.option('--force', '-f', is_flag=True,
               help='clear memoized results')
 @click.option('--reps', '-r', type=int, default=None,
               help='replication factor')
-@click.option('--keep-sandboxes', '-k', default=False,
+@click.option('--keep-sandboxes', '-k', is_flag=True,
               help='do not delete sandbox dirs')
 @click.pass_context
 def cli(ctx, verbose, cluster, force, reps, keep_sandboxes):

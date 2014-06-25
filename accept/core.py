@@ -690,7 +690,7 @@ class Evaluation(object):
 
         # Get information from the first execution. The rest of the
         # executions are for timing and can finish later.
-        pex = self.client.get(build_and_execute, self.appdir, None, False, 0)
+        pex = self.client.get(build_and_execute, self.appdir, None, test, 0)
         if test:
             self.test_pout = pex.output
             self.test_base_elapsed = pex.elapsed
