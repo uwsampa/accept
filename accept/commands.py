@@ -62,7 +62,7 @@ def cli(ctx, verbose, cluster, force, reps, keep_sandboxes):
 @click.option('--json', '-j', 'as_json', default=False)
 @click.option('--time', '-t', 'include_time', default=False)
 @click.option('--only', '-o', 'only', multiple=True)
-@click.option('--verbose', '-v', default=False, is_flag=True,
+@click.option('--verbose', '-v', is_flag=True,
               help='show suboptimal results')
 @click.pass_context
 def exp(ctx, appnames, verbose, as_json, include_time, only):
@@ -99,10 +99,12 @@ def exp(ctx, appnames, verbose, as_json, include_time, only):
 
 @cli.command()
 @click.argument('appdir', default='.')
-@click.option('--verbose', '-v', default=False, is_flag=True,
+@click.option('--verbose', '-v', is_flag=True,
               help='show suboptimal results')
+@click.option('--test', '-t', is_flag=True,
+              help='test optimal configurations')
 @click.pass_context
-def run(ctx, appdir, verbose):
+def run(ctx, appdir, verbose, test):
     """Run the ACCEPT workflow for a benchmark.
 
     Unlike the full experiments command (`accept exp`), this only gets
@@ -113,6 +115,12 @@ def run(ctx, appdir, verbose):
 
     with ctx.obj.client:
         results = exp.run()
+
+        # If we're getting test executions, run the optimal
+        # configurations and instead print those results.
+        if test:
+            optimal, _, _ = core.triage_results(results)
+            results = exp.test_runs([r.config for r in optimal])
 
     output = experiments.dump_results_human(results, exp.pout, verbose)
     for line in output:

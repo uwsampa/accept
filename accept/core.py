@@ -168,13 +168,15 @@ class BuildError(Exception):
         return '\n' + self.args[0]
 
 
-def execute(timeout, approx=False):
+def execute(timeout, approx=False, test=False):
     """Run the application in the working directory and return:
     - The wall-clock duration (in seconds) of the execution
     - The exit status (or None if the process timed out)
     - The combined stderr/stdout from the execution
     """
     command = ['make', 'run_opt' if approx else 'run_orig']
+    if test:
+        command += 'ACCEPT_TEST=1'
     command += _make_args()
     start_time = time.time()
     status, output = run_cmd(command, timeout)
@@ -247,7 +249,7 @@ Execution = namedtuple('Execution', ['output', 'elapsed', 'status',
                                      'config', 'roitime', 'execlog'])
 
 
-def build_and_execute(directory, relax_config, rep, timeout=None):
+def build_and_execute(directory, relax_config, test, rep, timeout=None):
     """Build the application in the given directory (which must contain
     both a Makefile and an eval.py), run it, and collect its output.
     Return an Execution object.
@@ -265,7 +267,7 @@ def build_and_execute(directory, relax_config, rep, timeout=None):
 
             approx = bool(relax_config)
             build(approx)
-            elapsed, status, execlog = execute(timeout, approx)
+            elapsed, status, execlog = execute(timeout, approx, test)
             if elapsed is None or status or status is None:
                 # Timeout or error.
                 output = None
@@ -654,41 +656,57 @@ class Evaluation(object):
         self.ptimes = []
         self.pout = None
         self.base_elapsed = None
-        self.ptimes = []
         self.base_config = None
         self.base_configs = None
         self.results = []
 
-    def setup(self):
+        # Results for the *testing* executions.
+        self.test_pout = None
+        self.test_base_elapsed = None
+        self.test_ptimes = []
+
+    def setup(self, test=False):
         """Submit the baseline precise executions and gather some
-        information about the first. Set the fields `pout` (the precise
-        output), `base_elapsed` (precise execution time), `base_config`,
-        and `base_configs`.
+        information about the first.
+
+        When `test` is false, this is for the *training* input. Set the
+        fields `pout` (the precise output), `base_elapsed` (precise
+        execution time), `base_config`, and `base_configs`.
+
+        When `test` is true, this is for the *testing* input. Set the
+        fields `test_pout` and `test_base_elapsed`.
         """
-        logging.info('starting baseline execution')
+        logging.info('starting baseline execution for {}'.format(
+            'testing' if test else 'training'
+        ))
 
         # Precise (baseline) execution.
         for rep in range(self.reps):
             self.client.submit(
                 build_and_execute,
-                self.appdir, None, rep,
+                self.appdir, None, test, rep,
                 timeout=None
             )
 
         # Get information from the first execution. The rest of the
         # executions are for timing and can finish later.
-        pex = self.client.get(build_and_execute, self.appdir, None, 0)
-        self.pout = pex.output
-        self.base_elapsed = pex.elapsed
-        self.base_config = pex.config
-        self.base_configs = list(permute_config(self.base_config))
+        pex = self.client.get(build_and_execute, self.appdir, None, False, 0)
+        if test:
+            self.test_pout = pex.output
+            self.test_base_elapsed = pex.elapsed
+        else:
+            self.pout = pex.output
+            self.base_elapsed = pex.elapsed
+            self.base_config = pex.config
+            self.base_configs = list(permute_config(self.base_config))
 
-    def precise_times(self):
+    def precise_times(self, test=False):
         """Generate the durations for the precise executions. Must be
         called after `setup`.
         """
         for rep in range(self.reps):
-            ex = self.client.get(build_and_execute, self.appdir, None, rep)
+            ex = self.client.get(build_and_execute,
+                                 self.appdir, None, test, rep)
             if ex.status != 0:
                 if isinstance(ex.status, int):
                     # Error status.
@@ -711,22 +729,27 @@ class Evaluation(object):
                     )
             yield ex.roitime
 
-    def submit_approx_runs(self, config):
+    def submit_approx_runs(self, config, test=False):
         """Submit the executions for a given configuration.
         """
+        base_elapsed = self.test_base_elapsed if test else self.base_elapsed
         for rep in range(self.reps):
             self.client.submit(
                 build_and_execute,
-                self.appdir, config, rep,
-                timeout=self.base_elapsed * TIMEOUT_FACTOR
+                self.appdir, config, test, rep,
+                timeout=base_elapsed * TIMEOUT_FACTOR
             )
 
-    def get_approx_result(self, config):
+    def get_approx_result(self, config, test=False):
         """Gather the Result objects from a configuration. Must be
         called after previously submitting the same configuration.
         """
+        pout = self.test_pout if test else self.pout
+        ptimes = self.ptimes if test else self.ptimes
+
         # Collect all executions for the config.
-        exs = [self.client.get(build_and_execute, self.appdir, config, rep)
+        exs = [self.client.get(build_and_execute,
+                               self.appdir, config, test, rep)
                for rep in range(self.reps)]
 
         # Evaluate the result.
@@ -734,25 +757,27 @@ class Evaluation(object):
                      [ex.roitime for ex in exs],
                      [ex.status for ex in exs],
                      [ex.output for ex in exs])
-        res.evaluate(self.scorefunc, self.pout, self.ptimes)
+        res.evaluate(self.scorefunc, pout, ptimes)
         return res
 
-    def run_approx(self, configs):
+    def run_approx(self, configs, test=False):
         """Evaluate a set of approximate configurations. Return a list of
         results and append them to `self.results`.
         """
         # Relaxed executions.
         for config in configs:
-            self.submit_approx_runs(config)
+            self.submit_approx_runs(config, test)
 
         # If we don't have the precise times yet, collect them. We need
         # them to evaluate approximate executions.
-        if not self.ptimes:
-            self.ptimes = list(self.precise_times())
+        ptimes = self.test_ptimes if test else self.ptimes
+        if not ptimes:
+            ptimes += list(self.precise_times(test))
 
         # Gather relaxed executions.
-        res = [self.get_approx_result(config) for config in configs]
-        self.results += res
+        res = [self.get_approx_result(config, test) for config in configs]
+        if not test:
+            self.results += res
         return res
 
     def evaluate_base(self):
@@ -844,3 +869,15 @@ class Evaluation(object):
         for result in base_results + tuned_results + composite_results:
             results[result.config] = result
         return results.values()
+
+    def test_runs(self, configs):
+        """Get *testing* (as opposed to *training*) executions for the
+        precise configuration and the specified configurations.
+        """
+        logging.info('starting test executions')
+        if not self.test_pout:
+            self.setup(True)
+
+        # Submit approximate jobs.
+        logging.info('test evaluation: {} configurations'.format(len(configs)))
+        return self.run_approx(configs, True)
