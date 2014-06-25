@@ -54,6 +54,10 @@ This explains which opportunities where analyzed for approximation, which are re
 
 Run the entire ACCEPT workflow for the program in the current working directory. Print out the optimal configurations discovered by ACCEPT.
 
+By default, the command prints out the optimal configurations found by ACCEPT. The *verbose* flag, `-v`, makes this command print out all configurations---including suboptimal and broken ones---for debugging.
+
+The *test* flag, `-t`, enables post-hoc "testing" executions. With this setting, the tool will re-execute all the *optimal* configuration using the program's test input (see [the section about TESTARGS](#execution-arguments), below). These results are shown instead of the intermediate ("training") results.
+
 ### `accept precise`
 
 Build and execute a baseline, precise configuration of the program in the current working directory.
@@ -162,8 +166,14 @@ The usual `CFLAGS` and `LDFLAGS` can be used to customize the build process. For
     CXXFLAGS += -pthread
     LDFLAGS := -lpthread
 
-### Execution Flags
+### Execution Arguments
 
 The `RUNARGS` variable is used to specify command-line arguments to be used when executing your program. You might, for example, need to specify the input file. Here's an example from the fluidanimate program:
 
     RUNARGS := 4 5 in_300K.fluid out.fluid
+
+It is also a good idea to provide a separate input for ACCEPT's *testing* phase, which automatically evaluates the final impact of ACCEPT's optimizations. Providing a separate input avoids overfitting to one specific input set, so we take inspiration from the [training and testing sets](http://en.wikipedia.org/wiki/Test_set) used in machine learning.
+
+Use the `TESTARGS` variable to provide a second, potentially slower-running, invocation of your program. Again, here's an example from fluidanimate:
+
+    TESTARGS := 4 5 in_300K.fluid out.fluid

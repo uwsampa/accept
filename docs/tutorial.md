@@ -19,7 +19,9 @@ Next, add a `Makefile` for your experiment. Your Makefile should include at leas
     APP_MK := ../app.mk
     include $(APP_MK)
 
-For simple programs, this is all you need; if you need more options (like specifying the source files to compile or the arguments to use during execution), see [the Makefile section of the tool documentation](cli.md#Makefile).
+For simple programs, this is all you need; if you need more options (like specifying the source files to compile or the arguments to use during execution), see [the Makefile section of the tool documentation][makefile].
+
+[makefile]: cli.md#makefile
 
 ## Try Building
 
@@ -85,6 +87,16 @@ Here's an example `eval.py` written for a notional program whose output consists
         for a, b in zip(orig, relaxed):
             total += min(abs(a - b), 1.0)
         return total / len(orig)
+
+## Add Arguments
+
+Because ACCEPT is a [profiling compiler][fdo], it needs to know how to *execute* your program. You need to provide the command-line arguments for your program in the Makefile using the `RUNARGS` variable. Add a line like this to your project's Makefile:
+
+    RUNARGS := --foo input.txt
+
+indicating how you want your program to be executed. You can also specify a different invocation using the `TESTARGS` variable for a separate, final performance evaluation. See the [Makefile][] section for details.
+
+[fdo]: http://en.wikipedia.org/wiki/Profile-guided_optimization
 
 ## Run the Toolchain
 
