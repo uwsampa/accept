@@ -745,7 +745,7 @@ class Evaluation(object):
         called after previously submitting the same configuration.
         """
         pout = self.test_pout if test else self.pout
-        ptimes = self.ptimes if test else self.ptimes
+        ptimes = self.test_ptimes if test else self.ptimes
 
         # Collect all executions for the config.
         exs = [self.client.get(build_and_execute,
