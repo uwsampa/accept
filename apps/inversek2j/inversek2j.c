@@ -15,6 +15,8 @@
 
 
 #define PI 3.14159265
+#define GPIO_ADDR       0xE000A048
+#define rd_fpga_clk()   *((volatile unsigned int*)GPIO_ADDR)
 
 // Inversek2j parameters
 #define NUM_INPUTS      2
@@ -56,8 +58,8 @@ int main (int argc, const char* argv[]) {
 
     // Performance counters
     // andreolb: not measuring anything for now.
-    /*
     unsigned int t_precise;
+    /*
     unsigned int t_approx;
     unsigned int dynInsn_precise;
     unsigned int dynInsn_approx;
@@ -90,7 +92,7 @@ int main (int argc, const char* argv[]) {
     
     // Set input size to 100000 if not set
     if (argc < 2) {
-        n = 32;
+        n = 4096;
     } else {
         n = atoi(argv[1]);
     }
@@ -134,9 +136,10 @@ int main (int argc, const char* argv[]) {
 
     dynInsn_precise = get_eventcount(0);  
 */
-
     Xil_SetTlbAttributes(OCM_SRC,0x15C06);
     Xil_SetTlbAttributes(OCM_DST,0x15C06);
+    t_precise = rd_fpga_clk();
+
 #if POWER_MODE == 1
     while (1) {
 #endif //POWER_MODE
@@ -161,8 +164,8 @@ int main (int argc, const char* argv[]) {
 
         }
 
-        for (int k = 0; k < n * NUM_INPUTS; k += NUM_INPUTS)
-          printf("\n%f\t%f", *(t1t2_precise + (k + 0)), *(t1t2_precise + (k + 1)));
+        //for (int k = 0; k < n * NUM_INPUTS; k += NUM_INPUTS)
+          //printf("\n%f\t%f", *(t1t2_precise + (k + 0)), *(t1t2_precise + (k + 1)));
     
 #if POWER_MODE == 1
     }
@@ -178,6 +181,7 @@ int main (int argc, const char* argv[]) {
     t_precise = rd_fpga_clk() - t_precise;
 #endif //TIMER
 */
+    t_precise = rd_fpga_clk() - t_precise;
 
 
     ///////////////////////////////
@@ -306,6 +310,7 @@ int main (int argc, const char* argv[]) {
     // 5 - Report results
     ///////////////////////////////
 
+    printf("Precise execution took:     %u cycles \n", t_precise);
 // andreolb: no need to report results.
 /*
 #if PROFILE_MODE != 0

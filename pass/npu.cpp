@@ -19,9 +19,10 @@
 #include <queue>
 #include <fstream>
 #define BUFFER_LOOP_DEPS 0
-#define BUFFER_STORE_LOOP_DEPS 1
+#define BUFFER_STORE_LOOP_DEPS 0
 #define ALIAS 1
 #define ALIAS_DUMP 0
+#define BB_INTERSECTION 0
 
 using namespace llvm;
 
@@ -51,6 +52,7 @@ namespace {
       return false;
     }
     virtual bool runOnLoop(Loop *loop, LPPassManager &LPM) {
+      if (loop->getLoopDepth() != 1) return false;
       modified = false;
       if (transformPass->shouldSkipFunc(*(loop->getHeader()->getParent())))
           return false;
@@ -359,6 +361,7 @@ namespace {
     // If there's an intersection between the BBs that come before and after
     // the call, then it's possible to "jump" around the call inside the loop
     // and we don't handle this case.
+#if BB_INTERSECTION == 1
     std::cerr << "Begin bb intersection" << std::endl;
     for (std::set<BasicBlock *>::iterator bb = beforeBBs.begin(); bb != beforeBBs.end(); ++bb) {
       if (afterBBs.count(*bb))
@@ -371,6 +374,7 @@ namespace {
       }
     }
     std::cerr << "End bb intersection" << std::endl;
+#endif
 
     std::set<Instruction*> afteri;
     for (std::set<Instruction *>::iterator ii = after.begin(); ii != after.end(); ++ii)
@@ -393,62 +397,40 @@ namespace {
     std::cerr << "Begin AA" << std::endl;
     AliasSetTracker st(*AA);
     for (std::set<Instruction *>::iterator ii = afteri.begin(); ii != afteri.end(); ++ii)
-      if (isa<StoreInst>(*ii))
+      if (isa<StoreInst>(*ii)) {
         st.add(*ii);
+            std::string type_str;
+            llvm::raw_string_ostream rso(type_str);
+            Instruction *yy = *ii;
+            rso << "\nAdding Store: " << *yy;
+            std::cerr << rso.str() << std::endl;
+      }
 
     for (AliasSetTracker::iterator si = st.begin(); si != st.end(); ++si)
       for (std::set<Instruction *>::iterator ii = beforei.begin(); ii != beforei.end(); ++ii)
         if (isa<LoadInst>(*ii) && si->aliasesUnknownInst(*ii, *AA)) {
           std::cerr << "HERE" << std::endl;
-          return true;
+            std::string type_str;
+            llvm::raw_string_ostream rso(type_str);
+            Instruction *yy = *ii;
+            rso << "Problem (load that comes before): " << *yy;
+            std::cerr << rso.str() << std::endl;
+            std::cerr << "Problem alias set: " << std::endl;
+            AliasSet &AS = *si;
+            AS.dump();
+          //return true;
         }
     std::cerr << "End AA" << std::endl;
 #endif
 
 #if ALIAS_DUMP == 1
     std::cerr << "alias sets dump" << std::endl;
-    for (std::set<Instruction *>::iterator ii = after.begin(); ii != after.end(); ++ii)
-      st->add(*ii);
-    for (std::set<BasicBlock *>::iterator bi = afterBBs.begin(); bi != afterBBs.end(); ++bi)
-      for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii)
-        st->add(ii);
-    for (AliasSetTracker::iterator I = st->begin(); I != st->end(); ++I) {
+    for (AliasSetTracker::iterator I = st.begin(); I != st.end(); ++I) {
       AliasSet &AS = *I;
       std::cerr << "=============== one more set" << std::endl;
       AS.dump();
     }
     std::cerr << "end alias sets dump" << std::endl;
-#endif
-
-#if ALIAS_DUMP == 1
-    for (AliasSetTracker::iterator si = st->begin(); si != st->end(); ++si) {
-      for (std::set<Instruction *>::iterator ii = after.begin(); ii != after.end(); ++ii)
-        if ((*si).aliasesUnknownInst(*ii, *AA)) {
-            if (LoadInst *li = cast<LoadInst>(*ii)) {
-              Value *va = li->getOperand(0);
-              Instruction *v = cast<Instruction>(va);
-              if (AllocaInst *ai = dyn_cast<AllocaInst>(v)) {
-                std::cerr << "Allocated type: ";
-                ai->getAllocatedType()->dump();
-              }
-            }
-            std::string type_str;
-            llvm::raw_string_ostream rso(type_str);
-            Instruction *uu = *ii;
-            rso << "Problem: ";
-            rso << *uu;
-            Value *vvv = uu->getOperand(0);
-            Instruction *vv = cast<Instruction>(vvv);
-            rso << "\ngetOperand(0) of the problem: " << *vv;
-            std::cerr << "\n" << rso.str() << std::endl;
-          return true;
-        }
-
-      for (std::set<BasicBlock *>::iterator bi = afterBBs.begin(); bi != afterBBs.end(); ++bi)
-        for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii)
-          if ((*si).aliasesUnknownInst(ii, *AA))
-            return true;
-    }
 #endif
 
     // Dependencies flowing from instructions after the call
@@ -660,7 +642,7 @@ namespace {
         ++n_ptr_args;
 
     // Assume a constant buffer size for now.
-    int buffer_size = 576;
+    int buffer_size = 64;
     unsigned int ibuff_addr = 0xFFFF8000;
     unsigned int obuff_addr = 0xFFFFF000;
     IntegerType *nativeInt = getNativeIntegerType();
