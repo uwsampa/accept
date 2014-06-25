@@ -28,13 +28,18 @@ class CWMemo(object):
     `dbname` is the filename of the SQLite database to use for
     memoization. `host` is the cluster-workers master hostname address
     or None to run everything locally and eagerly on the main thread
-    (for slow debugging of small runs). If `force` is true, then no
-    memoized values will be used; every job is recomputed and overwrites
-    any previous result.
+    (for slow debugging of small runs).
+
+    If `force` is true, then no *currently* memoized values will be
+    used. Every job, the first time it is run on this object, is
+    recomputed and overwrites any previous result regardless of the
+    contents of the database. However, memoization is still used within
+    the scope of this instance.
     """
     def __init__(self, dbname='memo.db', host=None, force=False):
         self.dbname = dbname
         self.force = force
+        self.forced = set()
         self.logger = logging.getLogger('cwmemo')
         self.logger.setLevel(logging.INFO)
         self.host = host
@@ -95,8 +100,9 @@ class CWMemo(object):
         # Check whether this call is memoized.
         key = self._key_for(func, args, kwargs)
         if key in self.db:
-            if self.force:
+            if self.force and key not in self.forced:
                 del self.db[key]
+                self.forced.add(key)
             else:
                 return
 
@@ -131,7 +137,7 @@ class CWMemo(object):
 
         with self.client.jobs_cond:
             while key in self.jobs.values() and \
-                  not self.client.remote_exception:
+                    not self.client.remote_exception:
                 self.client.jobs_cond.wait()
 
             if self.client.remote_exception:
