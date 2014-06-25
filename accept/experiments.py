@@ -28,6 +28,18 @@ def dump_config(config):
     return u', '.join(out)
 
 
+def dump_result_human(res, verbose):
+    """Dump a single Result object.
+    """
+    yield dump_config(res.config)
+    yield '{} % error'.format(res.error * 100)
+    yield '{} speedup'.format(res.speedup)
+    if verbose and isinstance(res.outputs[0], str):
+        yield 'output: {}'.format(res.outputs[0])
+    if res.desc != 'good':
+        yield res.desc
+
+
 def dump_results_human(results, pout, verbose):
     """Generate human-readable text (as a sequence of lines) for
     the results.
@@ -42,24 +54,19 @@ def dump_results_human(results, pout, verbose):
         len(optimal), len(suboptimal), len(bad)
     )
     for res in optimal:
-        yield dump_config(res.config)
-        yield '{} % error'.format(res.error * 100)
-        yield '{} speedup'.format(res.speedup)
-
-        if verbose and isinstance(res.outputs[0], str):
-            yield 'output: {}'.format(res.outputs[0])
+        for line in dump_result_human(res, verbose):
+            yield line
 
     if verbose:
         yield '\nsuboptimal configs:'
         for res in suboptimal:
-            yield dump_config(res.config)
-            yield '{} % error'.format(res.error * 100)
-            yield '{} speedup'.format(res.speedup)
+            for line in dump_result_human(res, verbose):
+                yield line
 
         yield '\nbad configs:'
         for res in bad:
-            yield dump_config(res.config)
-            yield res.desc
+            for line in dump_result_human(res, verbose):
+                yield line
 
 
 def dump_results_json(results):

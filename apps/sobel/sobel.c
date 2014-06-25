@@ -67,9 +67,9 @@ void sobel_filtering( )
   }
 }
 
-int main( )
+int main(int argc, const char** argv)
 {
-  load_image_data( );   /* Input of image1 */ 
+  load_image_data(argv[1]);   /* Input of image1 */ 
   accept_roi_begin();
   sobel_filtering( );   /* Sobel filter is applied to image1 */
   accept_roi_end();

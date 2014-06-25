@@ -16,16 +16,15 @@ int x_size1, y_size1, /* width & height of image1*/
   x_size2, y_size2; /* width & height of image2 */
 
 /* Prototype declaration of functions */
-void load_image_data( ); /* image input */
+void load_image_data(const char* file_name); /* image input */
 void save_image_data( ); /* image output*/
 
 /* Main body of functions */
 
-void load_image_data( )
+void load_image_data(const char *file_name)
 /* Input of header & body information of pgm file */
 /* for image1[ ][ ]ÅCx_size1ÅCy_size1 */
 {
-  char *file_name = "i1.pgm";
   char buffer[MAX_BUFFERSIZE];
   FILE *fp; /* File pointer */
   int max_gray; /* Maximum gray level */

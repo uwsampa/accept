@@ -122,7 +122,8 @@ def run(ctx, appdir, verbose, test):
             optimal, _, _ = core.triage_results(results)
             results = exp.test_runs([r.config for r in optimal])
 
-    output = experiments.dump_results_human(results, exp.pout, verbose)
+    pout = exp.test_pout if test else exp.pout
+    output = experiments.dump_results_human(results, pout, verbose)
     for line in output:
         print(line)
 
@@ -168,7 +169,7 @@ def log(ctx, appdir):
     filtproc = subprocess.Popen(['c++filt'], stdin=subprocess.PIPE,
                                 stdout=subprocess.PIPE)
     out, _ = filtproc.communicate(logtxt)
-    return out
+    click.echo(out)
 
 
 @cli.command()
@@ -179,9 +180,10 @@ def build(ctx, appdir):
     """
     appdir = core.normpath(appdir)
     with ctx.obj.client:
-        ctx.obj.client.submit(log_and_output, appdir, ctx.obj.keep_sandboxes)
+        ctx.obj.client.submit(log_and_output, appdir,
+                              keep=ctx.obj.keep_sandboxes)
         _, output = ctx.obj.client.get(log_and_output, appdir)
-    return output
+    click.echo(output)
 
 
 # Parts of the experiments.
