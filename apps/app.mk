@@ -83,6 +83,7 @@ override CFLAGS += -target arm-none-linux-gnueabi \
 	-ccc-gcc-name arm-linux-gnueabi-gcc \
 	-I$(ZYNQDIR) -I$(ZYNQDIR)/bsp/include
 LINKER := arm-xilinx-eabi-gcc
+RUNSHIM := $(ACCEPTDIR)/plat/zynqrun.sh $(ZYNQBIT)
 endif
 
 #################################################################
