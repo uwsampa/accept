@@ -20,8 +20,9 @@ LLVMLINK := $(BUILTDIR)/bin/llvm-link
 LLVMOPT := $(BUILTDIR)/bin/opt
 LLVMLLC := $(BUILTDIR)/bin/llc
 LLVMLLI := $(BUILTDIR)/bin/lli
+RTDIR := $(ACCEPTDIR)/rt
 
-# Platform specifics.
+# Host platform specifics.
 ifeq ($(shell uname -s),Darwin)
 	ifeq ($(shell uname -r | sed -e 's/\..*//'),13) # OS X 10.9
 		XCODEINCLUDES = $(shell xcrun --show-sdk-path)/usr/include
@@ -34,8 +35,10 @@ else
 endif
 ENERCLIB ?= $(BUILTDIR)/lib/EnerCTypeChecker.$(LIBEXT)
 PASSLIB ?= $(BUILTDIR)/lib/enerc.$(LIBEXT)
-PROFLIB ?= $(BUILTDIR)/../enerc/rt/enercrt.bc
-LIBPROFILERT := $(BUILTDIR)/lib/libprofile_rt.$(LIBEXT)
+
+# Target platform specifics.
+ARCH ?= default
+RTLIB ?= $(RTDIR)/acceptrt.$(ARCH).bc
 
 # Compiler flags to pass to Clang to add the ACCEPT machinery.
 override CFLAGS += -Xclang -load -Xclang $(ENERCLIB) \
@@ -98,7 +101,7 @@ $(RUN_TARGETS): run_%: $(TARGET).%
 setup:
 #################################################################
 
-# make LLVM bitcode from C/C++ sources
+# Make LLVM bitcode from C/C++ sources.
 %.bc: %.c $(HEADERS)
 	$(CC) $(CFLAGS) $(CLANGARGS) -c -o $@ $<
 %.bc: %.cpp $(HEADERS)
@@ -106,11 +109,18 @@ setup:
 %.ll: %.bc
 	$(LLVMDIS) $<
 
+# Make the ACCEPT runtime library for the target architecture.
+export ARCH
+export CC
+export CFLAGS
+$(RTLIB):
+	make -C $(RTDIR)
+
 # Link component bitcode files into a single file.
 ifeq ($(ARCH),msp430)
 $(LINKEDBC): $(BCFILES)
 else
-$(LINKEDBC): $(BCFILES) $(PROFLIB)
+$(LINKEDBC): $(BCFILES) $(RTLIB)
 endif
 	$(LLVMLINK) $^ > $@
 	for f in $(BCFILES); do \

@@ -1,3 +1,14 @@
+#ifdef __arm__
+// Zynq platform: use FPGA cycle timer and print to stdout.
+void accept_roi_begin() {
+}
+
+void accept_roi_end() {
+}
+
+#else
+// Ordinary platform: use system clock.
+
 #include <sys/time.h>
 #include <stdio.h>
 
@@ -19,3 +30,5 @@ void accept_roi_end() {
     fprintf(f, "%f\n", delta);
     fclose(f);
 }
+
+#endif

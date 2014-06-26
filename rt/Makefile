@@ -1,3 +1,5 @@
-BIN = ../../../../Debug/bin
-profileinst.bc: profileinst.c
-	$(BIN)/clang -g -O0 -c -emit-llvm -o $@ $<
+CC ?= clang
+ARCH ?= default
+
+acceptrt.$(ARCH).bc: acceptrt.c
+	$(CC) $(CFLAGS) -g -O0 -c -emit-llvm -o $@ $<
