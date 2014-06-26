@@ -73,11 +73,6 @@ ifneq ($(ACCEPT_TEST),)
 	endif
 endif
 
-# Blank setup target. Applications can use this to run one-time setup commands
-# before the workflow gets started.
-.PHONY: setup
-setup:
-
 # Platform-specific settings for the Zynq.
 ifeq ($(ARCH),zynq)
 ZYNQDIR := $(ACCEPTDIR)/plat/zynqlib
@@ -89,14 +84,17 @@ endif
 #################################################################
 BUILD_TARGETS := $(CONFIGS:%=build_%)
 RUN_TARGETS := $(CONFIGS:%=run_%)
-.PHONY: all clean profile $(BUILD_TARGETS) $(RUN_TARGETS)
+.PHONY: all setup clean profile $(BUILD_TARGETS) $(RUN_TARGETS)
 
-all: build_orig
+all: setup build_orig
 
 $(BUILD_TARGETS): build_%: $(TARGET).%
 
 $(RUN_TARGETS): run_%: $(TARGET).%
 	$(RUNSHIM) ./$< $(RUNARGS)
+
+# Blank setup target (for overriding).
+setup:
 #################################################################
 
 # make LLVM bitcode from C/C++ sources
