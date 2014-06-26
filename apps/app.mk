@@ -10,9 +10,9 @@
 ###
 
 # Paths to components of the ACCEPT toolchain.
-ENERCDIR := $(shell pwd)/$(dir $(lastword $(MAKEFILE_LIST)))/..
-INCLUDEDIR := $(ENERCDIR)/include
-BUILTDIR := $(ENERCDIR)/build/built
+ACCEPTDIR := $(shell pwd)/$(dir $(lastword $(MAKEFILE_LIST)))/..
+INCLUDEDIR := $(ACCEPTDIR)/include
+BUILTDIR := $(ACCEPTDIR)/build/built
 CC := $(BUILTDIR)/bin/clang
 CXX := $(BUILTDIR)/bin/clang++
 LLVMDIS := $(BUILTDIR)/bin/llvm-dis
@@ -80,7 +80,9 @@ setup:
 
 # Platform-specific settings for the Zynq.
 ifeq ($(ARCH),zynq)
-CFLAGS += -target arm-none-linux-gnueabi -ccc-gcc-name arm-linux-gnueabi-gcc
+ZYNQDIR := $(ACCEPTDIR)/plat/zynqlib
+CFLAGS += -target arm-none-linux-gnueabi -ccc-gcc-name arm-linux-gnueabi-gcc \
+		  -I$(ZYNQDIR) -I$(ZYNQDIR)/bsp/include
 LINKER ?= arm-xilinx-eabi-gcc
 endif
 
