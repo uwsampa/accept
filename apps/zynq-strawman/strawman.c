@@ -1,4 +1,5 @@
 #include <enerc.h>
+#include <stdio.h>
 
 int main() {
     int x = 5;
@@ -7,5 +8,6 @@ int main() {
     if (x) {
         y = 3;
     }
+    printf("number: %i\n", y);
     return x;
 }
