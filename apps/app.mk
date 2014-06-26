@@ -82,7 +82,8 @@ ZYNQDIR := $(ACCEPTDIR)/plat/zynqlib
 override CFLAGS += -target arm-none-linux-gnueabi \
 	-ccc-gcc-name arm-linux-gnueabi-gcc \
 	-I$(ZYNQDIR) -I$(ZYNQDIR)/bsp/include
-LINKER := arm-xilinx-eabi-gcc
+ARMTOOLCHAIN ?= /sampa/share/Xilinx/ARM_GNU_tools
+LINKER := $(ARMTOOLCHAIN)/bin/arm-xilinx-linux-gnueabi-gcc
 RUNSHIM := $(ACCEPTDIR)/plat/zynqrun.sh $(ZYNQBIT)
 endif
 

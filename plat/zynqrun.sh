@@ -5,12 +5,13 @@ here=`dirname $0`
 # Two arguments: the bitstream and the ELF binary.
 bit=$1
 elf=$2
+shift 2
 
 source /sampa/share/Xilinx/14.6/14.6/ISE_DS/settings64.sh
-LOG_FILE = /sampa/share/thierry/minicom.out
-RUN_TCL = $here/zynqtcl/run_benchmark.tcl
-PS7_INIT = $here/zynqtcl/ps7_init_111.tcl
-SWITCH = zynq
+LOG_FILE=/sampa/share/thierry/minicom.out
+RUN_TCL=$here/zynqtcl/run_benchmark.tcl
+PS7_INIT=$here/zynqtcl/ps7_init_111.tcl
+SWITCH=zynq
 
 # Power-cycle the board.
 wemo switch $SWITCH off
