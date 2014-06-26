@@ -82,10 +82,10 @@ ZYNQDIR := $(ACCEPTDIR)/plat/zynqlib
 override CFLAGS += -target arm-none-linux-gnueabi \
 	-ccc-gcc-name arm-linux-gnueabi-gcc \
 	-I$(ZYNQDIR) -I$(ZYNQDIR)/bsp/include
-ARMTOOLCHAIN ?= /sampa/share/Xilinx/ARM_GNU_tools
-LINKER := $(ARMTOOLCHAIN)/bin/arm-xilinx-linux-gnueabi-gcc
-LDFLAGS := -L$(ZYNQDIR)/bsp/lib \
-	-Wl,--start-group,-lxil,-lgcc,-lc,-lm,--end-group
+ARMTOOLCHAIN ?= /sampa/share/Xilinx/14.6/14.6/ISE_DS/EDK/gnu/arm/lin
+LINKER := $(ARMTOOLCHAIN)/bin/arm-xilinx-eabi-gcc
+LDFLAGS := -Wl,-T -Wl,$(ZYNQDIR)/lscript.ld -L$(ZYNQDIR)/bsp/lib
+LIBS := -Wl,--start-group,-lxil,-lgcc,-lc,-lm,--end-group
 RUNSHIM := $(ACCEPTDIR)/plat/zynqrun.sh $(ZYNQBIT)
 endif
 
@@ -154,7 +154,7 @@ endif
 
 # .o -> executable
 $(TARGET).%: $(TARGET).%.o
-	$(LINKER) $(LDFLAGS) -o $@ $<
+	$(LINKER) $(LDFLAGS) -o $@ $< $(LIBS)
 
 clean:
 	$(RM) $(TARGET) $(TARGET).o $(BCFILES) $(LLFILES) $(LINKEDBC) \
