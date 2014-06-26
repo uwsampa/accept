@@ -76,9 +76,10 @@ endif
 # Platform-specific settings for the Zynq.
 ifeq ($(ARCH),zynq)
 ZYNQDIR := $(ACCEPTDIR)/plat/zynqlib
-CFLAGS += -target arm-none-linux-gnueabi -ccc-gcc-name arm-linux-gnueabi-gcc \
-		  -I$(ZYNQDIR) -I$(ZYNQDIR)/bsp/include
-LINKER ?= arm-xilinx-eabi-gcc
+override CFLAGS += -target arm-none-linux-gnueabi \
+	-ccc-gcc-name arm-linux-gnueabi-gcc \
+	-I$(ZYNQDIR) -I$(ZYNQDIR)/bsp/include
+LINKER := arm-xilinx-eabi-gcc
 endif
 
 #################################################################
