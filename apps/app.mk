@@ -62,7 +62,7 @@ else
 endif
 
 # The different executable configurations we can build.
-CONFIGS := orig opt prof
+CONFIGS := orig opt
 
 # Determine which command-line arguments to use depending on whether we are
 # "training" (profiling/measuring) or "testing" (performing a final
@@ -77,6 +77,12 @@ endif
 # before the workflow gets started.
 .PHONY: setup
 setup:
+
+# Platform-specific settings for the Zynq.
+ifeq ($(ARCH),zynq)
+CFLAGS += -target arm-none-linux-gnueabi -ccc-gcc-name arm-linux-gnueabi-gcc
+LINKER ?= arm-xilinx-eabi-gcc
+endif
 
 #################################################################
 BUILD_TARGETS := $(CONFIGS:%=build_%)
@@ -110,9 +116,7 @@ endif
 		$(LLVMDIS) $$f; \
 	done
 
-# Three different transformations of the amalgamated program.
-$(TARGET).prof.bc: $(LINKEDBC)
-	$(LLVMOPT) -insert-edge-profiling $< -o $@
+# Versions of the amalgamated program.
 $(TARGET).orig.bc: $(LINKEDBC)
 	$(LLVMOPT) -load $(PASSLIB) -O3 $< -o $@
 $(TARGET).opt.bc: $(LINKEDBC) accept_config.txt
