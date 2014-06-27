@@ -125,11 +125,7 @@ $(RTLIB):
 	make -C $(RTDIR) acceptrt.$(ARCH).bc CC="$(CC)" CFLAGS="$(CFLAGS)"
 
 # Link component bitcode files into a single file.
-ifeq ($(ARCH),msp430)
-$(LINKEDBC): $(BCFILES)
-else
 $(LINKEDBC): $(BCFILES) $(EXTRABC)
-endif
 	$(LLVMLINK) $^ > $@
 	for f in $(BCFILES); do \
 		$(LLVMDIS) $$f; \
