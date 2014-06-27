@@ -39,6 +39,7 @@ PASSLIB ?= $(BUILTDIR)/lib/enerc.$(LIBEXT)
 # Target platform specifics.
 ARCH ?= default
 RTLIB ?= $(RTDIR)/acceptrt.$(ARCH).bc
+EXTRABC += $(RTLIB)
 
 # Compiler flags to pass to Clang to add the ACCEPT machinery.
 override CFLAGS += -Xclang -load -Xclang $(ENERCLIB) \
@@ -76,20 +77,6 @@ ifneq ($(ACCEPT_TEST),)
 	endif
 endif
 
-# Platform-specific settings for the Zynq.
-ifeq ($(ARCH),zynq)
-ZYNQDIR := $(ACCEPTDIR)/plat/zynqlib
-override CFLAGS += -target arm-none-linux-gnueabi \
-	-ccc-gcc-name arm-linux-gnueabi-gcc \
-	-I$(ZYNQDIR) -I$(ZYNQDIR)/bsp/include
-ARMTOOLCHAIN ?= /sampa/share/Xilinx/14.6/14.6/ISE_DS/EDK/gnu/arm/lin
-LINKER := $(ARMTOOLCHAIN)/bin/arm-xilinx-eabi-gcc
-LDFLAGS := -Wl,-T -Wl,$(ZYNQDIR)/lscript.ld -L$(ZYNQDIR)/bsp/lib
-LIBS := -Wl,--start-group,-lxil,-lgcc,-lc,-lm,--end-group
-RUNSHIM := $(ACCEPTDIR)/plat/zynqrun.sh $(ZYNQBIT)
-LLCARGS := -march=arm -mcpu=cortex-a9
-endif
-
 #################################################################
 BUILD_TARGETS := $(CONFIGS:%=build_%)
 RUN_TARGETS := $(CONFIGS:%=run_%)
@@ -105,6 +92,23 @@ $(RUN_TARGETS): run_%: $(TARGET).%
 # Blank setup target (for overriding).
 setup:
 #################################################################
+
+# Platform-specific settings for the Zynq.
+ifeq ($(ARCH),zynq)
+ZYNQDIR := $(ACCEPTDIR)/plat/zynqlib
+override CFLAGS += -target arm-none-linux-gnueabi \
+	-ccc-gcc-name arm-linux-gnueabi-gcc \
+	-I$(ZYNQDIR) -I$(ZYNQDIR)/bsp/include
+ARMTOOLCHAIN ?= /sampa/share/Xilinx/14.6/14.6/ISE_DS/EDK/gnu/arm/lin
+LINKER := $(ARMTOOLCHAIN)/bin/arm-xilinx-eabi-gcc
+LDFLAGS := -Wl,-T -Wl,$(ZYNQDIR)/lscript.ld -L$(ZYNQDIR)/bsp/lib
+LIBS := -Wl,--start-group,-lxil,-lgcc,-lc,-lm,--end-group
+RUNSHIM := $(ACCEPTDIR)/plat/zynqrun.sh $(ZYNQBIT)
+LLCARGS := -march=arm -mcpu=cortex-a9
+$(ZYNQDIR)/profile.bc: $(ZYNQDIR)/profile.c
+	make -C $(ZYNQDIR) CC=$(CC) CLFAGS=$(CFLAGS)
+EXTRABC += $(ZYNQDIR)/profile.bc
+endif
 
 # Make LLVM bitcode from C/C++ sources.
 %.bc: %.c $(HEADERS)
@@ -125,7 +129,7 @@ $(RTLIB):
 ifeq ($(ARCH),msp430)
 $(LINKEDBC): $(BCFILES)
 else
-$(LINKEDBC): $(BCFILES) $(RTLIB)
+$(LINKEDBC): $(BCFILES) $(EXTRABC)
 endif
 	$(LLVMLINK) $^ > $@
 	for f in $(BCFILES); do \
