@@ -103,8 +103,10 @@ ARMTOOLCHAIN ?= /sampa/share/Xilinx/14.6/14.6/ISE_DS/EDK/gnu/arm/lin
 LINKER := $(ARMTOOLCHAIN)/bin/arm-xilinx-eabi-gcc
 LDFLAGS := -Wl,-T -Wl,$(ZYNQDIR)/lscript.ld -L$(ZYNQDIR)/bsp/lib
 LIBS := -Wl,--start-group,-lxil,-lgcc,-lc,-lm,--end-group
-RUNSHIM := $(ACCEPTDIR)/plat/zynqrun.sh $(ZYNQBIT)
 LLCARGS := -march=arm -mcpu=cortex-a9
+
+RUNSHIM := $(ACCEPTDIR)/plat/zynqrun.sh $(ZYNQBIT)
+
 $(ZYNQDIR)/profile.bc: $(ZYNQDIR)/profile.c
 	make -C $(ZYNQDIR) CC=$(CC) CLFAGS=$(CFLAGS)
 EXTRABC += $(ZYNQDIR)/profile.bc
@@ -119,11 +121,8 @@ endif
 	$(LLVMDIS) $<
 
 # Make the ACCEPT runtime library for the target architecture.
-export ARCH
-export CC
-export CFLAGS
 $(RTLIB):
-	make -C $(RTDIR)
+	make -C $(RTDIR) acceptrt.$(ARCH).bc CC="$(CC)" CFLAGS="$(CFLAGS)"
 
 # Link component bitcode files into a single file.
 ifeq ($(ARCH),msp430)
