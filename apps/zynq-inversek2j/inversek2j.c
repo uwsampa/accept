@@ -8,7 +8,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
 
 #include "kinematics.h"
 
@@ -75,7 +74,7 @@ int main (int argc, const char* argv[]) {
     } else {
         n = atoi(argv[1]);
     }
-    assert (n%(BUFFER_SIZE)==0);
+    // assert (n%(BUFFER_SIZE)==0);
     
     // Allocate input and output arrays
     float* xy           = (float*)malloc(n * 2 * sizeof (float));
