@@ -3,8 +3,6 @@ ARCH := msp430
 override CLANGARGS += -O0 -Werror
 LINKER := msp430-gcc
 LDFLAGS := -mmcu=msp430f2132
-PROFLIB := enercrt-msp430.bc
-override CLEANMETOO += $(PROFLIB)
 SINFREQ ?= 500 # Hz
 
 # there is literally no good way to do this without autoconf
@@ -24,10 +22,6 @@ CFLAGS := -target msp430 -I$(MSPGCC_ROOT)/lib/gcc/msp430/4.6.3/include -I$(MSPGC
 
 APP_MK := ../app.mk
 include $(APP_MK)
-
-ENERCRT_SRC=$(ENERCDIR)/rt/enercrt.c
-$(PROFLIB): $(ENERCRT_SRC)
-	$(CC) $(CFLAGS) -emit-llvm -c -o $@ $<
 
 # -f 500 means 500 Hz
 RUNSHIM=../../bin/mspsim -f $(SINFREQ) -s ../../mspsim/scripts/start.sc
