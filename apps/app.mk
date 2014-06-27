@@ -87,6 +87,7 @@ LINKER := $(ARMTOOLCHAIN)/bin/arm-xilinx-eabi-gcc
 LDFLAGS := -Wl,-T -Wl,$(ZYNQDIR)/lscript.ld -L$(ZYNQDIR)/bsp/lib
 LIBS := -Wl,--start-group,-lxil,-lgcc,-lc,-lm,--end-group
 RUNSHIM := $(ACCEPTDIR)/plat/zynqrun.sh $(ZYNQBIT)
+LLCARGS := -march=arm -mcpu=cortex-a9
 endif
 
 #################################################################
@@ -149,7 +150,7 @@ $(TARGET).%.o: $(TARGET).%.s
 else
 $(TARGET).%.o: $(TARGET).%.bc
 	$(LLVMOPT) -strip $< | \
-	$(LLVMLLC) -filetype=obj > $@
+	$(LLVMLLC) -filetype=obj $(LLCARGS) > $@
 endif
 
 # .o -> executable
