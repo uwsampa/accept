@@ -104,12 +104,7 @@ LINKER := $(ARMTOOLCHAIN)/bin/arm-xilinx-eabi-gcc
 LDFLAGS := -Wl,-T -Wl,$(ZYNQDIR)/lscript.ld -L$(ZYNQDIR)/bsp/lib
 LIBS := -Wl,--start-group,-lxil,-lgcc,-lc,-lm,--end-group
 LLCARGS := -march=arm -mcpu=cortex-a9
-
 RUNSHIM := $(ACCEPTDIR)/plat/zynqrun.sh $(ZYNQBIT)
-
-$(ZYNQDIR)/profile.bc: $(ZYNQDIR)/profile.c
-	make -C $(ZYNQDIR) CC=$(CC) CLFAGS=$(CFLAGS)
-EXTRABC += $(ZYNQDIR)/profile.bc
 endif
 
 # Make LLVM bitcode from C/C++ sources.
