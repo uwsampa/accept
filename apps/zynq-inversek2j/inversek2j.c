@@ -8,15 +8,12 @@
 // andreolb: we are not executing in NPU.
 
 #include "npu.h"
-#include "profile.h"
 #include "xil_io.h"
 #include "xil_mmu.h"
 #include "xil_types.h"
 
 
 #define PI 3.14159265
-#define GPIO_ADDR       0xE000A048
-#define rd_fpga_clk()   *((volatile unsigned int*)GPIO_ADDR)
 
 // Inversek2j parameters
 #define NUM_INPUTS      2
@@ -138,7 +135,8 @@ int main (int argc, const char* argv[]) {
 */
     Xil_SetTlbAttributes(OCM_SRC,0x15C06);
     Xil_SetTlbAttributes(OCM_DST,0x15C06);
-    t_precise = rd_fpga_clk();
+
+    accept_roi_begin();
 
 #if POWER_MODE == 1
     while (1) {
@@ -181,7 +179,7 @@ int main (int argc, const char* argv[]) {
     t_precise = rd_fpga_clk() - t_precise;
 #endif //TIMER
 */
-    t_precise = rd_fpga_clk() - t_precise;
+    accept_roi_end();
 
 
     ///////////////////////////////
@@ -310,7 +308,6 @@ int main (int argc, const char* argv[]) {
     // 5 - Report results
     ///////////////////////////////
 
-    printf("Precise execution took:     %u cycles \n", t_precise);
 // andreolb: no need to report results.
 /*
 #if PROFILE_MODE != 0
