@@ -2,8 +2,6 @@ TARGET := blackscholes
 LDFLAGS := -lm -pthread
 CFLAGS := -pthread -DENABLE_THREADS
 
-blackscholes.m4.cpp: blackscholes.c c.m4.pthreads
-	m4 c.m4.pthreads $< > $@
 SOURCES := blackscholes.m4.cpp
 
 # RUNARGS := 1 in_64K.txt output.txt  # simlarge
@@ -14,3 +12,6 @@ CLEANMETOO := output.txt blackscholes.m4.cpp
 
 APP_MK := ../app.mk
 include $(APP_MK)
+
+blackscholes.m4.cpp: blackscholes.c c.m4.pthreads
+	m4 c.m4.pthreads $< > $@

@@ -10,7 +10,7 @@
 ###
 
 # Paths to components of the ACCEPT toolchain.
-ACCEPTDIR := $(shell pwd)/$(dir $(lastword $(MAKEFILE_LIST)))/..
+ACCEPTDIR := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))/..
 INCLUDEDIR := $(ACCEPTDIR)/include
 BUILTDIR := $(ACCEPTDIR)/build/built
 CC := $(BUILTDIR)/bin/clang
