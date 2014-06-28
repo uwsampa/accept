@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "fourier.h"
+#include <enerc.h>
 
 #define  MAX_K      ((1 << 12))
 
@@ -105,6 +106,7 @@ int main(int argc, char* argv[]) {
     dynInsn_precise = get_eventcount(0);  
 */
     
+    accept_roi_begin();
 #if POWER_MODE == 1
     while (1) {
 #endif //POWER_MODE
@@ -114,6 +116,7 @@ int main(int argc, char* argv[]) {
 #if POWER_MODE == 1
     }
 #endif //POWER_MODE
+    accept_roi_end();
 
 // andreolb
 // We are not doing measurements.
