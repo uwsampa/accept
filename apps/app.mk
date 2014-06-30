@@ -31,6 +31,11 @@ ifeq ($(shell uname -s),Darwin)
 	endif
 	LIBEXT := dylib
 else
+	ifneq ($(wildcard /usr/include/x86_64-linux-gnu/c++/4.8),)
+		# Work around Clang include path search bug on Debian/Ubuntu.
+		# https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=697127
+		CXXFLAGS += -I/usr/include/x86_64-linux-gnu/c++/4.8
+	endif
 	LIBEXT := so
 endif
 ENERCLIB ?= $(BUILTDIR)/lib/EnerCTypeChecker.$(LIBEXT)
