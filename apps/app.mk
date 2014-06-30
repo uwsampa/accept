@@ -82,9 +82,9 @@ BUILD_TARGETS := $(CONFIGS:%=build_%)
 RUN_TARGETS := $(CONFIGS:%=run_%)
 .PHONY: all setup clean profile $(BUILD_TARGETS) $(RUN_TARGETS)
 
-all: setup build_orig
+all: build_orig
 
-$(BUILD_TARGETS): build_%: $(TARGET).%
+$(BUILD_TARGETS): build_%: setup $(TARGET).%
 
 $(RUN_TARGETS): run_%: $(TARGET).%
 	$(RUNSHIM) ./$< $(RUNARGS)
