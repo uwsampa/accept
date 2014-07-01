@@ -3,7 +3,7 @@ TARGET := ccv
 lib/config.mk: lib/config.mk.in
 	cd lib ; ./configure
 
-SOURCES := $(wildcard lib/*.c) $(wildcard lib/3rdparty/dSFMT/*.c) \
+SOURCES := $(wildcard lib/*.c) $(wildcard lib/3rdparty/dsfmt/*.c) \
 	$(wildcard lib/3rdparty/kissfft/*.c) $(wildcard lib/3rdparty/sfmt/*.c) \
 	$(wildcard lib/3rdparty/sha1/*.c) bin/bbfdetect.c
 
