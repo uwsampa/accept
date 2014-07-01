@@ -200,8 +200,10 @@ def build(approx=False, require=True):
 
     logging.debug(u'running build command: {0}'.format(u' '.join(build_cmd)))
     status, output = run_cmd(build_cmd, BUILD_TIMEOUT)
-    logging.log(FIREHOSE,
-                u'build output (status {0}): {1}'.format(status, output))
+    logging.log(FIREHOSE, u'build output (status {0}): {1}'.format(
+        status,
+        output.decode('utf8', 'ignore'),
+    ))
 
     if status is None:
         raise BuildError('build timed out')

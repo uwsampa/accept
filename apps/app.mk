@@ -46,12 +46,13 @@ ARCH ?= default
 RTLIB ?= $(RTDIR)/acceptrt.$(ARCH).bc
 EXTRABC += $(RTLIB)
 
-# Compiler flags to pass to Clang to add the ACCEPT machinery.
-override CFLAGS += -Xclang -load -Xclang $(ENERCLIB) \
-	-Xclang -add-plugin -Xclang enerc-type-checker \
-	-g -fno-use-cxa-atexit \
-	-I$(INCLUDEDIR) -emit-llvm
+# General compiler flags.
+override CFLAGS += -I$(INCLUDEDIR) -g -fno-use-cxa-atexit
 override CXXFLAGS += $(CFLAGS)
+
+# Compiler flags to pass to Clang to add the ACCEPT machinery.
+ENERCFLAGS :=  -Xclang -load -Xclang $(ENERCLIB) \
+	-Xclang -add-plugin -Xclang enerc-type-checker
 
 # SOURCES is a list of source files, *.{c,cpp} by default.
 SOURCES ?= $(wildcard *.c) $(wildcard *.cpp)
@@ -114,9 +115,9 @@ endif
 
 # Make LLVM bitcode from C/C++ sources.
 %.bc: %.c $(HEADERS)
-	$(CC) $(CFLAGS) $(CLANGARGS) -c -o $@ $<
+	$(CC) $(ENERCFLAGS) $(CFLAGS) $(CLANGARGS) -c -emit-llvm -o $@ $<
 %.bc: %.cpp $(HEADERS)
-	$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(CLANGARGS) -c -o $@ $<
+	$(CXX) $(ENERCFLAGS) $(CXXFLAGS) $(CLANGARGS) -c -emit-llvm -o $@ $<
 %.ll: %.bc
 	$(LLVMDIS) $<
 
