@@ -16,13 +16,13 @@ if {$argc != 3 && $argc != 4} {
 }
 
 # Program the FPGA
-fpga -f $bitfile
-# Connect to the PS section CPU1
-connect arm hw
+fpga -cable type xilinx_plugin modulename digilent_plugin modulearg Device=zynq2 -f $bitfile
+# Connect to the PS section
+connect arm hw -cable type xilinx_plugin modulename digilent_plugin modulearg Device=zynq2
 # Reset the system
 rst
 # Initialize the PS section (Clock PLL, MIO, DDR etc.)
-source $ps7init 
+source $ps7init
 ps7_init
 ps7_post_config
 # Load the elf program
