@@ -14,5 +14,5 @@ void accept_roi_begin() {
 void accept_roi_end() {
     unsigned int clock_end = rd_fpga_clk();
     unsigned int elapsed = accept_clock_begin - clock_end;
-    printf("ACCEPT TIME: %u\n", elapsed);
+    printf("\nACCEPT-TIME: %u\n", elapsed);
 }

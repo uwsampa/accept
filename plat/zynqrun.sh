@@ -10,6 +10,8 @@ shift 2
 
 # Destination for the log file.
 logdest=zynqlog.txt
+outputdest=output.txt
+timedest=accept_time.txt
 
 source /sampa/share/Xilinx/14.6/14.6/ISE_DS/settings64.sh
 LOG_FILE=/sampa/share/thierry/minicom2.out
@@ -34,3 +36,7 @@ sleep 10s
 echo done, collecting log
 cp $LOG_FILE $logdest
 chmod a-x $logdest
+
+# Split the log into output and time.
+perl -n -p -e's/ACCEPT-TIME: (\d+)\n//' < $logdest > $outputdest
+perl -n -e'/ACCEPT-TIME: (\d+)/ && print $1' < $logdest > $timedest
