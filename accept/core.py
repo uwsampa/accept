@@ -202,7 +202,7 @@ def build(approx=False, require=True):
     status, output = run_cmd(build_cmd, BUILD_TIMEOUT)
     logging.log(FIREHOSE, u'build output (status {0}): {1}'.format(
         status,
-        output.decode('utf8', 'ignore'),
+        output.decode('utf8', 'ignore') if output else output,
     ))
 
     if status is None:
