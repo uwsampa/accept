@@ -38,5 +38,5 @@ cp $LOG_FILE $logdest
 chmod a-x $logdest
 
 # Split the log into output and time.
-perl -n -p -e's/ACCEPT-TIME: (\d+)\n//' < $logdest > $outputdest
-perl -n -e'/ACCEPT-TIME: (\d+)/ && print $1' < $logdest > $timedest
+grep -v '^ACCEPT-TIME:' $logdest > $outputdest
+grep '^ACCEPT-TIME:' $logdest | cut -d' ' -f2 > $timedest
