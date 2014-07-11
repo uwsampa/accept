@@ -128,13 +128,15 @@ $(RTLIB):
 # Link component bitcode files into a single file.
 $(LINKEDBC): $(BCFILES) $(EXTRABC)
 	$(LLVMLINK) $^ > $@
-	for f in $(BCFILES); do \
-		$(LLVMDIS) $$f; \
-	done
+
+# For debugging: we can also disassemble to .ll files.
+#	for f in $(BCFILES); do \
+#		$(LLVMDIS) $$f; \
+#	done
 
 # Versions of the amalgamated program.
 $(TARGET).orig.bc: $(LINKEDBC)
-	$(LLVMOPT) -load $(PASSLIB) -O3 $< -o $@
+	$(LLVMOPT) -load $(PASSLIB) -O2 $< -o $@
 $(TARGET).opt.bc: $(LINKEDBC) accept_config.txt
 	$(LLVMOPT) -load $(PASSLIB) -accept-relax -O3 $< -o $@
 

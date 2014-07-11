@@ -45,7 +45,7 @@ int main(int argc, char** argv)
 					read--;
 				file[read] = 0;
 				image = 0;
-				ccv_read(file, &image, CCV_IO_GRAY | CCV_IO_ANY_FILE);
+				int err = ccv_read(file, &image, CCV_IO_GRAY | CCV_IO_ANY_FILE);
 				assert(image != 0);
 				ccv_array_t* seq = ccv_bbf_detect_objects(image, &cascade, 1, ccv_bbf_default_params);
 				for (i = 0; i < seq->rnum; i++)
