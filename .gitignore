@@ -9,3 +9,5 @@ apps/fluidanimate/in_*.fluid
 site/
 venv/
 rt/acceptrt.*.bc
+*.pyc
+*.pyo
