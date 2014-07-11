@@ -48,7 +48,7 @@ int i;
 * precision as EXP(LN(GAMMA(X))) for X>0. *
 ******************************************/
 APPROX double Gamma(APPROX double xx)  {
-  double APPROX cof[7],stp,x,tmp,ser;
+  APPROX double cof[7],stp,x,tmp,ser;
   int j;
   cof[1]=76.18009173;
   cof[2]=-86.50532033;

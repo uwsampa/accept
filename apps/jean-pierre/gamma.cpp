@@ -32,7 +32,7 @@
 #include <enerc.h>
 
 #define  half 0.5
-#define  tenthousandth 0.0001
+#define  increment 0.0000005
 #define  one  1.0
 #define  fpf  5.5
 #define  zero 0.0 

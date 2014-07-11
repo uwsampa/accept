@@ -1,3 +1,5 @@
+import math
+
 def load():
   out = []
   with open('my_output.txt') as f:
@@ -9,5 +11,8 @@ def load():
 def score(orig, relaxed):
   total = 0.0
   for a, b in zip(orig, relaxed):
-    total += min(abs(a - b), 1.0)
+    if (math.isnan(a) or math.isnan(b)):
+      total += 1.0
+    else:
+      total += min(abs(a - b) / a, 1.0)
   return total / len(orig)
