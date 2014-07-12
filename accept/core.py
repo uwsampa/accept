@@ -646,7 +646,7 @@ def triage_results(results):
 class Evaluation(object):
     """The state for the evaluation of a single application.
     """
-    def __init__(self, appdir, client, reps):
+    def __init__(self, appdir, client, reps, test_reps):
         """Set up an experiment. Takes an active CWMemo instance,
         `client`, through which jobs will be submitted and outputs
         collected. `reps` is the number of executions per configuration
@@ -655,6 +655,7 @@ class Evaluation(object):
         self.appdir = normpath(appdir)
         self.client = client
         self.reps = reps
+        self.test_reps = test_reps
 
         self.appname = os.path.basename(self.appdir)
 
@@ -704,7 +705,8 @@ class Evaluation(object):
         ))
 
         # Precise (baseline) execution.
-        for rep in range(self.reps):
+        reps = self.test_reps if test else self.reps
+        for rep in range(reps):
             self.client.submit(
                 build_and_execute,
                 self.appdir, None, test, rep,
@@ -727,7 +729,8 @@ class Evaluation(object):
         """Generate the durations for the precise executions. Must be
         called after `setup`.
         """
-        for rep in range(self.reps):
+        reps = self.test_reps if test else self.reps
+        for rep in range(reps):
             ex = self.client.get(build_and_execute,
                                  self.appdir, None, test, rep)
             if ex.status != 0:
@@ -756,7 +759,9 @@ class Evaluation(object):
         """Submit the executions for a given configuration.
         """
         base_elapsed = self.test_base_elapsed if test else self.base_elapsed
-        for rep in range(self.reps):
+        reps = self.test_reps if test else self.reps
+
+        for rep in range(reps):
             self.client.submit(
                 build_and_execute,
                 self.appdir, config, test, rep,
@@ -769,11 +774,12 @@ class Evaluation(object):
         """
         pout = self.test_pout if test else self.pout
         ptimes = self.test_ptimes if test else self.ptimes
+        reps = self.test_reps if test else self.reps
 
         # Collect all executions for the config.
         exs = [self.client.get(build_and_execute,
                                self.appdir, config, test, rep)
-               for rep in range(self.reps)]
+               for rep in range(reps)]
 
         # Evaluate the result.
         res = Result(self.appname, config,
@@ -912,4 +918,7 @@ class Evaluation(object):
         optimal configurations in a test result set.
         """
         optimal, _, _ = triage_results(results)
-        return self.test_runs([r.config for r in optimal])
+        if optimal:
+            return self.test_runs([r.config for r in optimal])
+        else:
+            return []

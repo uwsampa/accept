@@ -127,10 +127,10 @@ def run_experiments(ev, only=None):
     return main_results, kind_results, end_time - start_time
 
 
-def evaluate(client, appname, verbose=False, reps=1, as_json=False,
-             only=None):
+def evaluate(client, appname, verbose=False, reps=1, test_reps=1,
+             as_json=False, only=None):
     appdir = os.path.join(APPSDIR, appname)
-    exp = core.Evaluation(appdir, client, reps)
+    exp = core.Evaluation(appdir, client, reps, test_reps)
 
     logging.info('starting experiments')
     with client:

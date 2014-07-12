@@ -14,14 +14,13 @@ from . import core
 from . import cwmemo
 
 
-LOCAL_REPS = 1
-CLUSTER_REPS = 5
 APPS = ['streamcluster', 'sobel', 'canneal', 'fluidanimate',
         'x264']
 RESULTS_JSON = 'results.json'
 
 
-GlobalConfig = namedtuple('GlobalConfig', 'client reps keep_sandboxes')
+GlobalConfig = namedtuple('GlobalConfig',
+                          'client reps test_reps keep_sandboxes')
 
 
 @click.group(help='the ACCEPT approximate compiler driver')
@@ -31,12 +30,14 @@ GlobalConfig = namedtuple('GlobalConfig', 'client reps keep_sandboxes')
               help='execute on Slurm cluster')
 @click.option('--force', '-f', is_flag=True,
               help='clear memoized results')
-@click.option('--reps', '-r', type=int, default=None,
+@click.option('--reps', '-r', type=int, default=1,
               help='replication factor')
+@click.option('--test-reps', '-R', type=int, default=None,
+              help='testing replication factor')
 @click.option('--keep-sandboxes', '-k', is_flag=True,
               help='do not delete sandbox dirs')
 @click.pass_context
-def cli(ctx, verbose, cluster, force, reps, keep_sandboxes):
+def cli(ctx, verbose, cluster, force, reps, test_reps, keep_sandboxes):
     # Set up logging.
     logging.getLogger().addHandler(logging.StreamHandler(sys.stderr))
     if verbose >= 3:
@@ -49,11 +50,17 @@ def cli(ctx, verbose, cluster, force, reps, keep_sandboxes):
     # Set up the parallelism/memoization client.
     client = cwmemo.get_client(cluster=cluster, force=force)
 
-    # Default reps.
-    if reps is None:
-        reps = CLUSTER_REPS if cluster else LOCAL_REPS
+    # Testing reps fall back to training reps if unspecified.
+    test_reps = test_reps or reps
 
-    ctx.obj = GlobalConfig(client, reps, keep_sandboxes)
+    ctx.obj = GlobalConfig(client, reps, test_reps, keep_sandboxes)
+
+
+def get_eval(appdir, config):
+    """Get an Evaluation object given the configured `GlobalConfig`.
+    """
+    return core.Evaluation(appdir, config.client, config.reps,
+                           config.test_reps)
 
 
 # Run the experiments.
@@ -61,8 +68,8 @@ def cli(ctx, verbose, cluster, force, reps, keep_sandboxes):
 @cli.command()
 @click.argument('appnames', metavar='NAME', default=APPS, nargs=-1,
                 type=unicode)
-@click.option('--json', '-j', 'as_json', default=False)
-@click.option('--time', '-t', 'include_time', default=False)
+@click.option('--json', '-j', 'as_json', is_flag=True)
+@click.option('--time', '-t', 'include_time', is_flag=True)
 @click.option('--only', '-o', 'only', multiple=True)
 @click.option('--verbose', '-v', is_flag=True,
               help='show suboptimal results')
@@ -84,7 +91,8 @@ def exp(ctx, appnames, verbose, as_json, include_time, only):
     for appname in appnames:
         logging.info(appname)
         res = experiments.evaluate(ctx.obj.client, appname, verbose,
-                                   ctx.obj.reps, as_json, only)
+                                   ctx.obj.reps, ctx.obj.test_reps, as_json,
+                                   only)
 
         if as_json:
             if not include_time:
@@ -116,7 +124,7 @@ def run(ctx, appdir, verbose, test):
     the "headline" results for the benchmark; no characterization
     results for the paper are collected.
     """
-    exp = core.Evaluation(appdir, ctx.obj.client, ctx.obj.reps)
+    exp = get_eval(appdir, ctx.obj)
 
     with ctx.obj.client:
         results = exp.run()
@@ -201,7 +209,7 @@ def build(ctx, appdir):
 def precise(ctx, appdir):
     """Execute the baseline version of a program.
     """
-    ev = core.Evaluation(appdir, ctx.obj.client, ctx.obj.reps)
+    ev = get_eval(appdir, ctx.obj)
     with ctx.obj.client:
         ev.setup()
         times = list(ev.precise_times())
@@ -219,7 +227,7 @@ def precise(ctx, appdir):
 def approx(ctx, num, appdir):
     """Execute approximate versions of a program.
     """
-    ev = core.Evaluation(appdir, ctx.obj.client, ctx.obj.reps)
+    ev = get_eval(appdir, ctx.obj)
     with ctx.obj.client:
         ev.run()
     results = ev.results
