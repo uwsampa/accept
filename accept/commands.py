@@ -124,8 +124,7 @@ def run(ctx, appdir, verbose, test):
         # If we're getting test executions, run the optimal
         # configurations and instead print those results.
         if test:
-            optimal, _, _ = core.triage_results(results)
-            results = exp.test_runs([r.config for r in optimal])
+            results = exp.test_results(results)
 
     pout = exp.test_pout if test else exp.pout
     output = experiments.dump_results_human(results, pout, verbose)

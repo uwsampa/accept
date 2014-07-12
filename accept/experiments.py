@@ -10,7 +10,6 @@ APPSDIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'apps')
 OPT_KINDS = {
     'loopperf': ('loop',),
     'desync':   ('lock', 'barrier'),
-    'aarelax':  ('alias',),
 }
 
 
@@ -103,10 +102,7 @@ def run_experiments(ev, only=None):
     end_time = time.time()
 
     # "Testing" phase.
-    if main_results:
-        # FIXME disabled for now.
-        # testing_results(ev, main_results)
-        pass
+    main_results = ev.test_results(main_results)
 
     # Experiments with only one optimization type at a time.
     kind_results = {}
@@ -126,7 +122,7 @@ def run_experiments(ev, only=None):
 
         # Run the experiment workflow.
         logging.info('isolated configs: {}'.format(len(kind_configs)))
-        kind_results[kind] = ev.run(kind_configs)
+        kind_results[kind] = ev.test_results(ev.run(kind_configs))
 
     return main_results, kind_results, end_time - start_time
 

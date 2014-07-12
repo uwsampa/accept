@@ -906,3 +906,10 @@ class Evaluation(object):
         # Submit approximate jobs.
         logging.info('test evaluation: {} configurations'.format(len(configs)))
         return self.run_approx(configs, True)
+
+    def test_results(self, results):
+        """As an alternative to `test_runs`, get testing results for the
+        optimal configurations in a test result set.
+        """
+        optimal, _, _ = triage_results(results)
+        return self.test_runs([r.config for r in optimal])
