@@ -149,7 +149,6 @@ $(TARGET).dummy.bc: $(LINKEDBC)
 	cp $< $@
 
 # .bc -> .s
-.INTERMEDIATE: $(TARGET).%.s
 $(TARGET).%.s: $(TARGET).%.bc
 	$(LLVMLLC) $(LLCARGS) $< > $@
 
