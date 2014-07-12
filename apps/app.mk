@@ -49,6 +49,7 @@ EXTRABC += $(RTLIB)
 # General compiler flags.
 override CFLAGS += -I$(INCLUDEDIR) -g -fno-use-cxa-atexit
 override CXXFLAGS += $(CFLAGS)
+LLCARGS += -O2
 
 # Compiler flags to pass to Clang to add the ACCEPT machinery.
 ENERCFLAGS :=  -Xclang -load -Xclang $(ENERCLIB) \
@@ -71,9 +72,6 @@ else
 	LINKER ?= $(CC)
 endif
 
-# The different executable configurations we can build.
-CONFIGS := orig opt
-
 # Determine which command-line arguments to use depending on whether we are
 # "training" (profiling/measuring) or "testing" (performing a final
 # evaluation).
@@ -84,6 +82,9 @@ ifneq ($(ACCEPT_TEST),)
 endif
 
 #################################################################
+# The different executable configurations we can build.
+CONFIGS := orig opt
+
 BUILD_TARGETS := $(CONFIGS:%=build_%)
 RUN_TARGETS := $(CONFIGS:%=run_%)
 .PHONY: all setup clean profile $(BUILD_TARGETS) $(RUN_TARGETS)
@@ -109,8 +110,13 @@ ARMTOOLCHAIN ?= /sampa/share/Xilinx/14.6/14.6/ISE_DS/EDK/gnu/arm/lin
 LINKER := $(ARMTOOLCHAIN)/bin/arm-xilinx-eabi-gcc
 LDFLAGS := -Wl,-T -Wl,$(ZYNQDIR)/lscript.ld -L$(ZYNQDIR)/bsp/lib
 LIBS := -Wl,--start-group,-lxil,-lgcc,-lc,-lm,--end-group
-LLCARGS := -march=arm -mcpu=cortex-a9
+LLCARGS += -march=arm -mcpu=cortex-a9
 RUNSHIM := $(ACCEPTDIR)/plat/zynqrun.sh $(ZYNQBIT)
+endif
+
+# And for msp430.
+ifeq ($(ARCH),msp430)
+LLCARGS += -march=msp430
 endif
 
 # Make LLVM bitcode from C/C++ sources.
@@ -136,31 +142,22 @@ $(LINKEDBC): $(BCFILES) $(EXTRABC)
 
 # Versions of the amalgamated program.
 $(TARGET).orig.bc: $(LINKEDBC)
-	$(LLVMOPT) -load $(PASSLIB) -O2 $< -o $@
+	$(LLVMOPT) -load $(PASSLIB) -O1 $< -o $@
 $(TARGET).opt.bc: $(LINKEDBC) accept_config.txt
-	$(LLVMOPT) -load $(PASSLIB) -accept-relax -O3 $< -o $@
+	$(LLVMOPT) -load $(PASSLIB) -O1 -accept-relax $< -o $@
 
-# .bc -> .o
-ifeq ($(ARCH),msp430)
-# llc cannot generate object code for msp430, so emit assembly
+# .bc -> .s
 .INTERMEDIATE: $(TARGET).%.s
 $(TARGET).%.s: $(TARGET).%.bc
 	$(LLVMOPT) -strip $< | \
-	$(LLVMLLC) -march=msp430 > $@
-$(TARGET).%.o: $(TARGET).%.s
-	msp430-gcc $(MSPGCC_CFLAGS) -c $<
-else
-$(TARGET).%.o: $(TARGET).%.bc
-	$(LLVMOPT) -strip $< | \
-	$(LLVMLLC) -filetype=obj $(LLCARGS) > $@
-endif
+	$(LLVMLLC) $(LLCARGS) > $@
 
-# .o -> executable
-$(TARGET).%: $(TARGET).%.o
+# .s -> executable (assemble and link)
+$(TARGET).%: $(TARGET).%.s
 	$(LINKER) $(LDFLAGS) -o $@ $< $(LIBS)
 
 clean:
-	$(RM) $(TARGET) $(TARGET).o $(BCFILES) $(LLFILES) $(LINKEDBC) \
+	$(RM) $(TARGET) $(TARGET).s $(BCFILES) $(LLFILES) $(LINKEDBC) \
 	accept-globals-info.txt accept_config.txt accept_config_desc.txt \
 	accept_log.txt accept_time.txt \
 	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
