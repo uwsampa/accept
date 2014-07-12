@@ -4,10 +4,10 @@ CFLAGS := -pthread -DENABLE_THREADS
 
 SOURCES := blackscholes.m4.cpp
 
-# RUNARGS := 1 in_64K.txt output.txt  # simlarge
-# RUNARGS := 1 in_10M.txt output.txt  # native
+RUNARGS := 1 in_64K.txt output.txt  # simlarge
+TESTARGS := 1 in_10M.txt output.txt  # native
+# RUNARGS := 4 in_1M.txt output.txt  # in between
 
-RUNARGS := 4 in_1M.txt output.txt  # in between
 CLEANMETOO := output.txt blackscholes.m4.cpp
 
 APP_MK := ../app.mk
