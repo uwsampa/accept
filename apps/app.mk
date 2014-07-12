@@ -83,7 +83,7 @@ endif
 
 #################################################################
 # The different executable configurations we can build.
-CONFIGS := orig opt
+CONFIGS := orig opt dummy
 
 BUILD_TARGETS := $(CONFIGS:%=build_%)
 RUN_TARGETS := $(CONFIGS:%=run_%)
@@ -145,6 +145,8 @@ $(TARGET).orig.bc: $(LINKEDBC)
 	$(LLVMOPT) -load $(PASSLIB) -O1 $< -o $@
 $(TARGET).opt.bc: $(LINKEDBC) accept_config.txt
 	$(LLVMOPT) -load $(PASSLIB) -O1 -accept-relax $< -o $@
+$(TARGET).dummy.bc: $(LINKEDBC)
+	cp $< $@
 
 # .bc -> .s
 .INTERMEDIATE: $(TARGET).%.s
