@@ -36,6 +36,7 @@ namespace {
                      registerACCEPT);
 
   // Alias analysis.
+  /*
   static void registerAA(const PassManagerBuilder &, PassManagerBase &PM) {
     PM.add(createAcceptAAPass());
   }
@@ -43,12 +44,5 @@ namespace {
   static RegisterStandardPasses
       RM(PassManagerBuilder::EP_ModuleOptimizerEarly,
          registerAA);
-  // And this one adds to the function pass manager.
-  // It doesn't seem to be necessary -- only the one registered to the module
-  // pass manager is ever queried?
-  /*
-  static RegisterStandardPasses
-      RF(PassManagerBuilder::EP_EarlyAsPossible,
-         registerAA);
-         */
+  */
 }
