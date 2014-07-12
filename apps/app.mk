@@ -151,8 +151,7 @@ $(TARGET).dummy.bc: $(LINKEDBC)
 # .bc -> .s
 .INTERMEDIATE: $(TARGET).%.s
 $(TARGET).%.s: $(TARGET).%.bc
-	$(LLVMOPT) -strip $< | \
-	$(LLVMLLC) $(LLCARGS) > $@
+	$(LLVMLLC) $(LLCARGS) $< > $@
 
 # .s -> executable (assemble and link)
 $(TARGET).%: $(TARGET).%.s
