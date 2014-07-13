@@ -99,6 +99,14 @@ pass this option to enable cluster execution.
 
 [cluster-workers]: https://github.com/sampsyo/cluster-workers
 
+### `--reps`, `-r`; `--test-reps`, `-R`
+
+Control the number of repeated executions used.
+
+By default, the `accept` command only invokes each program configuration once to measure its output and execution time. You can average over several executions by typing, for example, `-r 5`.
+
+The `-r` flag controls *training* executions (the bulk of the executions used during the ACCEPT workflow) while `-R` controls the number of *testing* executions (used only at the end of the process). You usually want the latter to be greater than the former, since the testing runs constitute the tool's final output and you probably want reliable results.
+
 
 ## Running the Included Experiments
 
