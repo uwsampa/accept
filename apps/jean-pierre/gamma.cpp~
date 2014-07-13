@@ -32,7 +32,7 @@
 #include <enerc.h>
 
 #define  half 0.5
-#define  tenthousandth 0.0001
+#define  increment 0.000001
 #define  one  1.0
 #define  fpf  5.5
 #define  zero 0.0 
@@ -79,7 +79,7 @@ int main()  {
   accept_roi_begin();
   x = zero;
   for (i = 0; i < 1000000; i++) {
-    x += tenthousandth;
+    x += increment;
     y = Gamma(x);
     xval[i] = x;
     yval[i] = y;

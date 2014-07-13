@@ -79,7 +79,7 @@ int main()  {
   accept_roi_begin();
   x = zero;
   for (i = 0; i < 1000000; i++) {
-    x += tenthousandth;
+    x += increment;
     y = Gamma(x);
     xval[i] = x;
     yval[i] = y;
