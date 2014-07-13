@@ -181,3 +181,15 @@ Use the `TESTARGS` variable to provide a second, potentially slower-running, inv
 ### Setup Tasks
 
 In rare cases, you may need to do some setup work before any ACCEPT tasks get started. In one of our benchmarks, for example, we need to build a tool to do the quality evaluation; in another, a `./configure` script is necessary to adapt to platform details. In this case, you can define a `setup` target in your Makefile describing tasks to be run before any invocation of the ACCEPT workflow.
+
+### Advanced: Using Your Makefile
+
+For typical uses of ACCEPT, you never need to use the Makefile you've written directly. The ACCEPT driver itself invokes the Makefile during the tuning process. (Translation: *you probably don't need to read this section unless there are bugs*.)
+
+But, when things go wrong, sometimes it can be useful to directly invoke
+`make`. Here are some targets that are available to Makefiles that include ACCEPT's `app.mk`:
+
+* `build_orig`: Build a version of the application with no ACCEPT optimizations enabled. Produces the ACCEPT analysis log and a configuration file template.
+* `build_opt`: Build an ACCEPT-optimized version of the program. Uses the configuration file to determine which optimizations to enable.
+* `run_orig`, `run_opt`: Execute the corresponding built version of the program with the specified command-line arguments (see `RUNARGS` above). Most notably, typing `make run_orig` is like a less-fancy version of `accept precise` that can be useful when the ACCEPT driver is acting up.
+* `clean`: DWISOTT. Also cleans up the byproducts of ACCEPT like the timing file.
