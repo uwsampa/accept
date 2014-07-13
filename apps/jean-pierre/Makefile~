@@ -1,6 +1,0 @@
-TARGET := gamma
-
-SOURCES := gamma.cpp
-
-APP_MK := ../app.mk
-include $(APP_MK)
