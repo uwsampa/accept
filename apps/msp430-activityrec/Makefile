@@ -1,51 +1,50 @@
-# Run "make" to build with mspgcc
+CFLAGS  = -Wall -O0 -fno-stack-protector -g
+CFLAGS += -target msp430-elf -D__MSP430FR5969__ $(MSPGCCINCLUDES)
+CFLAGS += -DUSE_LEDS
 
-CFLAGS=-g -O0 -fomit-frame-pointer
-LDFLAGS=-lm -fomit-frame-pointer
+LIBS    = wisp5 adxl362z
+LDFLAGS = -lm $(foreach L,$(LIBS),-Llib/$(L) -l$(L))
+CFLAGS += $(foreach L,$(LIBS),-Ilib/$(L))
 
-ACCELDIR=.
-ACCELLIB=adxl362z
+HEADERS = $(wildcard *.h)
 
-ifdef NOMSP430
-  CC=gcc
-  CFLAGS+=-I../../Runtime
-else
-  CC=msp430-gcc
-  CFLAGS+=-mmcu=msp430fr5969 -I$(ACCELDIR)
-  LDFLAGS+=-L$(ACCELDIR) -l$(ACCELLIB)
-endif
+all: ar.elf
 
-all: AR.cue.elf
+lib/adxl362z/libadxl362z.a:
+	make -C lib/adxl362z
 
-.PRECIOUS: %.elf
+lib/wisp5/libwisp5.a:
+	make -C lib/wisp5
 
-%.o: %.c
-	$(CC) $(CFLAGS) $^ -o $@ -c
+MSPGCC := msp430-gcc
+AR := msp430-ar
+RANLIB := msp430-ranlib
+MSPGCCINCLUDES := $(foreach I, \
+	$(shell msp430-cpp -Wp,-v </dev/null 2>&1 | grep /include | \
+		sed -e 's/^ *//'), \
+	-I$(I))
 
-%.a43: %.elf
-	msp430-objcopy -O ihex $^ $@
+CC := clang
 
-AR_train.cue.elf: Accelerometer.o NormalDistributionModel.o vec3.o FeatureVector.o CUEAR_featurizer.o AR_train.o libadxl362z.a
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+.PRECIOUS: %.bc %.s
 
-AR.cue.elf: Accelerometer.o CUEAR_binnednaivebayes.o vec3.o FeatureVector.o CUEAR_featurizer.o AR.o libadxl362z.a
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+ar.elf: $(foreach L,$(LIBS),lib/$(L)/lib$(L).a)
 
-AR.lp.elf: lowpower_ar.o  libadxl362z.a
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+%.bc: %.c $(HEADERS)
+	$(CC) $(CFLAGS) -emit-llvm -c -o $@ $<
 
-TEMP.cue.elf: Thermometer.o VarianceDetector.o FeatureVector.o THERM_featurizer.o AR.o adc_sensor.o
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+%.s: %.bc
+	llc -O0 -regalloc=fast -march=msp430 -msp430-hwmult-mode=no -o $@ $<
 
-person.elf: Person.o NormalDistributionModel.o vec3.o FeatureVector.o PERSON_featurizer.o AR.o
-	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
+%.elf: %.s
+	$(MSPGCC) -O0 -mmcu=msp430fr5969 -o $@ $< $(LDFLAGS)
 
-.cpp.o:
-	$(CC) $(CFLAGS) -x c -c $^ -o $@
+%.ll: %.bc
+	llvm-dis $^
 
-libadxl362z.a: adxl362z.o
-	msp430-ar r $@ $^
-	msp430-ranlib $@
-
+.PHONY: clean
 clean:
-	$(RM) *.o *.elf libadxl362z.a
+	$(RM) *.elf *.bc *.ll *.s *.dot *.pdf *.a *.o
+	for SUBDIR in $(wildcard lib/*); do \
+		make -C "$$SUBDIR" clean ; \
+	done

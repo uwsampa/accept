@@ -21,7 +21,7 @@ static volatile unsigned char YDataL = 0;
 static volatile unsigned char ZDataH = 0;
 static volatile unsigned char ZDataL = 0;
 
-inline void ACCEL_SoftReset(){
+void ACCEL_SoftReset(){
    
     volatile unsigned char data;
     P4OUT &= ~BIT0; // set CS to low 
@@ -43,7 +43,7 @@ inline void ACCEL_SoftReset(){
 
 }
 
-inline void ACCEL_SetReg(unsigned char reg, unsigned char val){
+void ACCEL_SetReg(unsigned char reg, unsigned char val){
 
     /*write the value of reg 2d to 2*/    
     volatile unsigned char data;
@@ -66,7 +66,7 @@ inline void ACCEL_SetReg(unsigned char reg, unsigned char val){
 
 }
 
-inline unsigned char ACCEL_ReadReg(unsigned char reg){
+unsigned char ACCEL_ReadReg(unsigned char reg){
 
     /*read the value of reg 2d to 2*/    
     volatile unsigned char data;
