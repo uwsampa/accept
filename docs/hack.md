@@ -3,6 +3,14 @@ Hacking
 
 This page is about advanced use, corner cases, and the like.
 
+## Make It Fast
+
+The setup instructions by default will get you a *debug* build of LLVM, Clang, and ACCEPT, which is nice for debugging but leads to very slow compiles. If you'll be iterating with a benchmark, changing annotations and recompiling frequently, you might want a *release* build.
+
+Just rebuild the project with `RELEASE=1`:
+
+    make llvm accept RELEASE=1
+
 
 ## Using Your Makefile
 
