@@ -93,7 +93,7 @@ RUN_TARGETS := $(CONFIGS:%=run_%)
 
 all: build_orig
 
-$(BUILD_TARGETS): build_%: setup $(TARGET).%
+$(BUILD_TARGETS): build_%: setup $(EXTRADEPS) $(TARGET).%
 
 $(RUN_TARGETS): run_%: $(TARGET).%
 	$(RUNSHIM) ./$< $(RUNARGS)
@@ -168,3 +168,4 @@ clean:
 	accept_log.txt accept_time.txt \
 	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
 	$(CLEANMETOO)
+	for SUBDIR in $(SUBDIRS); do make -C "$$SUBDIR" clean; done
