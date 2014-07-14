@@ -8,8 +8,8 @@ import os
 import subprocess
 import json
 import traceback
+import time
 from collections import namedtuple
-from . import experiments
 from . import core
 from . import cwmemo
 
@@ -56,6 +56,8 @@ def cli(ctx, verbose, cluster, force, reps, test_reps, keep_sandboxes):
     ctx.obj = GlobalConfig(client, reps, test_reps, keep_sandboxes)
 
 
+# Utilities.
+
 def get_eval(appdir, config):
     """Get an Evaluation object given the configured `GlobalConfig`.
     """
@@ -63,7 +65,127 @@ def get_eval(appdir, config):
                            config.test_reps)
 
 
-# Run the experiments.
+def dump_config(config):
+    """Given a relaxation configuration and an accompanying description
+    map, returning a human-readable string describing it.
+    """
+    optimizations = [r for r in config if r[1]]
+    if not optimizations:
+        return u'no optimizations'
+
+    out = []
+    for ident, param in optimizations:
+        out.append(u'{} @ {}'.format(ident, param))
+    return u', '.join(out)
+
+
+def dump_result_human(res, verbose):
+    """Dump a single Result object.
+    """
+    yield dump_config(res.config)
+    if hasattr(res, 'error'):
+        yield '{} % error'.format(res.error * 100)
+    if hasattr(res, 'speedup'):
+        yield '{} speedup'.format(res.speedup)
+    if verbose and hasattr(res, 'outputs') and isinstance(res.outputs[0], str):
+        yield 'output: {}'.format(res.outputs[0])
+    if res.desc != 'good':
+        yield res.desc
+
+
+def dump_results_human(results, pout, verbose):
+    """Generate human-readable text (as a sequence of lines) for
+    the results.
+    """
+    optimal, suboptimal, bad = core.triage_results(results)
+
+    if verbose and isinstance(pout, str):
+        yield 'precise output: {}'.format(pout)
+        yield ''
+
+    yield '{} optimal, {} suboptimal, {} bad'.format(
+        len(optimal), len(suboptimal), len(bad)
+    )
+    for res in optimal:
+        for line in dump_result_human(res, verbose):
+            yield line
+
+    if verbose:
+        yield '\nsuboptimal configs:'
+        for res in suboptimal:
+            for line in dump_result_human(res, verbose):
+                yield line
+
+        yield '\nbad configs:'
+        for res in bad:
+            for line in dump_result_human(res, verbose):
+                yield line
+
+
+def dump_results_json(results):
+    """Return a JSON-like representation of the results.
+    """
+    results, _, _ = core.triage_results(results)
+    out = []
+    for res in results:
+        out.append({
+            'config': dump_config(res.config),
+            'error_mu': res.error.value,
+            'error_sigma': res.error.error,
+            'speedup_mu': res.speedup.value,
+            'speedup_sigma': res.speedup.error,
+        })
+    return out
+
+
+# Run the paper experiments.
+
+OPT_KINDS = {
+    'loopperf': ('loop',),
+    'desync':   ('lock', 'barrier'),
+}
+
+
+def run_experiments(ev, only=None):
+    """Run all stages in the Evaluation for producing paper-ready
+    results. Returns the main results, a dict of kind-restricted
+    results, and elapsed time for the main results.
+    """
+    start_time = time.time()
+
+    # Main results.
+    if only and 'main' not in only:
+        main_results = []
+    else:
+        main_results = ev.run()
+
+    end_time = time.time()
+
+    # "Testing" phase.
+    main_results = ev.test_results(main_results)
+
+    # Experiments with only one optimization type at a time.
+    kind_results = {}
+    for kind, words in OPT_KINDS.items():
+        if only and kind not in only:
+            continue
+
+        # Filter all base configs for configs of this kind.
+        logging.info('evaluating {} in isolation'.format(kind))
+        kind_configs = []
+        for config in ev.base_configs:
+            for ident, param in config:
+                if param and not ident.startswith(words):
+                    break
+            else:
+                kind_configs.append(config)
+
+        # Run the experiment workflow.
+        logging.info('isolated configs: {}'.format(len(kind_configs)))
+        kind_results[kind] = ev.test_results(ev.run(kind_configs))
+
+    return main_results, kind_results, end_time - start_time
+
 
 @cli.command()
 @click.argument('appdirs', metavar='DIR', nargs=-1,
@@ -89,24 +211,49 @@ def exp(ctx, appdirs, verbose, as_json, include_time, only):
         appname = os.path.basename(appdir)
         logging.info(appname)
 
+        # Run the experiments themselves.
         exp = get_eval(appdir, ctx.obj)
-        res = experiments.evaluate(exp, verbose, as_json, only)
+        with exp.client:
+            main_results, kind_results, exp_time = run_experiments(exp, only)
 
+        # Output as JSON to the results file.
         if as_json:
+            out = {}
+            out['main'] = dump_results_json(main_results)
+            isolated = {}
+            for kind, results in kind_results.items():
+                isolated[kind] = dump_results_json(results)
+            out['isolated'] = isolated
+            out['time'] = exp_time
+
             if not include_time:
-                del res['time']
+                del out['time']
             if appname not in results_json:
                 results_json[appname] = {}
-            results_json[appname].update(res)
+            results_json[appname].update(out)
 
-        else:
-            print(res)
-
-        # Dump the results back to the JSON file.
-        if as_json:
             with open(RESULTS_JSON, 'w') as f:
                 json.dump(results_json, f, indent=2, sort_keys=True)
 
+        # Output for human consumption.
+        else:
+            out = []
+            if not only or 'main' in only:
+                out += dump_results_human(main_results, exp.pout, verbose)
+            if verbose or only:
+                for kind, results in kind_results.items():
+                    if only and kind not in only:
+                        continue
+                    out.append('')
+                    if results:
+                        out.append('ISOLATING {}:'.format(kind))
+                        out += dump_results_human(results, exp.pout, verbose)
+                    else:
+                        out.append('No results for isolating {}.'.format(kind))
+            print('\n'.join(out))
+
+
+# Main ACCEPT workflow.
 
 @cli.command()
 @click.argument('appdir', default='.')
@@ -133,7 +280,7 @@ def run(ctx, appdir, verbose, test):
             results = exp.test_results(results)
 
     pout = exp.test_pout if test else exp.pout
-    output = experiments.dump_results_human(results, pout, verbose)
+    output = dump_results_human(results, pout, verbose)
     for line in output:
         print(line)
 
@@ -234,7 +381,7 @@ def approx(ctx, num, appdir):
     results = [results[num]] if num != -1 else results
 
     for result in results:
-        print(experiments.dump_config(result.config))
+        print(dump_config(result.config))
         print('output:')
         for output in result.outputs:
             print('  {}'.format(output))

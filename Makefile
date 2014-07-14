@@ -145,17 +145,28 @@ deploy: cleandocs docs
 
 # Experiments for the paper.
 
-.PHONY: exp exp_mini exp_cluster
+.PHONY: exp
 
 APPS := streamcluster sobel canneal fluidanimate x264
 APPSDIR := apps
+
+# Reduce reps with MINI=1.
+ifneq ($(MINI),)
+ACCEPT_ARGS := -r1 -R1
+else
 ACCEPT_ARGS := -r2 -R5
+endif
+
+# Get a non-timing run with NOTIME=1. Disables forcing.
+ifeq ($(NOTIME),)
+ACCEPT_ARGS += -f
+EXP_ARGS += -t
+endif
+
+# Run on cluster with CLUSTER=1.
+ifneq ($(CLUSTER),)
+ACCEPT_ARGS += -c
+endif
 
 exp:
-	accept $(ACCEPT_ARGS) -v exp -j $(APPS:%=$(APPSDIR)/%)
-
-exp_mini: ACCEPT_ARGS := -r1 -R1
-exp_mini: exp
-
-exp_cluster: ACCEPT_ARGS += -c
-exp_cluster: exp
+	accept $(ACCEPT_ARGS) -v exp -j $(EXP_ARGS) $(APPS:%=$(APPSDIR)/%)
