@@ -7,6 +7,6 @@ pages:
     - [index.md, Introduction]
     - [tutorial.md, Tutorial]
     - [cli.md, Reference]
-    - [trouble.md, Troubleshooting]
+    - [hack.md, Hacking]
 repo_url: https://github.com/uwsampa/accept/
 markdown_extensions: [smartypants]
