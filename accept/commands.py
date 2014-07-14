@@ -299,7 +299,8 @@ def log_and_output(directory, fn='accept_log.txt', keep=False):
             if os.path.exists(fn):
                 os.remove(fn)
 
-            output = core.build(require=False)
+            output = core.build(require=False,
+                                make_args=['OPTARGS=-accept-log'])
 
             if os.path.exists(fn):
                 with open(fn) as f:

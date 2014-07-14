@@ -142,9 +142,9 @@ $(LINKEDBC): $(BCFILES) $(EXTRABC)
 
 # Versions of the amalgamated program.
 $(TARGET).orig.bc: $(LINKEDBC)
-	$(LLVMOPT) -load $(PASSLIB) -O1 $< -o $@
+	$(LLVMOPT) -load $(PASSLIB) -O1 $(OPTARGS) $< -o $@
 $(TARGET).opt.bc: $(LINKEDBC) accept_config.txt
-	$(LLVMOPT) -load $(PASSLIB) -O1 -accept-relax $< -o $@
+	$(LLVMOPT) -load $(PASSLIB) -O1 -accept-relax $(OPTARGS) $< -o $@
 $(TARGET).dummy.bc: $(LINKEDBC)
 	cp $< $@
 

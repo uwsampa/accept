@@ -185,7 +185,7 @@ For typical uses of ACCEPT, you never need to use the Makefile you've written di
 But, when things go wrong, sometimes it can be useful to directly invoke
 `make`. Here are some targets that are available to Makefiles that include ACCEPT's `app.mk`:
 
-* `build_orig`: Build a version of the application with no ACCEPT optimizations enabled. Produces the ACCEPT analysis log and a configuration file template.
+* `build_orig`: Build a version of the application with no ACCEPT optimizations enabled. Produces a configuration file template. If you want to also produce the analysis log, use `make build_orig OPTARGS=-accept-log`.
 * `build_opt`: Build an ACCEPT-optimized version of the program. Uses the configuration file to determine which optimizations to enable.
 * `run_orig`, `run_opt`: Execute the corresponding built version of the program with the specified command-line arguments (see `RUNARGS` above). Most notably, typing `make run_orig` is like a less-fancy version of `accept precise` that can be useful when the ACCEPT driver is acting up.
 * `clean`: DWISOTT. Also cleans up the byproducts of ACCEPT like the timing file.

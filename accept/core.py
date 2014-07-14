@@ -190,13 +190,14 @@ def execute(timeout, approx=False, test=False):
     return end_time - start_time, status, output
 
 
-def build(approx=False, require=True):
+def build(approx=False, require=True, make_args=()):
     """Compile the application in the working directory. If `approx`,
     then it is built with ACCEPT relaxation enabled. Return the combined
     stderr/stdout from the compilation process.
     """
     build_cmd = ['make', 'build_opt' if approx else 'build_orig']
     build_cmd += _make_args()
+    build_cmd += make_args
 
     logging.debug(u'running build command: {0}'.format(u' '.join(build_cmd)))
     status, output = run_cmd(build_cmd, BUILD_TIMEOUT)

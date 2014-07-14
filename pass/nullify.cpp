@@ -2,13 +2,15 @@
 
 #include "llvm/Support/InstIterator.h"
 
+#define ACCEPT_LOG ACCEPT_LOG_(AI)
+
 using namespace llvm;
 
 bool ACCEPTPass::nullifyApprox(Function &F) {
   bool modified = false;
 
   if (shouldSkipFunc(F)) {
-    *log << "skipping function " << F.getName() << "\n";
+    ACCEPT_LOG << "skipping function " << F.getName() << "\n";
     return false;
   }
 
@@ -35,14 +37,14 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
       // We should be able to remove the call to this precise-pure function
       std::string optName = "nullable call at " +
         srcPosDesc(*module, I->getDebugLoc());
-      *log << "---\n" << optName << "\n"
+      ACCEPT_LOG << "---\n" << optName << "\n"
         << "can remove call to precise-pure function " << callee->getName()
         << "\n";
       if (relax) {
         if (relaxConfig[optName])
           callsToRemove.insert((CallInst *)&*I);
       } else {
-        *log << "but not removing because relax=0\n";
+        ACCEPT_LOG << "but not removing because relax=0\n";
         relaxConfig[optName] = 0;
       }
     }
@@ -54,7 +56,7 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
     CallInst *call = *I;
     assert(call != NULL);
 
-    *log << "removing call to precise-pure function "
+    ACCEPT_LOG << "removing call to precise-pure function "
       << call->getCalledFunction()->getName() << "\n";
     call->replaceAllUsesWith(UndefValue::get(call->getType()));
     call->eraseFromParent();
@@ -70,7 +72,7 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
     std::string pos = srcPosDesc(*module, front.getDebugLoc());
 
     if (BB->size() == 1) {
-      *log << "---\nskipping BB of size 1 at " << pos << "\n";
+      ACCEPT_LOG << "---\nskipping BB of size 1 at " << pos << "\n";
       continue;
     }
 
@@ -80,12 +82,12 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
     if (blockers.empty()) {
       // Remove this precise-pure BB
       std::string optName = "nullable BB at " + pos;
-      *log << "---\n" << optName << "\n"
+      ACCEPT_LOG << "---\n" << optName << "\n"
         << "can remove precise-pure BB at " << pos << " (size=" << BB->size()
         << ")\n";
       if (relax) {
         if (relaxConfig[optName]) {
-          *log << "removing precise-pure BB at " << pos << "\n";
+          ACCEPT_LOG << "removing precise-pure BB at " << pos << "\n";
           while (BB->begin() != BB->end()
               && &BB->front() != BB->getTerminator()) {
             Instruction *I = BB->begin();
@@ -95,7 +97,7 @@ bool ACCEPTPass::nullifyApprox(Function &F) {
           modified = true;
         }
       } else {
-        *log << "but not removing because relax=0\n";
+        ACCEPT_LOG << "but not removing because relax=0\n";
         relaxConfig[optName] = 0;
       }
     }

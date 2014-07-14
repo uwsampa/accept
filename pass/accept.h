@@ -18,6 +18,9 @@
 #define ECQ_APPROX 1
 #define ECQ_APPROX_PTR 2
 
+// Logging macro.
+#define ACCEPT_LOG_(ai) if (!(ai)->logEnabled) ; else (*(ai)->logFile)
+
 
 namespace llvm {
   ImmutablePass *createAcceptAAPass();
@@ -55,7 +58,8 @@ public:
   virtual bool doFinalization(llvm::Module &M);
 
   std::map<llvm::Function*, bool> functionPurity;
-  llvm::raw_fd_ostream *log;
+  bool logEnabled;
+  llvm::raw_fd_ostream *logFile;
 
   std::set<llvm::Instruction*> preciseEscapeCheck(
       std::set<llvm::Instruction*> insts,
@@ -89,7 +93,6 @@ struct ACCEPTPass : public llvm::FunctionPass {
   llvm::Module *module;
   std::map<std::string, int> relaxConfig;  // ident -> param
   int opportunityId;
-  llvm::raw_fd_ostream *log;
   std::map<llvm::Function*, llvm::DISubprogram> funcDebugInfo;
   ApproxInfo *AI;
   bool relax;

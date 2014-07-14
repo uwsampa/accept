@@ -31,7 +31,6 @@ cl::opt<bool> optRelax ("accept-relax",
 
 ACCEPTPass::ACCEPTPass() : FunctionPass(ID) {
   module = 0;
-  log = 0;
 
   relax = optRelax;
 
@@ -77,7 +76,6 @@ bool ACCEPTPass::shouldSkipFunc(Function &F) {
 
 bool ACCEPTPass::runOnFunction(Function &F) {
   AI = &getAnalysis<ApproxInfo>();
-  log = AI->log;
 
   // Skip optimizing functions that seem to be in standard libraries.
   if (shouldSkipFunc(F))

@@ -6,6 +6,8 @@
 
 #include <sstream>
 
+#define ACCEPT_LOG ACCEPT_LOG_(AI)
+
 using namespace llvm;
 
 namespace {
@@ -14,7 +16,6 @@ namespace {
     ACCEPTPass *transformPass;
     ApproxInfo *AI;
     Module *module;
-    llvm::raw_fd_ostream *log;
     LoopInfo *LI;
 
     LoopPerfPass() : LoopPass(ID) {}
@@ -22,7 +23,6 @@ namespace {
     virtual bool doInitialization(Loop *loop, LPPassManager &LPM) {
       transformPass = (ACCEPTPass*)sharedAcceptTransformPass;
       AI = transformPass->AI;
-      log = AI->log;
       return false;
     }
     virtual bool runOnLoop(Loop *loop, LPPassManager &LPM) {
@@ -57,11 +57,11 @@ namespace {
          << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc());
       std::string loopName = ss.str();
 
-      *log << "---\n" << loopName << "\n";
+      ACCEPT_LOG << "---\n" << loopName << "\n";
 
       // Look for ACCEPT_FORBID marker.
       if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {
-        *log << "optimization forbidden\n";
+        ACCEPT_LOG << "optimization forbidden\n";
         return false;
       }
 
@@ -69,13 +69,13 @@ namespace {
       // latch (increment, in "for"), and a preheader (initialization).
       if (!loop->getHeader() || !loop->getLoopLatch()
           || !loop->getLoopPreheader()) {
-        *log << "loop not in perforatable form\n";
+        ACCEPT_LOG << "loop not in perforatable form\n";
         return false;
       }
 
       // Skip array constructor loops manufactured by Clang.
       if (loop->getHeader()->getName().startswith("arrayctor.loop")) {
-        *log << "array constructor\n";
+        ACCEPT_LOG << "array constructor\n";
         return false;
       }
 
@@ -84,7 +84,7 @@ namespace {
           && loop->getHeader() != loop->getLoopLatch()) {
         BasicBlock *latch = loop->getLoopLatch();
         if (&(latch->front()) == &(latch->back())) {
-          *log << "empty body\n";
+          ACCEPT_LOG << "empty body\n";
           return false;
         }
       }
@@ -93,7 +93,7 @@ namespace {
       if (acceptUseProfile) {
         ProfileInfo &PI = getAnalysis<ProfileInfo>();
         double trips = PI.getExecutionCount(loop->getHeader());
-        *log << "trips: " << trips << "\n";
+        ACCEPT_LOG << "trips: " << trips << "\n";
       }
       */
 
@@ -101,20 +101,20 @@ namespace {
       // the heuristic that determines which parts of the loop to perforate.
       bool isForLike = false;
       if (loop->getHeader()->getName().startswith("for.cond")) {
-        *log << "for-like loop\n";
+        ACCEPT_LOG << "for-like loop\n";
         isForLike = true;
       } else {
-        *log << "while-like loop\n";
+        ACCEPT_LOG << "while-like loop\n";
       }
 
       if (transformPass->relax) {
         int param = transformPass->relaxConfig[loopName];
         if (param) {
-          *log << "perforating with factor 2^" << param << "\n";
+          ACCEPT_LOG << "perforating with factor 2^" << param << "\n";
           perforateLoop(loop, param, isForLike);
           return true;
         } else {
-          *log << "not perforating\n";
+          ACCEPT_LOG << "not perforating\n";
           return false;
         }
       }
@@ -136,7 +136,7 @@ namespace {
         bodyBlocks.insert(*bi);
       }
       if (bodyBlocks.empty()) {
-        *log << "empty body\n";
+        ACCEPT_LOG << "empty body\n";
         return false;
       }
 
@@ -145,21 +145,21 @@ namespace {
       for (std::set<BasicBlock*>::iterator i = bodyBlocks.begin();
             i != bodyBlocks.end(); ++i) {
         if (loop->isLoopExiting(*i)) {
-          *log << "contains loop exit\n";
+          ACCEPT_LOG << "contains loop exit\n";
           return false;
         }
       }
 
       // Check whether the body of this loop is elidable (precise-pure).
       std::set<Instruction*> blockers = AI->preciseEscapeCheck(bodyBlocks);
-      *log << "blockers: " << blockers.size() << "\n";
+      ACCEPT_LOG << "blockers: " << blockers.size() << "\n";
       for (std::set<Instruction*>::iterator i = blockers.begin();
             i != blockers.end(); ++i) {
-        *log << " * " << instDesc(*module, *i) << "\n";
+        ACCEPT_LOG << " * " << instDesc(*module, *i) << "\n";
       }
 
       if (!blockers.size()) {
-        *log << "can perforate loop\n";
+        ACCEPT_LOG << "can perforate loop\n";
         transformPass->relaxConfig[loopName] = 0;
       }
 

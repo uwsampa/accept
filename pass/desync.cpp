@@ -4,6 +4,8 @@
 
 #include <sstream>
 
+#define ACCEPT_LOG ACCEPT_LOG_(AI)
+
 using namespace llvm;
 
 const char *FUNC_BARRIER = "pthread_barrier_wait";
@@ -128,7 +130,7 @@ Instruction *ACCEPTPass::findCritSec(Instruction *acq,
   }
 
   if (rel == NULL) {
-    *log << "no matching sync found\n";
+    ACCEPT_LOG << "no matching sync found\n";
     return NULL;
   }
 
@@ -160,10 +162,10 @@ Instruction *ACCEPTPass::findApproxCritSec(Instruction *acq) {
   blessed.insert(rel);
   critSec.insert(rel);
   std::set<Instruction*> blockers = AI->preciseEscapeCheck(critSec, &blessed);
-  *log << "blockers: " << blockers.size() << "\n";
+  ACCEPT_LOG << "blockers: " << blockers.size() << "\n";
   for (std::set<Instruction*>::iterator i = blockers.begin();
         i != blockers.end(); ++i) {
-    *log << " * " << instDesc(*module, *i) << "\n";
+    ACCEPT_LOG << " * " << instDesc(*module, *i) << "\n";
   }
   if (blockers.size()) {
     return NULL;
@@ -176,19 +178,19 @@ Instruction *ACCEPTPass::findApproxCritSec(Instruction *acq) {
 bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
   // Generate a name for this opportunity site.
   std::string optName = siteName("lock acquire", acq);
-  *log << "---\n" << optName << "\n";
+  ACCEPT_LOG << "---\n" << optName << "\n";
 
   Instruction *rel = findApproxCritSec(acq);
   if (!rel)
     return false;
 
   // Success.
-  *log << "can elide lock\n";
+  ACCEPT_LOG << "can elide lock\n";
   if (relax) {
     int param = relaxConfig[optName];
     if (param) {
       // Remove the acquire and release calls.
-      *log << "eliding lock\n";
+      ACCEPT_LOG << "eliding lock\n";
       acq->eraseFromParent();
       rel->eraseFromParent();
       return true;
@@ -203,18 +205,18 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
 
 bool ACCEPTPass::optimizeBarrier(Instruction *bar1) {
   std::string optName = siteName("barrier", bar1);
-  *log << "---\n" << optName << "\n";
+  ACCEPT_LOG << "---\n" << optName << "\n";
 
   if (!findApproxCritSec(bar1))
     return false;
 
   // Success.
-  *log << "can elide barrier\n";
+  ACCEPT_LOG << "can elide barrier\n";
   if (relax) {
     int param = relaxConfig[optName];
     if (param) {
       // Remove the first barrier.
-      *log << "eliding barrier wait\n";
+      ACCEPT_LOG << "eliding barrier wait\n";
       bar1->eraseFromParent();
       return true;
     }
