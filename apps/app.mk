@@ -22,12 +22,19 @@ LLVMLLC := $(BUILTDIR)/bin/llc
 LLVMLLI := $(BUILTDIR)/bin/lli
 RTDIR := $(ACCEPTDIR)/rt
 
+# Target platform specifics.
+ARCH ?= default
+RTLIB ?= $(RTDIR)/acceptrt.$(ARCH).bc
+EXTRABC += $(RTLIB)
+
 # Host platform specifics.
 ifeq ($(shell uname -s),Darwin)
 	ifeq ($(shell uname -r | sed -e 's/\..*//'),13) # OS X 10.9
 		XCODEINCLUDES = $(shell xcrun --show-sdk-path)/usr/include
-		CFLAGS += -I$(XCODEINCLUDES)
-		CXXFLAGS += -I$(XCODEINCLUDES)
+		ifeq ($(ARCH),default)
+			CFLAGS += -I$(XCODEINCLUDES)
+			CXXFLAGS += -I$(XCODEINCLUDES)
+		endif
 	endif
 	LIBEXT := dylib
 else
@@ -40,11 +47,6 @@ else
 endif
 ENERCLIB ?= $(BUILTDIR)/lib/EnerCTypeChecker.$(LIBEXT)
 PASSLIB ?= $(BUILTDIR)/lib/enerc.$(LIBEXT)
-
-# Target platform specifics.
-ARCH ?= default
-RTLIB ?= $(RTDIR)/acceptrt.$(ARCH).bc
-EXTRABC += $(RTLIB)
 
 # General compiler flags.
 override CFLAGS += -I$(INCLUDEDIR) -g -fno-use-cxa-atexit
@@ -116,7 +118,11 @@ endif
 
 # And for msp430.
 ifeq ($(ARCH),msp430)
-LLCARGS += -march=msp430
+override CFLAGS += -target msp430-elf $(addprefix -I, \
+		$(shell msp430-cpp -Wp,-v </dev/null 2>&1 | grep /include | \
+			sed -e 's/^ *//'))
+LLCARGS += -march=msp430 -msp430-hwmult-mode=no
+LINKER := msp430-gcc
 endif
 
 # Make LLVM bitcode from C/C++ sources.
