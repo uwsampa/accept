@@ -6,7 +6,6 @@ import time
 from . import core
 
 
-APPSDIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'apps')
 OPT_KINDS = {
     'loopperf': ('loop',),
     'desync':   ('lock', 'barrier'),
@@ -127,13 +126,9 @@ def run_experiments(ev, only=None):
     return main_results, kind_results, end_time - start_time
 
 
-def evaluate(client, appname, verbose=False, reps=1, test_reps=1,
-             as_json=False, only=None):
-    appdir = os.path.join(APPSDIR, appname)
-    exp = core.Evaluation(appdir, client, reps, test_reps)
-
+def evaluate(exp, verbose=False, as_json=False, only=None):
     logging.info('starting experiments')
-    with client:
+    with exp.client:
         main_results, kind_results, exp_time = run_experiments(exp, only)
     logging.info('all experiments finished')
 

@@ -141,3 +141,21 @@ CSEPATH := /cse/www2/sampa/accept
 deploy: cleandocs docs
 	rsync --compress --recursive --checksum --itemize-changes --delete -e ssh site/ $(CSEHOST):$(CSEPATH)
 	ssh $(CSEHOST) "echo -e 'authtype csenetid\\nrequire valid-user' > $(CSEPATH)/.htaccess"
+
+
+# Experiments for the paper.
+
+.PHONY: exp exp_mini exp_cluster
+
+APPS := streamcluster sobel canneal fluidanimate x264
+APPSDIR := apps
+ACCEPT_ARGS := -r2 -R5
+
+exp:
+	accept $(ACCEPT_ARGS) -v exp -j $(APPS:%=$(APPSDIR)/%)
+
+exp_mini: ACCEPT_ARGS := -r1 -R1
+exp_mini: exp
+
+exp_cluster: ACCEPT_ARGS += -c
+exp_cluster: exp

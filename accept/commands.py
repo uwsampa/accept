@@ -66,19 +66,16 @@ def get_eval(appdir, config):
 # Run the experiments.
 
 @cli.command()
-@click.argument('appnames', metavar='NAME', default=APPS, nargs=-1,
-                type=unicode)
+@click.argument('appdirs', metavar='DIR', nargs=-1,
+                type=click.Path(file_okay=False, dir_okay=True, exists=True))
 @click.option('--json', '-j', 'as_json', is_flag=True)
 @click.option('--time', '-t', 'include_time', is_flag=True)
 @click.option('--only', '-o', 'only', multiple=True)
 @click.option('--verbose', '-v', is_flag=True,
               help='show suboptimal results')
 @click.pass_context
-def exp(ctx, appnames, verbose, as_json, include_time, only):
+def exp(ctx, appdirs, verbose, as_json, include_time, only):
     """Run experiments for the paper.
-
-    By default, all paper-ready applications are collected. You can also
-    specify specific applications to evaluate.
     """
     # Load the current results, if any.
     if as_json:
@@ -88,11 +85,12 @@ def exp(ctx, appnames, verbose, as_json, include_time, only):
         except IOError:
             results_json = {}
 
-    for appname in appnames:
+    for appdir in appdirs:
+        appname = os.path.basename(appdir)
         logging.info(appname)
-        res = experiments.evaluate(ctx.obj.client, appname, verbose,
-                                   ctx.obj.reps, ctx.obj.test_reps, as_json,
-                                   only)
+
+        exp = get_eval(appdir, ctx.obj)
+        res = experiments.evaluate(exp, verbose, as_json, only)
 
         if as_json:
             if not include_time:

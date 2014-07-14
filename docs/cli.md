@@ -108,18 +108,6 @@ By default, the `accept` command only invokes each program configuration once to
 The `-r` flag controls *training* executions (the bulk of the executions used during the ACCEPT workflow) while `-R` controls the number of *testing* executions (used only at the end of the process). You usually want the latter to be greater than the former, since the testing runs constitute the tool's final output and you probably want reliable results.
 
 
-## Running the Included Experiments
-
-For some of the benchmarks, you will need some large input files that are not included in this repository:
-
-* blackscholes: "simlarge" input from PARSEC (`in_64K.txt`)
-* canneal: "native" input (`2500000.nets`)
-* fluidanimate: "simlarge" input (`in_300K.fluid`)
-* x264: "simmedium" input (`eledream_640x360_32.y4m`)
-
-Run the experiments by typing `accept exp`.
-
-
 ## eval.py
 
 The ACCEPT tool uses a per-application Python script for collecting and evaluating the application's output quality. This means that applications need to be accompanied by an `eval.py` file. This file should define two Python functions:
