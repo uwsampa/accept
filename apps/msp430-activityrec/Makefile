@@ -1,16 +1,15 @@
-ARCH := msp430
+ARCH    := msp430
 SOURCES := ar.c
+CFLAGS  := -Wall -fno-stack-protector -D__MSP430FR5969__ -DUSE_LEDS
+LDFLAGS := -mmcu=msp430fr5969
 
-CFLAGS  = -Wall -O0 -fno-stack-protector -g
-CFLAGS += -D__MSP430FR5969__
-CFLAGS += -DUSE_LEDS
-LDFLAGS += -mmcu=msp430fr5969
+ARLIBS    := $(wildcard lib/*)
+SUBDIRS   := $(ARLIBS)
+CFLAGS    += $(addprefix -I,$(ARLIBS))
+LIBS      += -lm $(foreach L,$(ARLIBS),-L$(L) -l$(notdir $(L)))
+EXTRADEPS := $(foreach L,$(ARLIBS),$(L)/lib$(notdir $(L)).a)
 
-ARLIBS  = $(notdir $(wildcard lib/*))
-CFLAGS += $(addprefix -Ilib/, $(ARLIBS))
-LIBS   += -lm $(foreach L,$(ARLIBS),-Llib/$(L) -l$(L))
-
-APP_MK := ../app.mk
+APP_MK  := ../app.mk
 include $(APP_MK)
 
 lib/adxl362z/libadxl362z.a:
