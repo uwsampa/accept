@@ -152,11 +152,18 @@ deploy: cleandocs docs
 
 # Experiments for the paper.
 
-.PHONY: exp
+.PHONY: exp exp_setup
 
 APPS := streamcluster sobel canneal fluidanimate x264
 APPSDIR := apps
 EXP_PY_DEPS := munkres pillow
+PARSEC_INPUTS := \
+	apps/canneal/40000.nets \
+	apps/canneal/2500000.nets \
+	apps/fluidanimate/in_100K.fluid \
+	apps/fluidanimate/in_300K.fluid \
+	apps/x264/eledream_640x360_32.y4m \
+	apps/x264/eledream_640x360_128.y4m
 
 # Reduce reps with MINI=1.
 ifneq ($(MINI),)

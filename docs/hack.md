@@ -33,6 +33,8 @@ First, build ACCEPT if you haven't already. You might want to specify the `RELEA
 
 Next, get the experiments' dependencies (Python modules, data files) by typing `make exp_setup`.
 
+To run the experiments, you need to download certain large input files from the [PARSEC][] benchmark suite. This step is not yet automated, but you can see the list of files you need in the `PARSEC_INPUTS` Makefile variable.
+
 Finally, run the experiments by typing `make exp`. The command will dump the results to a file called `results.json`.
 
 There are several variables you can specify to customize the experiments:
@@ -43,6 +45,7 @@ There are several variables you can specify to customize the experiments:
 * `CLUSTER=1`: Execute on a Slurm cluster using the [cluster-workers][cw] library.
 
 [cw]: https://github.com/sampsyo/cluster-workers
+[PARSEC]: http://parsec.cs.princeton.edu/
 
 
 ## Troubleshooting
