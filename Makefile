@@ -156,6 +156,7 @@ deploy: cleandocs docs
 
 APPS := streamcluster sobel canneal fluidanimate x264
 APPSDIR := apps
+EXP_PY_DEPS := munkres pillow
 
 # Reduce reps with MINI=1.
 ifneq ($(MINI),)
@@ -176,4 +177,7 @@ ACCEPT_ARGS += -c
 endif
 
 exp:
-	accept $(ACCEPT_ARGS) -v exp -j $(EXP_ARGS) $(APPS:%=$(APPSDIR)/%)
+	./bin/accept $(ACCEPT_ARGS) -v exp -j $(EXP_ARGS) $(APPS:%=$(APPSDIR)/%)
+
+exp_setup:
+	./$(VENV)/bin/pip install $(EXP_PY_DEPS)

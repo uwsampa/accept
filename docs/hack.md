@@ -25,6 +25,26 @@ But, when things go wrong, sometimes it can be useful to directly invoke
 * `clean`: DWISOTT. Also cleans up the byproducts of ACCEPT like the timing file.
 
 
+## Reproduce the Experiments
+
+ACCEPT ships with several benchmarks used to evaluate it in our paper. You can reproduce the experiments using the included Makefile.
+
+First, build ACCEPT if you haven't already. You might want to specify the `RELEASE=1` option (see above).
+
+Next, get the experiments' dependencies (Python modules, data files) by typing `make exp_setup`.
+
+Finally, run the experiments by typing `make exp`. The command will dump the results to a file called `results.json`.
+
+There are several variables you can specify to customize the experiments:
+
+* `APPS`: You can set the list of application names to evaluate. By default, we evaluate all of them.
+* `MINI=1`: Turn down the replication factor. You get faster but less statistically significant results.
+* `NOTIME=1`: Perform an untimed execution. This will used memoized results, if available, instead of re-executing everything from scratch.
+* `CLUSTER=1`: Execute on a Slurm cluster using the [cluster-workers][cw] library.
+
+[cw]: https://github.com/sampsyo/cluster-workers
+
+
 ## Troubleshooting
 
 Here are some solutions to problems you might encounter along the way.
