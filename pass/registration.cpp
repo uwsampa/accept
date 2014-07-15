@@ -10,12 +10,16 @@ using namespace llvm;
 
 namespace llvm {
   bool acceptUseProfile;
+  bool acceptEnableNPU;
 }
 
 namespace {
   cl::opt<bool, true> optProf("accept-prof",
       cl::desc("ACCEPT: use profiling information"),
       cl::location(acceptUseProfile));
+  cl::opt<bool, true> optEnableNPU("accept-npu",
+      cl::desc("ACCEPT: use NPU transformation"),
+      cl::location(acceptEnableNPU));
 
   // Code transformations.
   static void registerACCEPT(const PassManagerBuilder &,
@@ -30,6 +34,8 @@ namespace {
     PM.add(new ApproxInfo());
     PM.add(createAcceptTransformPass());
     PM.add(createLoopPerfPass());
+    if (acceptEnableNPU)
+      PM.add(createLoopNPUPass());
   }
   static RegisterStandardPasses
       RegisterACCEPT(PassManagerBuilder::EP_EarlyAsPossible,

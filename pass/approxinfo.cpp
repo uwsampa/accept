@@ -285,27 +285,41 @@ std::set<BasicBlock*> ApproxInfo::successorsOf(BasicBlock *block) {
   successorsOfHelper(block, successors);
   return successors;
 }
+std::set<BasicBlock*> ApproxInfo::imSuccessorsOf(BasicBlock *block) {
+  std::set<BasicBlock*> successors;
+  TerminatorInst *term = block->getTerminator();
+  if (!term)
+    return successors;
+  for (int i = 0; i < term->getNumSuccessors(); ++i) {
+    BasicBlock *sb = term->getSuccessor(i);
+    successors.insert(sb);
+  }
+  return successors;
+}
 
 struct ApproxCaptureTracker : public CaptureTracker {
   bool Captured;
   const std::set<Instruction *> *region;
   ApproxInfo *ai;
+  bool approx;
 
   explicit ApproxCaptureTracker(const std::set<Instruction *> *_region,
-                                ApproxInfo *_ai)
-    : Captured(false), region(_region), ai(_ai) {}
+                                ApproxInfo *_ai, bool _approx)
+    : Captured(false), region(_region), ai(_ai), approx(_approx) {}
 
   void tooManyUses() {
     Captured = true;
   }
 
   bool captured(Use *U) {
-    // Permit captures by precise-pure functions in the region.
-    CallInst *call = dyn_cast<CallInst>(U->getUser());
-    if (call && region->count(call)) {
-      Function *func = call->getCalledFunction();
-      if (func && ai->isPrecisePure(func)) {
-        return false;
+    if (approx) {
+      // Permit captures by precise-pure functions in the region.
+      CallInst *call = dyn_cast<CallInst>(U->getUser());
+      if (call && region->count(call)) {
+        Function *func = call->getCalledFunction();
+        if (func && ai->isPrecisePure(func)) {
+          return false;
+        }
       }
     }
 
@@ -315,8 +329,9 @@ struct ApproxCaptureTracker : public CaptureTracker {
 };
 
 bool ApproxInfo::pointerCaptured(const Value *ptr,
-                                 const std::set<Instruction*> &region) {
-  ApproxCaptureTracker ct(&region, this);
+                                 const std::set<Instruction*> &region,
+                                 bool approx) {
+  ApproxCaptureTracker ct(&region, this, approx);
   PointerMayBeCaptured(ptr, &ct);
   return ct.Captured;
 }
@@ -324,7 +339,8 @@ bool ApproxInfo::pointerCaptured(const Value *ptr,
 // Conservatively check whether a store instruction can be observed by any
 // load instructions *other* than those in the specified set of instructions.
 bool ApproxInfo::storeEscapes(StoreInst *store,
-                              const std::set<Instruction*> &insts) {
+                              const std::set<Instruction*> &insts,
+                              bool approx) {
   Value *ptr = store->getPointerOperand();
 
   // Traverse bitcasts from one pointer type to another.
@@ -337,7 +353,7 @@ bool ApproxInfo::storeEscapes(StoreInst *store,
     Value *innerPtr = bitcast->getOperand(0);
     // We should probably recurse into the value here (e.g., through multiple
     // bitcasts), but for now we just do a shallow escape check.
-    if (!isa<AllocaInst>(innerPtr) || pointerCaptured(innerPtr, insts))
+    if (!isa<AllocaInst>(innerPtr) || pointerCaptured(innerPtr, insts, approx))
       return true;
 
   // Make sure the pointer was created locally. That is, conservatively assume
@@ -348,7 +364,7 @@ bool ApproxInfo::storeEscapes(StoreInst *store,
   }
 
   // Give up if the pointer is copied and leaves the function.
-  if (pointerCaptured(ptr, insts))
+  if (pointerCaptured(ptr, insts, approx))
     return true;
 
   // Look for loads to the pointer not present in our exclusion set. We
@@ -594,6 +610,10 @@ std::set<Instruction*> ApproxInfo::preciseEscapeCheck(
   return preciseEscapeCheck(insts);
 }
 
+bool ApproxInfo::isWhiteList(StringRef s) {
+  return funcWhitelist.count(s);
+}
+
 // Determine whether a function can only affect approximate memory (i.e., no
 // precise stores escape).
 bool ApproxInfo::isPrecisePure(Function *func) {
@@ -614,7 +634,7 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   }
 
   // Whitelisted pure functions from standard libraries.
-  if (func->empty() && funcWhitelist.count(func->getName())) {
+  if (func->empty() && isWhiteList(func->getName())) {
       ACCEPT_LOG << " - whitelisted\n";
       functionPurity[func] = true;
       return true;

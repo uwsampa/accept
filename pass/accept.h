@@ -28,6 +28,8 @@ namespace llvm {
   FunctionPass *createAcceptTransformPass();
   extern FunctionPass *sharedAcceptTransformPass;
   LoopPass *createLoopPerfPass();
+  void initializeLoopNPUPass(PassRegistry &Registry);
+  LoopPass *createLoopNPUPass();
 
   std::string srcPosDesc(const Module &mod, const DebugLoc &dl);
   std::string instDesc(const Module &mod, Instruction *inst);
@@ -68,18 +70,23 @@ public:
       std::set<llvm::BasicBlock*> blocks);
   bool isPrecisePure(llvm::Function *func);
   bool pointerCaptured(const llvm::Value *ptr,
-      const std::set<llvm::Instruction*> &region);
+      const std::set<llvm::Instruction*> &region,
+      bool approx);
 
   std::map< std::string, std::map<int, LineMarker> > lineMarkers;
   LineMarker markerAtLine(std::string filename, int line);
   LineMarker instMarker(llvm::Instruction *inst);
 
+  bool isWhiteList(llvm::StringRef s);
+  std::set<llvm::BasicBlock*> successorsOf(llvm::BasicBlock *block);
+  std::set<llvm::BasicBlock*> imSuccessorsOf(llvm::BasicBlock *block);
+  bool storeEscapes(llvm::StoreInst *store,
+                    const std::set<llvm::Instruction*> &insts,
+                    bool approx=true);
+
 private:
   void successorsOfHelper(llvm::BasicBlock *block,
                           std::set<llvm::BasicBlock*> &succ);
-  std::set<llvm::BasicBlock*> successorsOf(llvm::BasicBlock *block);
-  bool storeEscapes(llvm::StoreInst *store,
-                    const std::set<llvm::Instruction*> &insts);
   int preciseEscapeCheckHelper(std::map<llvm::Instruction*, bool> &flags,
                                const std::set<llvm::Instruction*> &insts);
   bool approxOrLocal(std::set<llvm::Instruction*> &insts,
