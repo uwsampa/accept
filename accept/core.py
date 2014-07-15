@@ -885,7 +885,7 @@ class Evaluation(object):
         if not self.pout:
             self.setup()
 
-        if not base_configs:
+        if base_configs is None:
             base_configs = self.base_configs
 
         # The phases.
