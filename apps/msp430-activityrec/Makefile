@@ -17,3 +17,6 @@ lib/adxl362z/libadxl362z.a:
 
 lib/wisp5/libwisp5.a:
 	make -C lib/wisp5
+
+lib/perfctr/libperfctr.a:
+	make -C lib/perfctr
