@@ -11,3 +11,4 @@ venv/
 rt/acceptrt.*.bc
 *.pyc
 *.pyo
+*~
