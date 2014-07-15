@@ -116,7 +116,7 @@
 #define T_40_59(t, A, B, C, D, E) SHA_ROUND(t, SHA_MIX, ((B&C)+(D&(B^C))) , 0x8f1bbcdc, A, B, C, D, E )
 #define T_60_79(t, A, B, C, D, E) SHA_ROUND(t, SHA_MIX, (B^C^D) ,  0xca62c1d6, A, B, C, D, E )
 
-static void blk_SHA1_Block(APPROX blk_SHA_CTX *ctx, APPROX const unsigned int *data)
+static void blk_SHA1_Block(blk_SHA_CTX *ctx, const unsigned int *data)
 {
 	APPROX unsigned int A,B,C,D,E;
 	APPROX unsigned int array[16];
@@ -236,7 +236,7 @@ void blk_SHA1_Init(blk_SHA_CTX *ctx)
 	ctx->H[4] = 0xc3d2e1f0;
 }
 
-void blk_SHA1_Update(APPROX blk_SHA_CTX *ctx, APPROX const void *data, APPROX unsigned long len)
+void blk_SHA1_Update(blk_SHA_CTX *ctx, const void *data, APPROX unsigned long len)
 {
 	APPROX unsigned int lenW = ctx->size & 63;
 
@@ -264,7 +264,7 @@ void blk_SHA1_Update(APPROX blk_SHA_CTX *ctx, APPROX const void *data, APPROX un
 		memcpy(ctx->W, data, len);
 }
 
-void blk_SHA1_Final(APPROX unsigned char hashout[20], APPROX blk_SHA_CTX *ctx)
+void blk_SHA1_Final(APPROX unsigned char hashout[20], blk_SHA_CTX *ctx)
 {
 	static const unsigned char pad[64] = { 0x80 };
 	unsigned int padlen[2];
