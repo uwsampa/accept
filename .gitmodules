@@ -7,3 +7,6 @@
 [submodule "mspsim"]
 	path = mspsim
 	url = git://github.com/ransford/mspsim.git
+[submodule "plat/msp430/mspdebug-wrapper"]
+	path = plat/msp430/mspdebug-wrapper
+	url = git@github.com:ransford/mspdebug-wrapper.git

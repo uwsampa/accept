@@ -123,6 +123,7 @@ override CFLAGS += -target msp430-elf $(addprefix -I, \
 			sed -e 's/^ *//'))
 LLCARGS += -march=msp430 -msp430-hwmult-mode=no
 LINKER := msp430-gcc
+RUNSHIM := $(ACCEPTDIR)/plat/msp430/run.sh
 endif
 
 # Make LLVM bitcode from C/C++ sources.
