@@ -19,10 +19,10 @@
 #include <queue>
 #include <fstream>
 #define BUFFER_LOOP_DEPS 0
-#define BUFFER_STORE_LOOP_DEPS 0
+#define BUFFER_STORE_LOOP_DEPS 1
 #define ALIAS 1
 #define ALIAS_DUMP 0
-#define BB_INTERSECTION 0
+#define BB_INTERSECTION 1
 
 using namespace llvm;
 
@@ -52,7 +52,7 @@ namespace {
       return false;
     }
     virtual bool runOnLoop(Loop *loop, LPPassManager &LPM) {
-      if (loop->getLoopDepth() != 1) return false;
+      //if (loop->getLoopDepth() != 1) return false;
       modified = false;
       if (transformPass->shouldSkipFunc(*(loop->getHeader()->getParent())))
           return false;
@@ -221,7 +221,7 @@ namespace {
           const CallInst *c_inst = dyn_cast<CallInst>(inst);
       std::string type_str;
       llvm::raw_string_ostream rso(type_str);
-      rso << *inst;
+      rso << *inst << "isApprox: " << isApprox(inst);
       std::cerr << "\n" << rso.str() << std::endl;
           if (!c_inst) continue;
           Function *callee = c_inst->getCalledFunction();
@@ -230,7 +230,7 @@ namespace {
             return false;
 
           bool hasInlineAsm = false;
-          testSubFunctions(callee, loop, hasInlineAsm);
+          //testSubFunctions(callee, loop, hasInlineAsm);
           if (hasInlineAsm)
             return false;
 
@@ -253,7 +253,7 @@ namespace {
         std::cerr << "++++ begin" << std::endl;
         CallInst *c = dyn_cast<CallInst>(calls_to_npu[i]);
         std::cerr << "Function npu: " << (c->getCalledFunction()->getName()).str() << std::endl;
-        modified = tryToNPU(loops_to_npu[i], calls_to_npu[i]);
+        //modified = tryToNPU(loops_to_npu[i], calls_to_npu[i]);
         std::cerr << "++++ middle" << std::endl;
         for (Loop::block_iterator bi = loop->block_begin(); bi != loop->block_end(); ++bi) {
           BasicBlock *bb = *bi;
@@ -261,7 +261,7 @@ namespace {
             Instruction *inst = ii;
             std::string type_str;
             llvm::raw_string_ostream rso(type_str);
-            rso << *inst;
+            rso << *inst << "isApprox: " << isApprox(inst);
             std::cerr << "\n" << rso.str() << std::endl;
           }
         }
@@ -310,7 +310,6 @@ namespace {
     }
   }
 
-
   void getAfterBBs(BasicBlock *currentBB, std::set<BasicBlock *> &seen, std::set<BasicBlock *> &after, BasicBlock* latch) {
     if (currentBB == latch)
       return;
@@ -328,6 +327,36 @@ namespace {
       after.insert(*si);
       getAfterBBs(*si, seen, after, latch);
     }
+  }
+
+  bool isApproxGEPChain(StoreInst *SI) {
+    Value *ptr = SI->getPointerOperand();
+    GetElementPtrInst *GEP;
+    while (GEP = dyn_cast<GetElementPtrInst>(ptr))
+      ptr = GEP->getPointerOperand();
+
+    AllocaInst *alloca = dyn_cast<AllocaInst>(ptr);
+    if (!alloca)
+      return false;
+
+    if (!isApprox(alloca)) {
+      std::cerr << "independence day" << std::endl;
+        std::string type_str;
+        llvm::raw_string_ostream rso(type_str);
+        rso << *alloca;
+        std::cerr << rso.str() << std::endl;
+      return false;
+    }
+
+    Type *ty1 = alloca->getAllocatedType();
+    if (!ty1->isArrayTy())
+      return false;
+
+    Type *ty2 = (ty1->getContainedType(0));
+    if (ty2->isArrayTy() && (ty1->getNumContainedTypes() == 1) && (ty2->getNumContainedTypes() == 1) && ty2->getContainedType(0)->isFloatTy())
+      return true;
+
+    return false;
   }
 
   bool pre_pos_call_dependency_check(Instruction *callinst, Loop *loop, std::vector<Instruction*> &before_insts_tobuff, std::vector<Value*> &st_value, std::vector<Value*> &st_addr, std::vector<StoreInst*> &st_inst) {
@@ -357,6 +386,30 @@ namespace {
     getBeforeBBs(loop->getHeader(), seen, beforeBBs, loop->getHeader(), callBB, loop);
     beforeBBs.insert(loop->getLoopLatch());
 
+    /*
+    std::cerr << "Begin before bb dump" << std::endl;
+    for (std::set<BasicBlock *>::iterator bb = beforeBBs.begin(); bb != beforeBBs.end(); ++bb) {
+      for (BasicBlock::iterator ii = (*bb)->begin(); ii != (*bb)->end(); ++ii) {
+        std::string type_str;
+        llvm::raw_string_ostream rso(type_str);
+        rso << *ii;
+        std::cerr << rso.str() << std::endl;
+      }
+      std::cerr << "-------------------------------------------" << std::endl;
+    }
+    std::cerr << "End before bb dump" << std::endl;
+    std::cerr << "Begin after bb dump" << std::endl;
+    for (std::set<BasicBlock *>::iterator bb = afterBBs.begin(); bb != afterBBs.end(); ++bb) {
+      for (BasicBlock::iterator ii = (*bb)->begin(); ii != (*bb)->end(); ++ii) {
+        std::string type_str;
+        llvm::raw_string_ostream rso(type_str);
+        rso << *ii;
+        std::cerr << rso.str() << std::endl;
+      }
+      std::cerr << "-------------------------------------------" << std::endl;
+    }
+    std::cerr << "End after bb dump" << std::endl;
+    */
 
     // If there's an intersection between the BBs that come before and after
     // the call, then it's possible to "jump" around the call inside the loop
@@ -397,12 +450,12 @@ namespace {
     std::cerr << "Begin AA" << std::endl;
     AliasSetTracker st(*AA);
     for (std::set<Instruction *>::iterator ii = afteri.begin(); ii != afteri.end(); ++ii)
-      if (isa<StoreInst>(*ii)) {
+      if (isa<StoreInst>(*ii) && !isApprox(*ii)) {
         st.add(*ii);
             std::string type_str;
             llvm::raw_string_ostream rso(type_str);
             Instruction *yy = *ii;
-            rso << "\nAdding Store: " << *yy;
+            rso << "\nAdding Store: " << *yy << "\tisApprox: " << isApprox(yy);
             std::cerr << rso.str() << std::endl;
       }
 
@@ -418,7 +471,7 @@ namespace {
             std::cerr << "Problem alias set: " << std::endl;
             AliasSet &AS = *si;
             AS.dump();
-          //return true;
+          return true;
         }
     std::cerr << "End AA" << std::endl;
 #endif
@@ -459,9 +512,11 @@ namespace {
 
       Instruction *instr = *ii;
       if (StoreInst *SI = dyn_cast<StoreInst>(instr)) {
-        st_value.push_back(SI->getValueOperand());
-        st_addr.push_back(SI->getPointerOperand());
-        st_inst.push_back(SI);
+        if (!isApprox(instr)) {
+          st_value.push_back(SI->getValueOperand());
+          st_addr.push_back(SI->getPointerOperand());
+          st_inst.push_back(SI);
+        }
       }
     }
     std::cerr << "End buff" << std::endl;
@@ -568,7 +623,7 @@ namespace {
     // 2 - If it can be determined *exactly where the pointer points to*
     // and it's a small declaration.
     std::vector<int> op_size;
-    const int input_size_threshold = 5;
+    const int input_size_threshold = 10;
     std::ifstream file("accept-npuArrayArgs-info.txt");
     if (file.is_open()) {
       while (file.good()) {
@@ -585,6 +640,83 @@ namespace {
     }
     file.close();
 
+    std::vector<bool> is_matrix;
+    std::vector<int> mdim1(n, 0);
+    std::vector<int> mdim2(n, 0);
+    for (unsigned int i = 0; i < n; ++i) {
+      is_matrix.push_back(op_size[i] == -1 ? true : false);
+
+      if (op_size[i] != -1)
+        continue;
+
+      std::cerr << "op_size " << op_size[i] << std::endl;
+      std::cerr << "operands: " << inst->getNumOperands() << std::endl;
+      GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(inst->getOperandUse(i));
+      AllocaInst *ainst = dyn_cast<AllocaInst>(inst->getOperandUse(i));
+      GlobalValue *aval = dyn_cast<GlobalValue>(inst->getOperandUse(i));
+      GlobalVariable *avar = dyn_cast<GlobalVariable>(inst->getOperandUse(i));
+      Instruction *bainst = dyn_cast<Instruction>(inst->getOperandUse(i));
+      GlobalAlias *gal = dyn_cast<GlobalAlias>(inst->getOperandUse(i));
+      std::cerr << "dump bla" << std::endl;
+      for (int j = 0; j < 22; ++j) {
+        unsigned char u = j;
+        unsigned c = u;
+        std::cerr << j << "\t" << c << std::endl;
+      }
+      std::cerr << "end dump bla" << std::endl;
+      std::cerr << "special dump 1" << std::endl;
+      inst->getOperandUse(i)->getType()->dump();
+      std::cerr << "end special dump 1" << std::endl;
+            std::string type_str;
+            llvm::raw_string_ostream rso(type_str);
+            rso << *(inst->getOperandUse(i));
+            std::cerr << rso.str() << std::endl;
+            (inst->getOperandUse(i))->dump();
+      if (!ainst) std::cerr << "notalloca" << std::endl;
+      if (!aval) std::cerr << "notgv" << std::endl;
+      if (!avar) std::cerr << "notgvar" << std::endl;
+      if (!bainst) std::cerr << "notinst" << std::endl;
+      if (!bainst) std::cerr << "notgal" << std::endl;
+      std::cerr << "\n\n\n\n\n" <<std::endl;
+      std::cerr << inst->getValueID() << std::cerr;
+      std::cerr << "\n\n\n\n\n" <<std::endl;
+      std::cerr << inst->getOperandUse(i)->getValueID() << std::cerr;
+      std::cerr << "\n\n\n\n\n" <<std::endl;
+
+      //====================================
+      
+
+      if (!GEP || !GEP->hasAllZeroIndices()) {
+        op_size[i] = 0;
+        continue;
+      }
+
+      Value *ptr = GEP->getPointerOperand();
+      AllocaInst *allocai = dyn_cast<AllocaInst>(ptr);
+      if (!allocai) {
+        op_size[i] = 0;
+        continue;
+      }
+
+      Type *ty1 = allocai->getAllocatedType();
+      std::cerr << "special dump 2" << std::endl;
+      ty1->dump();
+      std::cerr << "end special dump 2" << std::endl;
+      if (!ty1->isArrayTy() || !ty1->getNumContainedTypes()) {
+        op_size[i] = 0;
+        continue;
+      }
+
+      Type *ty2 = (ty1->getContainedType(0));
+      if (!ty2->isArrayTy() || !ty2->getNumContainedTypes() || !ty2->getContainedType(0)->isFloatTy()) {
+        op_size[i] = 0;
+        continue;
+      }
+
+      op_size[i] = ty1->getArrayNumElements() * ty2->getArrayNumElements();
+      mdim1[i] = ty1->getArrayNumElements();
+      mdim2[i] = ty2->getArrayNumElements();
+    }
 
     // Check the declaration (alloca) to see if it is a "normal" variable (i.e. not a pointer)
     // TODO: Also check whether it's an array whose size we can determine (and also check
@@ -642,9 +774,9 @@ namespace {
         ++n_ptr_args;
 
     // Assume a constant buffer size for now.
-    int buffer_size = 64;
-    unsigned int ibuff_addr = 0xFFFF8000;
-    unsigned int obuff_addr = 0xFFFFF000;
+    int buffer_size = 576;
+    unsigned int ibuff_addr = 0xFFFF0000;
+    unsigned int obuff_addr = 0xFFFF8000;
     IntegerType *nativeInt = getNativeIntegerType();
     IRBuilder<> builder(module->getContext());
 
@@ -765,11 +897,16 @@ namespace {
     // must be converted.
     int total_buffered = 0;
     for (unsigned int i = 0; i < n; ++i) {
+      std::vector<Value*> mloads;
       std::string s = "npu_conv_" + i;
       Type *type = inst->getOperandUse(i)->getType();
 
       // Get the next argument and convert it if it's not float.
       v = inst->getOperandUse(i);
+            std::string type_str;
+            llvm::raw_string_ostream rso(type_str);
+            Instruction *bla = (Instruction*)v;
+            rso << "onev: " << *bla << "\n";
       if (type->isIntegerTy()) {
         IntegerType *it = static_cast<IntegerType *>(type);
         if (it->getSignBit())
@@ -781,7 +918,32 @@ namespace {
       } else if (type->isPointerTy()) {
         // TODO: Didn't find a way to discover the type of the pointer.
         // If this is possible, convert the value loaded below.
-        v = builder.CreateLoad(v);
+        if (!is_matrix[i]) {
+          v = builder.CreateLoad(v);
+        } else {
+          for (int k = 0; k < mdim1[i]; ++k) {
+            Value *GEP1 = builder.CreateInBoundsGEP(v,
+                                                   ConstantInt::get(nativeInt, k, true),
+                                                    "geprow");
+            rso << "geprow: " << *GEP1 << "\n";
+            for (int p = 0; p < mdim2[i]; ++p) {
+              Value *tmp[2];
+              tmp[0] = ConstantInt::get(nativeInt, 0, true);
+              tmp[1] = ConstantInt::get(nativeInt, p, true);
+              ArrayRef<Value*> ar(tmp, 2);
+              Value *GEP2 = builder.CreateInBoundsGEP(GEP1,
+                                                      ar,
+                                                      "gepcol");
+            rso << "gepcol: " << *GEP2 << "\n";
+              mloads.push_back(builder.CreateLoad(GEP2));
+            rso << "ld: " << *mloads.back() << "\n";
+            }
+          }
+        }
+            Instruction *bla2 = (Instruction*)v;
+            rso << "twov: " << *bla2 << "\n";
+            std::cerr << rso.str() << std::endl;
+            v->getType()->dump();
       }
 
       // Only once (when i == 0) load iBuffAlloca
@@ -820,13 +982,16 @@ namespace {
                                           s.c_str());
 
           // Store the (converted) input in the current iBuff position.
-          builder.CreateStore(v, load); //is this store volatile?
+          if (!is_matrix[i])
+            builder.CreateStore(v, load); //is this store volatile?
+          else
+            builder.CreateStore(mloads[j], load);
 
           // The next iBuff element to be written is the result of the
           // GEP instruction above.
           load = GEP;
 
-          if (j != n_to_buff - 1) {
+          if (!is_matrix[i] && (j != n_to_buff - 1)) {
             s = "npu_auxGEP_" + (j+1);
             Value *auxGEP = builder.CreateInBoundsGEP(inst->getOperandUse(i),
                                                       ConstantInt::get(nativeInt, j+1),
@@ -834,8 +999,9 @@ namespace {
             v = builder.CreateLoad(auxGEP);
           }
         }
-        total_buffered += n_to_buff;
 
+
+        total_buffered += n_to_buff;
       }
 
       // After storing the last input, store the final address of iBuff.
@@ -897,6 +1063,7 @@ namespace {
     int ssize = st_value.size();
     Value *scounterf;
     Value *scounteri;
+    std::cerr << "fuck size: " << ssize << std::endl;
     if (ssize) {
       scounterf = builder.CreateLoad(depsStoreFloatCounterAlloca, false, "npu_load_depsSFcounter");
       scounteri = builder.CreateLoad(depsStoreIntCounterAlloca, false, "npu_load_depsSIcounter");
@@ -1201,6 +1368,7 @@ namespace {
 
       load = GEP;
     }
+    std::cerr << "brah " << gotRetVal << "\t" << escaped_stores.size() << std::endl;
     for (int i = 0; i < escaped_stores.size(); ++i) {
       // First we store the function arguments.
       // For now we only consider escaped stores to function arguments.

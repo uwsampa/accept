@@ -106,9 +106,9 @@ endif
 $(TARGET).prof.bc: $(LINKEDBC)
 	$(LLVMOPT) -insert-edge-profiling $< -o $@
 $(TARGET).orig.bc: $(LINKEDBC)
-	$(LLVMOPT) -print-after-all -load $(PASSLIB) -O1  $< -o $@
+	$(LLVMOPT) -print-after-all -load $(PASSLIB) -O2  $< -o $@
 $(TARGET).opt.bc: $(LINKEDBC) accept_config.txt
-	$(LLVMOPT) -print-after-all -load $(PASSLIB) -accept-relax -O1  $< -o $@
+	$(LLVMOPT) -print-after-all -load $(PASSLIB) -accept-relax -O2  $< -o $@
 
 # .bc -> .o
 ifeq ($(ARCH),msp430)
@@ -121,7 +121,7 @@ $(TARGET).%.o: $(TARGET).%.s
 	msp430-gcc $(MSPGCC_CFLAGS) -c $<
 else
 $(TARGET).%.s: $(TARGET).%.bc
-	$(LLVMOPT) -strip $< | \
+	$(LLVMOPT) -strip -O3 $< | \
 	$(LLVMLLC) -march=arm -float-abi=soft > inversek2j.s
 endif
 
