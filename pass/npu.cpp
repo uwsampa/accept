@@ -24,6 +24,8 @@
 #define ALIAS_DUMP 0
 #define BB_INTERSECTION 0
 
+#define ACCEPT_LOG ACCEPT_LOG_(AI)
+
 using namespace llvm;
 
 namespace {
@@ -33,7 +35,6 @@ namespace {
     ACCEPTPass *transformPass;
     ApproxInfo *AI;
     Module *module;
-    llvm::raw_fd_ostream *log;
     LoopInfo *LI;
 #if ALIAS == 1
     AliasAnalysis *AA;
@@ -48,7 +49,6 @@ namespace {
     virtual bool doInitialization(Loop *loop, LPPassManager &LPM) {
       transformPass = (ACCEPTPass*)sharedAcceptTransformPass;
       AI = transformPass->AI;
-      log = AI->log;
       return false;
     }
     virtual bool runOnLoop(Loop *loop, LPPassManager &LPM) {
@@ -197,17 +197,17 @@ namespace {
          << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc());
       std::string loopName = ss.str();
 
-      *log << "---\n" << loopName << "\n";
+      ACCEPT_LOG << "---\n" << loopName << "\n";
 
       // Look for ACCEPT_FORBID marker.
       if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {
-        *log << "optimization forbidden\n";
+        ACCEPT_LOG << "optimization forbidden\n";
         return false;
       }
 
       // Skip array constructor loops manufactured by Clang.
       if (loop->getHeader()->getName().startswith("arrayctor.loop")) {
-        *log << "array constructor\n";
+        ACCEPT_LOG << "array constructor\n";
         return false;
       }
 
