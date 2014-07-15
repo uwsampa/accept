@@ -181,3 +181,6 @@ exp:
 
 exp_setup:
 	./$(VENV)/bin/pip install $(EXP_PY_DEPS)
+ifeq ($(CLUSTER),1)
+	./$(VENV)/bin/pip install git+git://github.com/sampsyo/cluster-workers.git
+endif
