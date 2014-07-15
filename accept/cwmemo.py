@@ -39,7 +39,7 @@ class CWMemo(object):
     def __init__(self, dbname='memo.db', host=None, force=False):
         self.dbname = dbname
         self.force = force
-        self.forced = set()
+        self.fresh = set()
         self.logger = logging.getLogger('cwmemo')
         self.logger.setLevel(logging.INFO)
         self.host = host
@@ -100,11 +100,11 @@ class CWMemo(object):
         # Check whether this call is memoized.
         key = self._key_for(func, args, kwargs)
         if key in self.db:
-            if self.force and key not in self.forced:
+            if self.force and key not in self.fresh:
                 del self.db[key]
-                self.forced.add(key)
             else:
                 return
+        self.fresh.add(key)
 
         # If executing locally, just run the function.
         if self.local:
