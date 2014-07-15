@@ -318,15 +318,6 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
           name.equals("__inline_memset_chk") ||
           name.equals("__builtin_expect") // assert
           ) {
-
-        // We want to leave the arguments unchecked, but we have to change each
-        // argument expression's type to avoid assertion failures later in the
-        // Clang pipeline.
-        for (clang::CallExpr::arg_iterator ai = call->arg_begin();
-            ai != call->arg_end(); ++ai) {
-          (*ai)->setType(withQuals((*ai)->getType(), ecPrecise));
-        }
-
         return CL_LEAVE_UNCHANGED;
       }
 

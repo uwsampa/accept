@@ -23,4 +23,8 @@ int main() {
     // memset
     memset(xp, 0, 1);
     memset(yp, 0, 1);
+
+    // crashy: const approx
+    APPROX const void *data;
+    memcpy(0, data, 0);
 }
