@@ -7,12 +7,17 @@
 #include "convolution.h"
 #include "rgb_image.h"
 
+#include "profile.h"
+#include "xil_io.h"
+#include "xil_mmu.h"
+#include "xil_types.h"
+
 // Sobel parameters in convolution.h
 
 // DUMP DATA:
 // 0 - No data dump
 // 1 - Data dump
-#define DUMP_DATA       0
+#define DUMP_DATA       1
 // TIMER:
 // 0 - Use ARM performance counters
 // 1 - Use FPGA clock counter
@@ -78,9 +83,11 @@ int main (int argc, const char* argv[]) {
     ///////////////////////////////
     // 2 - Precise execution
     ///////////////////////////////
+    Xil_SetTlbAttributes(OCM_SRC,0x15C06);
+    Xil_SetTlbAttributes(OCM_DST,0x15C06);
+    t_precise = rd_fpga_clk();
     
 
-        srcImage.w = 192;
         for (y = 0; y < (srcImage.h); y++) {
 
             for (x = 0; x < srcImage.w; x++) {
@@ -104,13 +111,9 @@ int main (int argc, const char* argv[]) {
             }
             
         }
-        srcImage.w = 220;
-
 
     
-
-    
-    //t_precise = rd_fpga_clk() - t_precise;
+    t_precise = rd_fpga_clk() - t_precise;
 
 
     ///////////////////////////////
@@ -211,10 +214,10 @@ int main (int argc, const char* argv[]) {
 #endif //PROFILE_MODE
     
 
-#if DUMP_DATA==1
+#if DUMP_DATA == 1
     // Print the precise output
     printf("\nPrecise output RGB dump...\n");
-    printf("220,220\n");
+    printf("256,256\n");
     for (y=0;y<srcImage.h;y++) {
         for (x=0;x<srcImage.w;x++) {
             if (x!=srcImage.w-1) {
@@ -228,7 +231,7 @@ int main (int argc, const char* argv[]) {
             }
         }
     }
-    printf("\"{\'bitdepth\': 8, \'interlace\': 0, \'planes\': 3, \'greyscale\': False, \'alpha\': False, \'size\': (220, 220)}\"%%\n");
+    printf("\"{\'bitdepth\': 8, \'interlace\': 0, \'planes\': 3, \'greyscale\': False, \'alpha\': False, \'size\': (256, 256)}\"%%\n");
     
     // Print the approximate output
     /*

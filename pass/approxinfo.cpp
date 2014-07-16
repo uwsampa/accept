@@ -191,6 +191,7 @@ bool isRelease(Instruction *inst) {
 char const* _funcWhitelistArray[] = {
   // math.h
   "cos",
+  "atoi",
   "sin",
   "tan",
   "acos",
