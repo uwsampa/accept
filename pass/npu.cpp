@@ -201,11 +201,10 @@ namespace {
 
     bool tryToOptimizeLoop(Loop *loop) {
       std::stringstream ss;
-      ss << "loop at "
+      ss << "npu_region at "
          << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc());
-      std::string loopName = ss.str();
-
-      ACCEPT_LOG << "---\n" << loopName << "\n";
+      std::string optName = ss.str();
+      ACCEPT_LOG << "---\n" << optName << "\n";
 
       // Look for ACCEPT_FORBID marker.
       if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {
@@ -227,20 +226,26 @@ namespace {
           ii != bb->end(); ++ii) {
           Instruction *inst = ii;
           const CallInst *c_inst = dyn_cast<CallInst>(inst);
+          /*
       std::string type_str;
       llvm::raw_string_ostream rso(type_str);
       rso << *inst << "isApprox: " << isApprox(inst);
-      // std::cerr << "\n" << rso.str() << std::endl;
+      std::cerr << "\n" << rso.str() << std::endl;
+      */
           if (!c_inst) continue;
           Function *callee = c_inst->getCalledFunction();
 
-          if (c_inst->isInlineAsm())
+          if (c_inst->isInlineAsm()) {
+            ACCEPT_LOG << "has inline assembly\n";
             return false;
+          }
 
           bool hasInlineAsm = false;
           //testSubFunctions(callee, loop, hasInlineAsm);
-          if (hasInlineAsm)
+          if (hasInlineAsm) {
+            ACCEPT_LOG << "function has inline assembly\n";
             return false;
+          }
 
           if (!isa<IntrinsicInst>(inst) && !AI->isWhiteList(callee->getName()) && AI->isPrecisePure(callee)) {
             // std::cerr << callee->getName().str() << " is precise pure!\n\n" << std::endl;
@@ -261,7 +266,7 @@ namespace {
         // std::cerr << "++++ begin" << std::endl;
         CallInst *c = dyn_cast<CallInst>(calls_to_npu[i]);
         // std::cerr << "Function npu: " << (c->getCalledFunction()->getName()).str() << std::endl;
-        //modified = tryToNPU(loops_to_npu[i], calls_to_npu[i]);
+        modified = tryToNPU(loops_to_npu[i], calls_to_npu[i], optName);
         // std::cerr << "++++ middle" << std::endl;
         /*
         for (Loop::block_iterator bi = loop->block_begin(); bi != loop->block_end(); ++bi) {
@@ -538,16 +543,20 @@ namespace {
     return false;
   } // pre_pos_call_dependency_check
 
-  bool tryToNPU(Loop *loop, Instruction *inst) {
+  bool tryToNPU(Loop *loop, Instruction *inst, StringRef optName) {
     // We need a loop latch to jump to after reading oBuff
     // and executing the instructions after the function call.
-    if (!loop->getLoopLatch() || !loop->getLoopPreheader() || !loop->getHeader())
+    if (!loop->getLoopLatch() || !loop->getLoopPreheader() || !loop->getHeader()) {
+      ACCEPT_LOG << "malformed loop\n";
       return false;
+    }
 
     if (!inst->getType()->isIntegerTy() &&
         !inst->getType()->isVoidTy() &&
-        !inst->getType()->isFloatTy())
+        !inst->getType()->isFloatTy()) {
+      ACCEPT_LOG << "call's return type is not int, void, or FP\n";
       return false;
+    }
 
     std::vector<Instruction*> before_insts_tobuff;
     std::vector<Value*> st_value;
@@ -555,6 +564,7 @@ namespace {
     std::vector<StoreInst*> st_inst;
     if (pre_pos_call_dependency_check(inst, loop, before_insts_tobuff, st_value, st_addr, st_inst)) {
       // std::cerr << "BOSTA" << std::endl;
+      ACCEPT_LOG << "dependency check failed\n";
       return false;
     }
 
@@ -573,7 +583,10 @@ namespace {
       // We would need to determine how many times the store would
       // be executed and whether it would write to the same address
       // or not in order to know how much buffer space we need.
-      if (in_loop) return false;
+      if (in_loop) {
+        ACCEPT_LOG << "escaping store in loop";
+        return false;
+      }
 
       for (BasicBlock::iterator ii = bb->begin(); ii != bb->end(); ++ii) {
         Instruction *inst = ii;
@@ -788,6 +801,20 @@ namespace {
     for (int i = 0; i < is_output_arg.size(); ++i)
       if (is_output_arg[i])
         ++n_ptr_args;
+
+    // Success. Ready to transform.
+    if (transformPass->relax) {
+      int param = transformPass->relaxConfig[optName];
+      if (param) {
+        ACCEPT_LOG << "NPUifying region\n";
+      } else {
+        ACCEPT_LOG << "could NPUify region\n";
+        return false;
+      }
+    } else {
+      ACCEPT_LOG << "can NPUify region\n";
+      return false;
+    }
 
     // Assume a constant buffer size for now.
     int buffer_size = 576;
