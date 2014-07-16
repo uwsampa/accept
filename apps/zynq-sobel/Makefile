@@ -1,4 +1,6 @@
-TARGET := npu-sobel
+ARCH := zynq
+TARGET := sobel
+ZYNQBIT := sobel_x32.bit
 LDFLAGS := -lm
 OPTARGS := -accept-npu
 
