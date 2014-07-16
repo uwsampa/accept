@@ -813,6 +813,7 @@ namespace {
       }
     } else {
       ACCEPT_LOG << "can NPUify region\n";
+      transformPass->relaxConfig[optName] = 0;
       return false;
     }
 
