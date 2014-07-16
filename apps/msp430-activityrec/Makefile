@@ -1,7 +1,7 @@
 ARCH    := msp430
 SOURCES := ar.c
-CFLAGS  := -Wall -fno-stack-protector -D__MSP430FR5969__ -DUSE_LEDS
-LDFLAGS := -mmcu=msp430fr5969
+CFLAGS  := -Wall -fno-stack-protector -D__MSP430FR5969__ -DUSE_LEDS -O2
+LDFLAGS := -mmcu=msp430fr5969 -O2
 
 ARLIBS    := $(wildcard lib/*) ../../rt/msp430/perfctr
 SUBDIRS   := $(ARLIBS)
