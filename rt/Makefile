@@ -1,4 +1,4 @@
-CC ?= clang
+CC := clang
 
 ARCHES := default zynq msp430
 
