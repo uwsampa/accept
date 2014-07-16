@@ -3,7 +3,7 @@ SOURCES := ar.c
 CFLAGS  := -Wall -fno-stack-protector -D__MSP430FR5969__ -DUSE_LEDS
 LDFLAGS := -mmcu=msp430fr5969
 
-ARLIBS    := $(wildcard lib/*)
+ARLIBS    := $(wildcard lib/*) ../../rt/msp430/perfctr
 SUBDIRS   := $(ARLIBS)
 CFLAGS    += $(addprefix -I,$(ARLIBS))
 LIBS      += -lm $(foreach L,$(ARLIBS),-L$(L) -l$(notdir $(L)))
@@ -18,5 +18,5 @@ lib/adxl362z/libadxl362z.a:
 lib/wisp5/libwisp5.a:
 	make -C lib/wisp5
 
-lib/perfctr/libperfctr.a:
-	make -C lib/perfctr
+../../rt/msp430/perfctr/libperfctr.a:
+	make -C ../../rt/msp430/perfctr
