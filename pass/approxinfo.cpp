@@ -611,7 +611,7 @@ std::set<Instruction*> ApproxInfo::preciseEscapeCheck(
   return preciseEscapeCheck(insts);
 }
 
-bool ApproxInfo::isWhiteList(StringRef s) {
+bool ApproxInfo::isWhitelistedPure(StringRef s) {
   return funcWhitelist.count(s);
 }
 
@@ -635,7 +635,7 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   }
 
   // Whitelisted pure functions from standard libraries.
-  if (func->empty() && isWhiteList(func->getName())) {
+  if (func->empty() && isWhitelistedPure(func->getName())) {
       ACCEPT_LOG << " - whitelisted\n";
       functionPurity[func] = true;
       return true;

@@ -186,7 +186,7 @@ namespace {
           }
 
           testSubFunctions(callee, loop, hasInlineAsm);
-          if (!isa<IntrinsicInst>(inst) && !AI->isWhiteList(callee->getName()) && AI->isPrecisePure(callee)) {
+          if (!isa<IntrinsicInst>(inst) && !AI->isWhitelistedPure(callee->getName()) && AI->isPrecisePure(callee)) {
             // std::cerr << callee->getName().str() << " is precise pure!\n\n" << std::endl;
             if (!find_inst(inst)) {
               loops_to_npu.push_back(loop);
@@ -247,7 +247,7 @@ namespace {
             return false;
           }
 
-          if (!isa<IntrinsicInst>(inst) && !AI->isWhiteList(callee->getName()) && AI->isPrecisePure(callee)) {
+          if (!isa<IntrinsicInst>(inst) && !AI->isWhitelistedPure(callee->getName()) && AI->isPrecisePure(callee)) {
             ACCEPT_LOG << callee->getName().str() << " is precise-pure\n";
             if (!find_inst(inst)) {
               loops_to_npu.push_back(loop);

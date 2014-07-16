@@ -77,7 +77,7 @@ public:
   LineMarker markerAtLine(std::string filename, int line);
   LineMarker instMarker(llvm::Instruction *inst);
 
-  bool isWhiteList(llvm::StringRef s);
+  bool isWhitelistedPure(llvm::StringRef s);
   std::set<llvm::BasicBlock*> successorsOf(llvm::BasicBlock *block);
   std::set<llvm::BasicBlock*> imSuccessorsOf(llvm::BasicBlock *block);
   bool storeEscapes(llvm::StoreInst *store,
