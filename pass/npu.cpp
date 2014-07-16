@@ -248,19 +248,20 @@ namespace {
           }
 
           if (!isa<IntrinsicInst>(inst) && !AI->isWhiteList(callee->getName()) && AI->isPrecisePure(callee)) {
-            // std::cerr << callee->getName().str() << " is precise pure!\n\n" << std::endl;
+            ACCEPT_LOG << callee->getName().str() << " is precise-pure\n";
             if (!find_inst(inst)) {
               loops_to_npu.push_back(loop);
               calls_to_npu.push_back(inst);
             }
           } else {
-            // std::cerr << callee->getName().str() << " is NOT precise pure!\n\n" << std::endl;
+            ACCEPT_LOG << callee->getName().str() << " is not precise-pure\n";
           }
 
         } // for instructions
 
       } // for basic blocks
 
+      ACCEPT_LOG << "calls: " << calls_to_npu.size() << "\n";
       for (int i = 0; i < calls_to_npu.size(); ++i) {
         // std::cerr << "Calls to npu size: " << calls_to_npu.size() << std::endl;
         // std::cerr << "++++ begin" << std::endl;
