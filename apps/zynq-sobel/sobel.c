@@ -7,7 +7,6 @@
 #include "convolution.h"
 #include "rgb_image.h"
 
-#include "profile.h"
 #include "xil_io.h"
 #include "xil_mmu.h"
 #include "xil_types.h"
@@ -36,13 +35,6 @@ int kernel_invocations;
 
 
 int main (int argc, const char* argv[]) {
-
-    // Performance counters
-    unsigned int t_precise;
-    unsigned int t_approx;
-    unsigned int dynInsn_precise;
-    unsigned int dynInsn_approx;
-    unsigned int evt_counter[1] = {0x68};
     
     // Sobel variables
     int i;
@@ -85,7 +77,6 @@ int main (int argc, const char* argv[]) {
     ///////////////////////////////
     Xil_SetTlbAttributes(OCM_SRC,0x15C06);
     Xil_SetTlbAttributes(OCM_DST,0x15C06);
-    t_precise = rd_fpga_clk();
     
 
         for (y = 0; y < (srcImage.h); y++) {
@@ -113,7 +104,6 @@ int main (int argc, const char* argv[]) {
         }
 
     
-    t_precise = rd_fpga_clk() - t_precise;
 
 
     ///////////////////////////////
@@ -191,6 +181,7 @@ int main (int argc, const char* argv[]) {
     // 5 - Report results
     ///////////////////////////////
 
+    /*
 #if PROFILE_MODE != 0
     printf("WARNING: kernel level profiling affects cycle counts of whole application\n");
 #endif
@@ -212,6 +203,7 @@ int main (int argc, const char* argv[]) {
     printf("Precise execution:          %lld cycles spent in kernels\n", t_kernel_precise);
     printf("Approximate execution:      %lld cycles spent in kernels \n", t_kernel_approx);
 #endif //PROFILE_MODE
+    */
     
 
 #if DUMP_DATA == 1

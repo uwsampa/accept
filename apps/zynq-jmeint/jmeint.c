@@ -6,7 +6,6 @@
 
 // andreolb: we are not executing in NPU.
 #include "npu.h"
-#include "profile.h"
 #include "xil_io.h"
 #include "xil_mmu.h"
 #include "xil_types.h"

@@ -15,7 +15,6 @@
 #include "rgb_image.h"
 
 #include "npu.h"
-#include "profile.h"
 #include "xil_io.h"
 #include "xil_mmu.h"
 #include "xil_types.h"
