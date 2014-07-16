@@ -187,13 +187,13 @@ namespace {
 
           testSubFunctions(callee, loop, hasInlineAsm);
           if (!isa<IntrinsicInst>(inst) && !AI->isWhiteList(callee->getName()) && AI->isPrecisePure(callee)) {
-            std::cerr << callee->getName().str() << " is precise pure!\n\n" << std::endl;
+            // std::cerr << callee->getName().str() << " is precise pure!\n\n" << std::endl;
             if (!find_inst(inst)) {
               loops_to_npu.push_back(loop);
               calls_to_npu.push_back(inst);
             }
           } else {
-            std::cerr << callee->getName().str() << " is NOT precise pure!\n\n" << std::endl;
+            // std::cerr << callee->getName().str() << " is NOT precise pure!\n\n" << std::endl;
           }
         }
       }
@@ -230,7 +230,7 @@ namespace {
       std::string type_str;
       llvm::raw_string_ostream rso(type_str);
       rso << *inst << "isApprox: " << isApprox(inst);
-      std::cerr << "\n" << rso.str() << std::endl;
+      // std::cerr << "\n" << rso.str() << std::endl;
           if (!c_inst) continue;
           Function *callee = c_inst->getCalledFunction();
 
@@ -243,13 +243,13 @@ namespace {
             return false;
 
           if (!isa<IntrinsicInst>(inst) && !AI->isWhiteList(callee->getName()) && AI->isPrecisePure(callee)) {
-            std::cerr << callee->getName().str() << " is precise pure!\n\n" << std::endl;
+            // std::cerr << callee->getName().str() << " is precise pure!\n\n" << std::endl;
             if (!find_inst(inst)) {
               loops_to_npu.push_back(loop);
               calls_to_npu.push_back(inst);
             }
           } else {
-            std::cerr << callee->getName().str() << " is NOT precise pure!\n\n" << std::endl;
+            // std::cerr << callee->getName().str() << " is NOT precise pure!\n\n" << std::endl;
           }
 
         } // for instructions
@@ -257,12 +257,13 @@ namespace {
       } // for basic blocks
 
       for (int i = 0; i < calls_to_npu.size(); ++i) {
-        std::cerr << "Calls to npu size: " << calls_to_npu.size() << std::endl;
-        std::cerr << "++++ begin" << std::endl;
+        // std::cerr << "Calls to npu size: " << calls_to_npu.size() << std::endl;
+        // std::cerr << "++++ begin" << std::endl;
         CallInst *c = dyn_cast<CallInst>(calls_to_npu[i]);
-        std::cerr << "Function npu: " << (c->getCalledFunction()->getName()).str() << std::endl;
+        // std::cerr << "Function npu: " << (c->getCalledFunction()->getName()).str() << std::endl;
         //modified = tryToNPU(loops_to_npu[i], calls_to_npu[i]);
-        std::cerr << "++++ middle" << std::endl;
+        // std::cerr << "++++ middle" << std::endl;
+        /*
         for (Loop::block_iterator bi = loop->block_begin(); bi != loop->block_end(); ++bi) {
           BasicBlock *bb = *bi;
           for (BasicBlock::iterator ii = bb->begin(); ii != bb->end(); ++ii) {
@@ -274,6 +275,7 @@ namespace {
           }
         }
         std::cerr << "++++ end" << std::endl;
+        */
       }
       calls_to_npu.clear();
       loops_to_npu.clear();
@@ -348,11 +350,11 @@ namespace {
       return false;
 
     if (!isApprox(alloca)) {
-      std::cerr << "independence day" << std::endl;
+      // std::cerr << "independence day" << std::endl;
         std::string type_str;
         llvm::raw_string_ostream rso(type_str);
         rso << *alloca;
-        std::cerr << rso.str() << std::endl;
+        // std::cerr << rso.str() << std::endl;
       return false;
     }
 
@@ -434,7 +436,7 @@ namespace {
             return true;
       }
     }
-    std::cerr << "End bb intersection" << std::endl;
+    // std::cerr << "End bb intersection" << std::endl;
 #endif
 
     std::set<Instruction*> afteri;
@@ -455,21 +457,24 @@ namespace {
     }
 
 #if ALIAS == 1
-    std::cerr << "Begin AA" << std::endl;
+    // std::cerr << "Begin AA" << std::endl;
     AliasSetTracker st(*AA);
     for (std::set<Instruction *>::iterator ii = afteri.begin(); ii != afteri.end(); ++ii)
       if (isa<StoreInst>(*ii) && !isApprox(*ii)) {
         st.add(*ii);
+        /*
             std::string type_str;
             llvm::raw_string_ostream rso(type_str);
             Instruction *yy = *ii;
             rso << "\nAdding Store: " << *yy << "\tisApprox: " << isApprox(yy);
             std::cerr << rso.str() << std::endl;
+            */
       }
 
     for (AliasSetTracker::iterator si = st.begin(); si != st.end(); ++si)
       for (std::set<Instruction *>::iterator ii = beforei.begin(); ii != beforei.end(); ++ii)
         if (isa<LoadInst>(*ii) && si->aliasesUnknownInst(*ii, *AA)) {
+            /*
           std::cerr << "HERE" << std::endl;
             std::string type_str;
             llvm::raw_string_ostream rso(type_str);
@@ -479,9 +484,10 @@ namespace {
             std::cerr << "Problem alias set: " << std::endl;
             AliasSet &AS = *si;
             AS.dump();
+            */
           return true;
         }
-    std::cerr << "End AA" << std::endl;
+    // std::cerr << "End AA" << std::endl;
 #endif
 
 #if ALIAS_DUMP == 1
@@ -496,16 +502,16 @@ namespace {
 
     // Dependencies flowing from instructions after the call
     // to instructions before the call are not allowed.
-    std::cerr << "Begin use bottom to top" << std::endl;
+    // std::cerr << "Begin use bottom to top" << std::endl;
     for (std::set<Instruction *>::iterator ii = afteri.begin(); ii != afteri.end(); ++ii)
       for (Value::use_iterator ui = (*ii)->use_begin(); ui != (*ii)->use_end(); ++ui)
         if (beforei.count(cast<Instruction>(*ui)))
           return true;
-    std::cerr << "End use bottom to top" << std::endl;
+    // std::cerr << "End use bottom to top" << std::endl;
 
 
     // We are ok now.
-    std::cerr << "Begin buff" << std::endl;
+    // std::cerr << "Begin buff" << std::endl;
     for (std::set<Instruction *>::iterator ii = beforei.begin(); ii != beforei.end(); ++ii) {
       for (Value::use_iterator ui = (*ii)->use_begin(); ui != (*ii)->use_end(); ++ui) {
         Instruction *use = cast<Instruction>(*ui);
@@ -527,7 +533,7 @@ namespace {
         }
       }
     }
-    std::cerr << "End buff" << std::endl;
+    // std::cerr << "End buff" << std::endl;
 
     return false;
   } // pre_pos_call_dependency_check
@@ -548,7 +554,7 @@ namespace {
     std::vector<Value*> st_addr;
     std::vector<StoreInst*> st_inst;
     if (pre_pos_call_dependency_check(inst, loop, before_insts_tobuff, st_value, st_addr, st_inst)) {
-      std::cerr << "BOSTA" << std::endl;
+      // std::cerr << "BOSTA" << std::endl;
       return false;
     }
 
@@ -657,15 +663,16 @@ namespace {
       if (op_size[i] != -1)
         continue;
 
-      std::cerr << "op_size " << op_size[i] << std::endl;
-      std::cerr << "operands: " << inst->getNumOperands() << std::endl;
+      // std::cerr << "op_size " << op_size[i] << std::endl;
+      // std::cerr << "operands: " << inst->getNumOperands() << std::endl;
       GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(inst->getOperandUse(i));
       AllocaInst *ainst = dyn_cast<AllocaInst>(inst->getOperandUse(i));
       GlobalValue *aval = dyn_cast<GlobalValue>(inst->getOperandUse(i));
       GlobalVariable *avar = dyn_cast<GlobalVariable>(inst->getOperandUse(i));
       Instruction *bainst = dyn_cast<Instruction>(inst->getOperandUse(i));
       GlobalAlias *gal = dyn_cast<GlobalAlias>(inst->getOperandUse(i));
-      std::cerr << "dump bla" << std::endl;
+      // std::cerr << "dump bla" << std::endl;
+      /*
       for (int j = 0; j < 22; ++j) {
         unsigned char u = j;
         unsigned c = u;
@@ -690,6 +697,7 @@ namespace {
       std::cerr << "\n\n\n\n\n" <<std::endl;
       std::cerr << inst->getOperandUse(i)->getValueID() << std::cerr;
       std::cerr << "\n\n\n\n\n" <<std::endl;
+      */
 
       //====================================
       
@@ -707,9 +715,9 @@ namespace {
       }
 
       Type *ty1 = allocai->getAllocatedType();
-      std::cerr << "special dump 2" << std::endl;
+      // std::cerr << "special dump 2" << std::endl;
       ty1->dump();
-      std::cerr << "end special dump 2" << std::endl;
+      // std::cerr << "end special dump 2" << std::endl;
       if (!ty1->isArrayTy() || !ty1->getNumContainedTypes()) {
         op_size[i] = 0;
         continue;
@@ -948,10 +956,12 @@ namespace {
             }
           }
         }
+        /*
             Instruction *bla2 = (Instruction*)v;
             rso << "twov: " << *bla2 << "\n";
             std::cerr << rso.str() << std::endl;
             v->getType()->dump();
+            */
       }
 
       // Only once (when i == 0) load iBuffAlloca
@@ -1071,7 +1081,7 @@ namespace {
     int ssize = st_value.size();
     Value *scounterf;
     Value *scounteri;
-    std::cerr << "fuck size: " << ssize << std::endl;
+    // std::cerr << "fuck size: " << ssize << std::endl;
     if (ssize) {
       scounterf = builder.CreateLoad(depsStoreFloatCounterAlloca, false, "npu_load_depsSFcounter");
       scounteri = builder.CreateLoad(depsStoreIntCounterAlloca, false, "npu_load_depsSIcounter");
@@ -1376,7 +1386,7 @@ namespace {
 
       load = GEP;
     }
-    std::cerr << "brah " << gotRetVal << "\t" << escaped_stores.size() << std::endl;
+    // std::cerr << "brah " << gotRetVal << "\t" << escaped_stores.size() << std::endl;
     for (int i = 0; i < escaped_stores.size(); ++i) {
       // First we store the function arguments.
       // For now we only consider escaped stores to function arguments.
