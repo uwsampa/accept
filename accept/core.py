@@ -16,6 +16,7 @@ import traceback
 from .uncertain import umean
 from collections import namedtuple
 import itertools
+import errno
 
 
 EVALSCRIPT = 'eval.py'
@@ -122,6 +123,18 @@ def normpath(path):
     return os.path.normpath(os.path.abspath(os.path.expanduser(
         path.decode(enc)
     )))
+
+
+def maybe_mkdir(path):
+    """Make the directory, unless it exists. (No race.)
+    """
+    try:
+        os.mkdir(path)
+    except OSError as exc:
+        if exc.errno == errno.EEXIST and os.path.isdir(path):
+            pass
+        else:
+            raise
 
 
 # Command execution (system()-like) with timeouts.
@@ -314,8 +327,7 @@ def build_and_execute(directory, relax_config, test, rep, timeout=None):
             if isinstance(output, basestring) and output.startswith('file:'):
                 fn = output[len('file:'):]
                 _, ext = os.path.splitext(fn)
-                if not os.path.isdir(OUTPUTS_DIR):
-                    os.mkdir(OUTPUTS_DIR)
+                maybe_mkdir(OUTPUTS_DIR)
                 output = os.path.join(OUTPUTS_DIR, _random_string() + ext)
                 try:
                     shutil.copyfile(fn, output)
