@@ -17,6 +17,9 @@ namespace {
   cl::opt<bool, true> optProf("accept-prof",
       cl::desc("ACCEPT: use profiling information"),
       cl::location(acceptUseProfile));
+
+  // The NPU pass is enabled explicitly because it is platform-specific. x86
+  // and WISP benchmarks cannot use this optimization.
   cl::opt<bool, true> optEnableNPU("accept-npu",
       cl::desc("ACCEPT: use NPU transformation"),
       cl::location(acceptEnableNPU));

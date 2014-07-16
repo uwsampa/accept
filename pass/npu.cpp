@@ -13,6 +13,7 @@
 #include "llvm/Pass.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Analysis/PostDominators.h"
+#include "llvm/Support/CommandLine.h"
 
 #include <sstream>
 #include <iostream>
@@ -36,6 +37,9 @@ namespace {
     stream << suffix;
     return str;
   }
+
+  cl::opt<int> optNPUBufferSize("accept-npu-bufsize",
+      cl::desc("ACCEPT: NPU interface buffer size"));
 
   struct LoopNPU: public LoopPass {
     static char ID;
@@ -819,7 +823,8 @@ namespace {
     }
 
     // Assume a constant buffer size for now.
-    int buffer_size = 576;
+    int buffer_size = optNPUBufferSize;
+    ACCEPT_LOG << "with buffer size: " << optNPUBufferSize << "\n";
     unsigned int ibuff_addr = 0xFFFF0000;
     unsigned int obuff_addr = 0xFFFF8000;
     IntegerType *nativeInt = getNativeIntegerType();
