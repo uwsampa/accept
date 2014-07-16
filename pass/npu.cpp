@@ -29,6 +29,14 @@
 using namespace llvm;
 
 namespace {
+  std::string makestr(const char *base, int suffix) {
+    std::string str;
+    llvm::raw_string_ostream stream(str);
+    stream << base;
+    stream << suffix;
+    return str;
+  }
+
   struct LoopNPU: public LoopPass {
     static char ID;
     bool modified;
@@ -332,7 +340,7 @@ namespace {
   bool isApproxGEPChain(StoreInst *SI) {
     Value *ptr = SI->getPointerOperand();
     GetElementPtrInst *GEP;
-    while (GEP = dyn_cast<GetElementPtrInst>(ptr))
+    while ((GEP = dyn_cast<GetElementPtrInst>(ptr)))
       ptr = GEP->getPointerOperand();
 
     AllocaInst *alloca = dyn_cast<AllocaInst>(ptr);
@@ -898,7 +906,7 @@ namespace {
     int total_buffered = 0;
     for (unsigned int i = 0; i < n; ++i) {
       std::vector<Value*> mloads;
-      std::string s = "npu_conv_" + i;
+      std::string s = makestr("npu_conv_", i);
       Type *type = inst->getOperandUse(i)->getType();
 
       // Get the next argument and convert it if it's not float.
@@ -957,12 +965,12 @@ namespace {
         iAddrChainCounter = builder.CreateLoad(iAddrCounterAlloca, false, "npu_load_iAddrC");
 
       if (is_output_arg[i]) {
-        s = "npu_iAddrGEP_" + i;
+        s = makestr("npu_iAddrGEP_", i);
         iAddrChainPosition = builder.CreateInBoundsGEP(addrBuffAlloca,
                                                       iAddrChainCounter,
                                                       s.c_str());
         builder.CreateStore(inst->getOperandUse(i), iAddrChainPosition);
-        s = "npu_iAddrCounter_add_" + i;
+        s = makestr("npu_iAddrCounter_add_", i);
         iAddrChainCounter = builder.CreateAdd(iAddrChainCounter,
                                               ConstantInt::get(nativeInt, 1, false),
                                               s.c_str());
@@ -975,7 +983,7 @@ namespace {
         for (int j = 0; j < n_to_buff; ++j) {
           // Now that the input has been converted and iBuff has been loaded, get
           // the address of the next iBuff element.
-          s = "npu_iBuffGEP_" + i;
+          s = makestr("npu_iBuffGEP_", i);
           // is the 1 signed? (the true parameter)
           GEP = builder.CreateInBoundsGEP(load,
                                           ConstantInt::get(nativeInt, 1, true),
@@ -992,7 +1000,7 @@ namespace {
           load = GEP;
 
           if (!is_matrix[i] && (j != n_to_buff - 1)) {
-            s = "npu_auxGEP_" + (j+1);
+            s = makestr("npu_auxGEP_", j+1);
             Value *auxGEP = builder.CreateInBoundsGEP(inst->getOperandUse(i),
                                                       ConstantInt::get(nativeInt, j+1),
                                                       s.c_str());
@@ -1031,20 +1039,20 @@ namespace {
 
         inst_type.push_back(buff_int);
         ++buff_int;
-        std::string s = "npu_dint_GEP_" + k;
+        std::string s = makestr("npu_dint_GEP_", k);
         Value *GEPi = builder.CreateInBoundsGEP(depsAllocaInt, dcounteri, s.c_str());
         builder.CreateStore(inst_tobuff, GEPi);
-        s = "npu_dint_add_" + k;
+        s = makestr("npu_dint_add_", k);
         dcounteri = builder.CreateAdd(dcounteri, ConstantInt::get(nativeInt, 1, false), s.c_str());
 
       } else if (type->isFloatTy()) {
 
         inst_type.push_back(buff_float);
         ++buff_float;
-        std::string s = "npu_fint_GEP_" + k;
+        std::string s = makestr("npu_fint_GEP_", k);
         Value *GEPf = builder.CreateInBoundsGEP(depsAllocaFloat, dcounterf, s.c_str());
         builder.CreateStore(inst_tobuff, GEPf);
-        s = "npu_fint_add_" + k;
+        s = makestr("npu_fint_add_", k);
         dcounterf = builder.CreateAdd(dcounterf, ConstantInt::get(nativeInt, 1, false), s.c_str());
 
       } else {
@@ -1075,8 +1083,8 @@ namespace {
       Type *type = st_value[k]->getType();
       if (type->isIntegerTy()) {
         ++sbuff_int;
-        std::string sv = "npu_sint_GEPValue_" + k;
-        std::string sa = "npu_GEPAddr_" + k;
+        std::string sv = makestr("npu_sint_GEPValue_", k);
+        std::string sa = makestr("npu_GEPAddr_", k);
         Value *GEPv = builder.CreateInBoundsGEP(depsStoreAllocaInt, scounteri, sv.c_str());
         Value *GEPa = builder.CreateInBoundsGEP(depsStoreAllocaAddrInt, scounteri, sa.c_str());
         if (DT->dominates(st_inst[k], inst->getParent())) {
@@ -1089,8 +1097,8 @@ namespace {
         scounteri = builder.CreateAdd(scounteri, ConstantInt::get(nativeInt, 1, false), "npu_sint_counter_add");
       } else if (type->isFloatTy()) {
         ++sbuff_float;
-        std::string sv = "npu_sfloat_GEPValue_" + k;
-        std::string sa = "npu_GEPAddr_" + k;
+        std::string sv = makestr("npu_sfloat_GEPValue_", k);
+        std::string sa = makestr("npu_GEPAddr_", k);
         Value *GEPv = builder.CreateInBoundsGEP(depsStoreAllocaFloat, scounterf, sv.c_str());
         Value *GEPa = builder.CreateInBoundsGEP(depsStoreAllocaAddrFloat, scounterf, sa.c_str());
         if (DT->dominates(st_inst[k], inst->getParent())) {
@@ -1324,8 +1332,8 @@ namespace {
     for (int k = 0; k < ssize; ++k) {
       Type *type = st_value[k]->getType();
       if (type->isIntegerTy()) {
-        std::string sv = "npu_sint_GEPValue_unbuff_" + k;
-        std::string sa = "npu_GEPAddr_unbuff_" + k;
+        std::string sv = makestr("npu_sint_GEPValue_unbuff_", k);
+        std::string sa = makestr("npu_GEPAddr_unbuff_", k);
         Value *GEPv = builder.CreateInBoundsGEP(depsStoreAllocaInt, sint_counter_load, sv.c_str());
         Value *GEPa = builder.CreateInBoundsGEP(depsStoreAllocaAddrInt, sint_counter_load, sa.c_str());
         Value *LDv = builder.CreateLoad(GEPv);
@@ -1333,8 +1341,8 @@ namespace {
         builder.CreateStore(LDv, LDa);
         sint_counter_load = builder.CreateAdd(sint_counter_load, ConstantInt::get(nativeInt, 1, false), "npu_sint_counter_add_unbuff");
       } else if (type->isFloatTy()) {
-        std::string sv = "npu_sfloat_GEPValue_unbuff_" + k;
-        std::string sa = "npu_GEPAddr_unbuff_" + k;
+        std::string sv = makestr("npu_sfloat_GEPValue_unbuff_", k);
+        std::string sa = makestr("npu_GEPAddr_unbuff_", k);
         Value *GEPv = builder.CreateInBoundsGEP(depsStoreAllocaFloat, sfloat_counter_load, sv.c_str());
         Value *addVA = builder.CreateAdd(sint_counter_load, sfloat_counter_load, "npu_store_fi_counter_add_unbuff");
         Value *GEPa = builder.CreateInBoundsGEP(depsStoreAllocaAddrFloat, addVA, sa.c_str());
@@ -1391,13 +1399,13 @@ namespace {
       Value *v = builder.CreateLoad(load, s2.c_str());
 
       if (ptr_args_i < n_ptr_args) {
-        std::string s3 = "npu_oAddrGEP_" + ptr_args_i;
+        std::string s3 = makestr("npu_oAddrGEP_", ptr_args_i);
         oAddrChainPosition = builder.CreateInBoundsGEP(addrBuffAlloca,
                                                         oAddrChainCounter,
                                                         s3.c_str());
         Value *addr_buffer_value = builder.CreateLoad(oAddrChainPosition);
         builder.CreateStore(v, addr_buffer_value, false);
-        s3 = "npu_oAddrCounter_add_" + ptr_args_i;
+        s3 = makestr("npu_oAddrCounter_add_", ptr_args_i);
         oAddrChainCounter = builder.CreateAdd(oAddrChainCounter,
                                               ConstantInt::get(nativeInt, 1, false),
                                               s3.c_str());
@@ -1436,11 +1444,11 @@ namespace {
     if (buff_int)
       int_counter_load = builder.CreateLoad(depsIntCounterAlloca, false, "npu_load_depsIcounter_unbuffering");
     for (int k = 0; k < buff_int; ++k) {
-      std::string s = "npu_dint_GEP_unbuffering_" + k;
+      std::string s = makestr("npu_dint_GEP_unbuffering_", k);
       Value *GEPi = builder.CreateInBoundsGEP(depsAllocaInt, int_counter_load, s.c_str());
       int_loads.push_back(builder.CreateLoad(GEPi));
       if (k != buff_int - 1) {
-        s = "npu_dint_add_unbuffering_" + k;
+        s = makestr("npu_dint_add_unbuffering_", k);
         int_counter_load = builder.CreateAdd(int_counter_load, ConstantInt::get(nativeInt, 1, false), s.c_str());
       } else {
         builder.CreateStore(int_counter_load, depsIntCounterAlloca);
@@ -1450,11 +1458,11 @@ namespace {
     if (buff_float)
       float_counter_load = builder.CreateLoad(depsFloatCounterAlloca, false, "npu_load_depsFcounter_unbuffering");
     for (int k = 0; k < buff_float; ++k) {
-      std::string s = "npu_dfloat_GEP_unbuffering_" + k;
+      std::string s = makestr("npu_dfloat_GEP_unbuffering_", k);
       Value *GEPf = builder.CreateInBoundsGEP(depsAllocaFloat, float_counter_load, s.c_str());
       float_loads.push_back(builder.CreateLoad(GEPf));
       if (k != buff_float - 1) {
-        s = "npu_dfloat_add_unbuffering_" + k;
+        s = makestr("npu_dfloat_add_unbuffering_", k);
         float_counter_load = builder.CreateAdd(float_counter_load, ConstantInt::get(nativeInt, 1, false), s.c_str());
       } else {
         builder.CreateStore(float_counter_load, depsFloatCounterAlloca);
