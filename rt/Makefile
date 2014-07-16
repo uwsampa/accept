@@ -1,4 +1,4 @@
-CC ?= clang
+CC := clang
 
 ARCHES := default zynq msp430
 
@@ -11,3 +11,6 @@ clean:
 
 acceptrt.%.bc: acceptrt.%.c
 	$(CC) $(CFLAGS) -g -O0 -c -emit-llvm -o $@ $<
+
+acceptrt.msp430.bc: acceptrt.msp430.c
+	$(CC) $(CFLAGS) -target msp430-elf -g -O0 -c -emit-llvm -o $@ $<
