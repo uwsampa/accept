@@ -116,9 +116,6 @@ int main (int argc, const char* argv[]) {
         forwardk2j(t1t2_precise[i + 0], t1t2_precise[i + 1], xy + (i + 0), xy + (i + 1));
     }
     
-    printf("\n\nRunning inversek2j benchmark on %u inputs\n\n", n);
-
-    
     ///////////////////////////////
     // 2 - Precise execution
     ///////////////////////////////
@@ -138,48 +135,16 @@ int main (int argc, const char* argv[]) {
 
     accept_roi_begin();
 
-#if POWER_MODE == 1
-    while (1) {
-#endif //POWER_MODE
-
         for (i = 0; i < n * NUM_INPUTS; i += NUM_INPUTS) {
         
-// andreolb: not measuring anything for now.
-/*
-#if PROFILE_MODE == 2
-            t_kernel_precise_start();
-#endif //PROFILE_MODE == 2
-*/
-
             inversek2j(xy[i + 0], xy[i + 1], t1t2_precise + (i + 0), t1t2_precise + (i + 1));
-
-// andreolb: not measuring anything for now.
-/*
-#if PROFILE_MODE == 2
-            t_kernel_precise_stop();
-#endif //PROFILE_MODE == 2
-*/
 
         }
 
-        //for (int k = 0; k < n * NUM_INPUTS; k += NUM_INPUTS)
-          //printf("\n%f\t%f", *(t1t2_precise + (k + 0)), *(t1t2_precise + (k + 1)));
-    
-#if POWER_MODE == 1
-    }
-#endif //POWER_MODE
-
-// andreolb: not measuring anything for now.
-/*
-    dynInsn_precise = get_eventcount(0) - dynInsn_precise; 
-    
-#if TIMER==0
-    t_precise = get_cyclecount() - t_precise;
-#else
-    t_precise = rd_fpga_clk() - t_precise;
-#endif //TIMER
-*/
     accept_roi_end();
+
+    for (int k = 0; k < n * NUM_INPUTS; k += NUM_INPUTS)
+      printf("\n%f\t%f", *(t1t2_precise + (k + 0)), *(t1t2_precise + (k + 1)));
 
 
     ///////////////////////////////
