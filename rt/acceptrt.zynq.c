@@ -13,6 +13,6 @@ void accept_roi_begin() {
 
 void accept_roi_end() {
     unsigned int clock_end = rd_fpga_clk();
-    unsigned int elapsed = accept_clock_begin - clock_end;
+    unsigned int elapsed = clock_end - accept_clock_begin;
     printf("\nACCEPT-TIME: %u\n", elapsed);
 }
