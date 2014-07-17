@@ -183,6 +183,11 @@ ifneq ($(CLUSTER),)
 ACCEPT_ARGS += -c
 endif
 
+# Zynq platform experiments.
+ifeq ($(EXPLAT),zynq)
+APPS := zynq-inversek2j zynq-sobel
+endif
+
 exp:
 	./bin/accept $(ACCEPT_ARGS) -v exp -j $(EXP_ARGS) $(APPS:%=$(APPSDIR)/%)
 
