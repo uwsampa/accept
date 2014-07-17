@@ -31,7 +31,8 @@ def score(orig, relaxed):
                 fillvalue=0,
             )
             for orig_p, relaxed_p in it:
-                total_dist += abs(orig_p - relaxed_p)
+                dist = abs(orig_p - relaxed_p)
+                total_dist += min(dist, 255)
                 count += 1
 
     return total_dist / 255 / count
