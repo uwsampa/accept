@@ -31,6 +31,7 @@ PARAM_MAX = {
     'lock': 1,
     'barrier': 1,
     'alias': 1,
+    'npu_region': 1,
 }
 EPSILON_ERROR = 0.001
 EPSILON_SPEEDUP = 0.01

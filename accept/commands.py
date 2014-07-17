@@ -143,6 +143,7 @@ def dump_results_json(results):
 OPT_KINDS = {
     'loopperf': ('loop',),
     'desync':   ('lock', 'barrier'),
+    'npu':      ('npu_region',),
 }
 
 
