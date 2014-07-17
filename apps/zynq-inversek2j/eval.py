@@ -5,7 +5,7 @@ def load():
 def _load(fn):
     pairs = []
 
-    with open('output.txt') as f:
+    with open(fn) as f:
         for line in f:
             line = line.strip()
             if not line:
