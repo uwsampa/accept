@@ -1,5 +1,5 @@
 from __future__ import division
-from itertools import izip
+import itertools
 
 
 def load():
@@ -16,7 +16,7 @@ def pixels(f):
             continue
 
         for part in line.split(','):
-            yield int(part)
+            yield int(part or 0)
 
 
 def score(orig, relaxed):
@@ -25,7 +25,12 @@ def score(orig, relaxed):
 
     with open(orig) as orig_f:
         with open(relaxed) as relaxed_f:
-            for orig_p, relaxed_p in izip(pixels(orig_f), pixels(relaxed_f)):
+            it = itertools.izip_longest(
+                pixels(orig_f),
+                pixels(relaxed_f),
+                fillvalue=0,
+            )
+            for orig_p, relaxed_p in it:
                 total_dist += abs(orig_p - relaxed_p)
                 count += 1
 
