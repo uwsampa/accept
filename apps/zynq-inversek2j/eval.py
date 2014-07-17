@@ -1,4 +1,8 @@
 def load():
+    return 'file:output.txt'
+
+
+def _load(fn):
     pairs = []
 
     with open('output.txt') as f:
@@ -26,7 +30,10 @@ def euclidean_dist(a, b):
     return total ** 0.5
 
 
-def score(orig, relaxed):
+def score(orig_fn, relaxed_fn):
+    orig = _load(orig_fn)
+    relaxed = _load(relaxed_fn)
+
     # Check that lengths match.
     if len(orig) != len(relaxed):
         return 1.0
