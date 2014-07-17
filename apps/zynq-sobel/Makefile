@@ -2,7 +2,7 @@ ARCH := zynq
 TARGET := sobel
 ZYNQBIT := sobel_x8_x64.bit
 LDFLAGS := -lm
-OPTARGS := -accept-npu -accept-npu-bufsize=128
+OPTARGS := -accept-npu -accept-npu-bufsize=1152
 
 RUNARGS := lena.dat
 TESTARGS := lena.dat

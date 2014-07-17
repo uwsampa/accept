@@ -223,7 +223,7 @@ int main (int argc, const char* argv[]) {
             }
         }
     }
-    printf("\"{\'bitdepth\': 8, \'interlace\': 0, \'planes\': 3, \'greyscale\': False, \'alpha\': False, \'size\': (256, 256)}\"%%\n");
+    // printf("\"{\'bitdepth\': 8, \'interlace\': 0, \'planes\': 3, \'greyscale\': False, \'alpha\': False, \'size\': (256, 256)}\"%%\n");
     
     // Print the approximate output
     /*
