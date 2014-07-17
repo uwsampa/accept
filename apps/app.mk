@@ -114,6 +114,7 @@ LDFLAGS := -Wl,-T -Wl,$(ZYNQDIR)/lscript.ld -L$(ZYNQDIR)/bsp/lib
 LIBS := -Wl,--start-group,-lxil,-lgcc,-lc,-lm,--end-group
 LLCARGS += -march=arm -mcpu=cortex-a9
 RUNSHIM := $(ACCEPTDIR)/plat/zynqrun.sh $(ZYNQBIT)
+CLEANMETOO += output.txt zynqlog.txt
 endif
 
 # And for msp430.
@@ -168,5 +169,6 @@ clean:
 	accept-globals-info.txt accept_config.txt accept_config_desc.txt \
 	accept_log.txt accept_time.txt \
 	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
+	accept-approxRetValueFunctions-info.txt accept-npuArrayArgs-info.txt \
 	$(CLEANMETOO)
 	for SUBDIR in $(SUBDIRS); do make -C "$$SUBDIR" clean; done
