@@ -435,7 +435,7 @@ namespace {
     // the call, then it's possible to "jump" around the call inside the loop
     // and we don't handle this case.
 #if BB_INTERSECTION == 1
-    std::cerr << "Begin bb intersection" << std::endl;
+    // std::cerr << "Begin bb intersection" << std::endl;
     for (std::set<BasicBlock *>::iterator bb = beforeBBs.begin(); bb != beforeBBs.end(); ++bb) {
       if (afterBBs.count(*bb))
         return true;
@@ -1054,6 +1054,10 @@ namespace {
 
 
         total_buffered += n_to_buff;
+      }
+
+      if (!total_buffered) {
+          errs() << "NOTHING WAS BUFFERED!\n";
       }
 
       // After storing the last input, store the final address of iBuff.
