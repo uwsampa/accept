@@ -6,7 +6,8 @@ here=`dirname $0`
 # Two arguments: the bitstream and the ELF binary.
 bit=$1
 elf=$2
-shift 2
+arg=$3
+shift 3
 
 # Destination for the log file.
 logdest=zynqlog.txt
@@ -30,7 +31,7 @@ sleep 3s
 # Execute the benchmark and collect its log.
 truncate $LOG_FILE --size 0
 echo invoking board
-xmd -tcl $RUN_TCL $bit $PS7_INIT $elf $@
+xmd -tcl $RUN_TCL $bit $PS7_INIT $elf $arg
 echo invocation finished
 sleep 10s
 echo done, collecting log
