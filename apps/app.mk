@@ -115,6 +115,7 @@ LIBS := -Wl,--start-group,-lxil,-lgcc,-lc,-lm,--end-group
 LLCARGS += -march=arm -mcpu=cortex-a9
 RUNSHIM := $(ACCEPTDIR)/plat/zynqrun.sh $(ZYNQBIT)
 CLEANMETOO += output.txt zynqlog.txt
+OPTARGS += -accept-npu
 endif
 
 # And for msp430.
