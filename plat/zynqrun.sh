@@ -30,7 +30,7 @@ sleep 3s
 # Execute the benchmark and collect its log.
 truncate $LOG_FILE --size 0
 echo invoking board
-xmd -tcl $RUN_TCL $bit $PS7_INIT $elf
+xmd -tcl $RUN_TCL $bit $PS7_INIT $elf $@
 echo invocation finished
 sleep 10s
 echo done, collecting log
