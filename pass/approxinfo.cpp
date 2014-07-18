@@ -537,9 +537,12 @@ bool ApproxInfo::approxOrLocal(std::set<Instruction*> &insts,
       return false;
   } else if (isApprox(inst)) {
     return true;
+  } else if (isa<BranchInst>(inst)) {
+    // TODO: Assuming single-entry/single-exit (all optimizations provide this
+    // currently). So all branches are fair game.
+    return true;
   } else if (isa<StoreInst>(inst) ||
-              isa<ReturnInst>(inst) ||
-              isa<BranchInst>(inst)) {
+             isa<ReturnInst>(inst)) {
     return false;  // Never approximate.
   }
 

@@ -26,9 +26,8 @@ void instructionsBetweenHelper(Instruction *end,
   for (BasicBlock::iterator i = curBB->begin(); i != curBB->end(); ++i) {
     if (end == i) {
       return;
-    } else if (curBB->getTerminator() != i) {
-      instrs.insert(i);
     }
+    instrs.insert(i);
   }
 
   // Recurse into successors.
@@ -53,8 +52,7 @@ void instructionsBetween(Instruction *start, Instruction *end,
     } else if (entered && end == i) {
       return;
     } else if (entered && start != i) {
-      if (startBB->getTerminator() != i)
-        instrs.insert(i);
+      instrs.insert(i);
     }
   }
 
