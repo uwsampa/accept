@@ -14,6 +14,8 @@
 
 #include <msp430.h>
 
+#define __fram __attribute__((section("FRAMVARS")))
+
 #ifndef __ASSEMBLER__
 #include <stdint.h>
 #endif
