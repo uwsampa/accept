@@ -46,7 +46,7 @@ void instructionsBetween(Instruction *start, Instruction *end,
                          std::set<Instruction *> &instrs) {
   // Handle the first basic block.
   BasicBlock *startBB = start->getParent();
-  bool entered;
+  bool entered = false;
   for (BasicBlock::iterator i = startBB->begin(); i != startBB->end(); ++i) {
     if (!entered && start == i) {
       entered = true;
