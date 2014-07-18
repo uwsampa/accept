@@ -6,6 +6,7 @@
 #include <accel.h>
 #include <spi.h>
 #include <math.h>
+#include <enerc.h>
 
 #define MODEL_SIZE 190
 #define MODEL_SIZE_PLUS_WARMUP (MODEL_SIZE+10)
@@ -27,11 +28,11 @@ static const unsigned moving[MODEL_SIZE] = {
 };
 
 /* These "pinned" variables are fixed at these addresses. */
-extern volatile unsigned int __NV_movingCount     asm("0xD000");
-extern volatile unsigned int __NV_stationaryCount asm("0xD002");
+APPROX extern volatile unsigned int __NV_movingCount     asm("0xD000");
+APPROX extern volatile unsigned int __NV_stationaryCount asm("0xD002");
 extern volatile unsigned int __NV_totalCount      asm("0xD004");
-extern volatile float __NV_movingPct              asm("0xD006");
-extern volatile float __NV_stationaryPct          asm("0xD00A");
+APPROX extern volatile float __NV_movingPct              asm("0xD006");
+APPROX extern volatile float __NV_stationaryPct          asm("0xD00A");
 
 typedef long int accelReading[3];
 typedef accelReading accelWindow[ACCEL_WINDOW_SIZE];
@@ -39,16 +40,16 @@ typedef accelReading accelWindow[ACCEL_WINDOW_SIZE];
 static accelWindow aWin;
 static int currSamp = 0;
 
-static accelReading mean;
-static accelReading stddev;
+APPROX static accelReading mean;
+APPROX static accelReading stddev;
 
 #ifdef TRAINING
 static int modelEntry = 0;
 static long int model[MODEL_SIZE_PLUS_WARMUP];
 #endif  // TRAINING
 
-static long int meanmag;
-static long int stddevmag;
+APPROX static long int meanmag;
+APPROX static long int stddevmag;
 
 static int g_x, g_y, g_z;
 static threeAxis_t accelOut;
@@ -74,7 +75,7 @@ void getNextSample() {
   }
 }
 
-void featurize() {
+APPROX void featurize() {
   mean[0] = mean[1] = mean[2] = 0;
   stddev[0] = stddev[1] = stddev[2] = 0;
   int i;
@@ -165,8 +166,8 @@ int classify() {
 
 void initializeNVData() {
   /*The erase-initial condition*/
-  if (__NV_movingCount == 0xffff && __NV_stationaryCount == 0xffff &&
-      __NV_totalCount == 0xffff) {
+  if (ENDORSE((__NV_movingCount == 0xffff && __NV_stationaryCount == 0xffff &&
+      __NV_totalCount == 0xffff))) {
 
     __NV_movingCount = 0;
     __NV_stationaryCount = 0;
