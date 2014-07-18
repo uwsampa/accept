@@ -462,7 +462,7 @@ int ApproxInfo::preciseEscapeCheckHelper(std::map<Instruction*, bool> &flags,
     for (Value::use_iterator ui = i->first->use_begin();
           ui != i->first->use_end(); ++ui) {
       Instruction *user = dyn_cast<Instruction>(*ui);
-      if (user && !flags[user]) {
+      if (user && (!flags.count(user) || !flags[user])) {
         allUsesTainted = false;
         break;
       }
