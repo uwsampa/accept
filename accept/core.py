@@ -396,6 +396,20 @@ def increase_config(config, amount=1):
     return tuple(out)
 
 
+def configs_conflict(a, b):
+    """Given two configurations, determine whether they overlap (i.e., have
+    nonzero parameters for at least one site in common).
+    """
+    a_dict = dict(a)
+    b_dict = dict(b)
+    assert a_dict.keys() == b_dict.keys()
+
+    for ident, a_param in a_dict.items():
+        if a_param and b_dict[ident]:
+            return True
+    return False
+
+
 def config_subsumes(a, b):
     """Given two configurations with the same sites, determine whether
     the first subsumes the second (all parameters in a are greater than
@@ -521,15 +535,28 @@ def bce_greedy(results, max_error=MAX_ERROR):
             knapsack.append(i)
             cur_combined = config
             cur_error = error
-        elif config_subsumes(cur_combined, config):
-            # Don't bother trying to add configurations that are
-            # subsumed by the current knapsack contents.
             continue
-        elif cur_error + error <= max_error:
-            # Add to knapsack.
+
+        # Search for conflicts.
+        conflicts = set()
+        conflict_value = 0.0
+        for j in knapsack:
+            if configs_conflict(config, components[j][0]):
+                conflicts.add(j)
+                conflict_value += 1.0 - components[j][1] ** -1.0
+
+        if conflicts:
+            this_value = 1.0 - speedup ** -1.0
+            if this_value < conflict_value:
+                continue
+
+        new_error = cur_error + error - \
+            sum(components[j][2] for j in conflicts)
+        if new_error <= max_error:
+            for conflict in conflicts:
+                knapsack.remove(conflict)
             knapsack.append(i)
-            cur_combined = combine_configs([cur_combined, config])
-            cur_error += error
+            cur_error = new_error
 
     # Here, we could predict the speedup for validation.
 
@@ -874,10 +901,14 @@ class Evaluation(object):
         """Compose the given configurations to evaluate some combined
         configurations.
         """
-        optimal, _, _ = triage_results(component_results)
-        configs = list(bce_greedy(optimal))
+        optimal, good, _ = triage_results(component_results)
+        components = optimal + good
+        configs = set(bce_greedy(components, 0.3))
+        configs.update(list(bce_greedy(components, 0.1)))
+        configs.update(list(bce_greedy(components, 0.05)))
         logging.info('{} composite configs'.format(len(configs)))
-        return self.run_approx(configs)
+        out = self.run_approx(configs)
+        return out
 
     def run(self, base_configs=None):
         """Execute the entire ACCEPT workflow, including all three
