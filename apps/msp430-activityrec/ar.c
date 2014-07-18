@@ -28,11 +28,11 @@ static const unsigned moving[MODEL_SIZE] = {
 };
 
 /* These "pinned" variables are fixed at these addresses. */
-APPROX extern volatile unsigned int __NV_movingCount     asm("0xD000");
-APPROX extern volatile unsigned int __NV_stationaryCount asm("0xD002");
-extern volatile unsigned int __NV_totalCount      asm("0xD004");
-APPROX extern volatile float __NV_movingPct              asm("0xD006");
-APPROX extern volatile float __NV_stationaryPct          asm("0xD00A");
+APPROX volatile __fram unsigned int __NV_movingCount;
+APPROX volatile __fram unsigned int __NV_stationaryCount;
+volatile __fram unsigned int __NV_totalCount;
+APPROX volatile __fram float __NV_movingPct;
+APPROX volatile __fram float __NV_stationaryPct;
 
 typedef long int accelReading[3];
 typedef accelReading accelWindow[ACCEL_WINDOW_SIZE];
@@ -248,6 +248,7 @@ int main(int argc, char *argv[]) {
 
   initializeHardware();
   initializeNVData();
+
   while (1) {
 
     if( __NV_totalCount > SAMPLES_TO_COLLECT ){
@@ -255,7 +256,6 @@ int main(int argc, char *argv[]) {
       PJOUT &= ~BIT6;
       while(1);
     }
-
     getNextSample();
     featurize();
 
@@ -270,7 +270,6 @@ int main(int argc, char *argv[]) {
 #endif
 
     int class = classify();
-
     /* __NV_totalCount, __NV_movingCount, and __NV_stationaryCount have an
      * nv-internal consistency requirement.  This code should be atomic. */
 
