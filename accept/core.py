@@ -876,7 +876,7 @@ class Evaluation(object):
         """
         optimal, _, _ = triage_results(component_results)
         configs = list(bce_greedy(optimal))
-        logging.debug('{} composite configs'.format(len(configs)))
+        logging.info('{} composite configs'.format(len(configs)))
         return self.run_approx(configs)
 
     def run(self, base_configs=None):

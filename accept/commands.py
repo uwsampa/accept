@@ -147,7 +147,7 @@ OPT_KINDS = {
 }
 
 
-def run_experiments(ev, only=None):
+def run_experiments(ev, only=None, test=True):
     """Run all stages in the Evaluation for producing paper-ready
     results. Returns the main results, a dict of kind-restricted
     results, and elapsed time for the main results.
@@ -163,7 +163,8 @@ def run_experiments(ev, only=None):
     end_time = time.time()
 
     # "Testing" phase.
-    main_results = ev.test_results(main_results)
+    if test:
+        main_results = ev.test_results(main_results)
 
     # Experiments with only one optimization type at a time.
     kind_results = {}
@@ -183,7 +184,11 @@ def run_experiments(ev, only=None):
 
         # Run the experiment workflow.
         logging.info('isolated configs: {}'.format(len(kind_configs)))
-        kind_results[kind] = ev.test_results(ev.run(kind_configs))
+        train_results = ev.run(kind_configs)
+        if test:
+            kind_results[kind] = ev.test_results(train_results)
+        else:
+            kind_results[kind] = train_results
 
     return main_results, kind_results, end_time - start_time
 
@@ -196,8 +201,10 @@ def run_experiments(ev, only=None):
 @click.option('--only', '-o', 'only', multiple=True)
 @click.option('--verbose', '-v', is_flag=True,
               help='show suboptimal results')
+@click.option('--notest', '-T', is_flag=True,
+              help='disable test executions')
 @click.pass_context
-def exp(ctx, appdirs, verbose, as_json, include_time, only):
+def exp(ctx, appdirs, verbose, as_json, include_time, only, notest):
     """Run experiments for the paper.
     """
     # Load the current results, if any.
@@ -215,7 +222,8 @@ def exp(ctx, appdirs, verbose, as_json, include_time, only):
         # Run the experiments themselves.
         exp = get_eval(appdir, ctx.obj)
         with exp.client:
-            main_results, kind_results, exp_time = run_experiments(exp, only)
+            main_results, kind_results, exp_time = \
+                run_experiments(exp, only, not notest)
 
         # Output as JSON to the results file.
         if as_json:
