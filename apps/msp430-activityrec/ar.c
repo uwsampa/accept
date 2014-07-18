@@ -84,11 +84,6 @@ APPROX void featurize() {
     mean[1] += aWin[i][1];  // y
     mean[2] += aWin[i][2];  // z
   }
-  /*
-  mean[0] = mean[0] / ACCEL_WINDOW_SIZE;
-  mean[1] = mean[1] / ACCEL_WINDOW_SIZE;
-  mean[2] = mean[2] / ACCEL_WINDOW_SIZE;
-  */
   mean[0] >>= 2;
   mean[1] >>= 2;
   mean[2] >>= 2;
@@ -101,11 +96,6 @@ APPROX void featurize() {
     stddev[2] += aWin[i][2] > mean[2] ? aWin[i][2] - mean[2]
                                       : mean[2] - aWin[i][2];  // z
   }
-  /*
-  stddev[0] = stddev[0] / (ACCEL_WINDOW_SIZE - 1);
-  stddev[1] = stddev[1] / (ACCEL_WINDOW_SIZE - 1);
-  stddev[2] = stddev[2] / (ACCEL_WINDOW_SIZE - 1);
-  */
   stddev[0] >>= 2;
   stddev[1] >>= 2;
   stddev[2] >>= 2;
@@ -208,12 +198,6 @@ void initializeHardware() {
   P4OUT &= ~BIT0;  // Toggle P4.4 using exclusive-OR
   PJOUT &= ~BIT6;  // Toggle P4.5 using exclusive-OR
 #endif
-
-  /*
-  SPI_initialize();
-  ACCEL_initialize();
-  */
-  // ACCEL_SetReg(0x2D,0x02);
 
   /* TODO: move the below stuff to accel.c */
   BITSET(PDIR_AUX3, PIN_AUX3);
