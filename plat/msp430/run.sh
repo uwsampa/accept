@@ -5,15 +5,16 @@ if [ ! -f mspdebug-wrapper/mspdebug_wrapper.py ]; then
 	exit 1
 fi
 
-if [ $# -lt 1 ]; then
-	echo Usage: $(basename "$0") '<filename.elf> [<bkpt>]' >&2
+if [ $# -lt 2 ]; then
+	echo Usage: $(basename "$0") '<filename.elf> <outfile.txt> [<bkpt>]' >&2
 	exit 1
 fi
 
 elf="$1"
+outfile="$2"
 
-if [ $# -eq 2 ]; then
-	bkpt="$2"
+if [ $# -eq 3 ]; then
+	bkpt="$3"
 else
 	# look for a self-loop like this:
 	#   addr: jmp $+0
@@ -28,6 +29,6 @@ fi
 
 
 # TODO: -s mean simulate; don't use for real code on real chips
-SIMFLAG=-s
+SIMFLAG=
 
-./mspdebug-wrapper/mspdebug_wrapper.py -d -b "$bkpt" ${SIMFLAG} "$elf"
+./mspdebug-wrapper/mspdebug_wrapper.py -d -b "$bkpt" ${SIMFLAG} -o "$outfile" "$elf"
