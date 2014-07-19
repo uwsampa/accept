@@ -189,7 +189,7 @@ APPS := zynq-inversek2j zynq-sobel
 endif
 
 exp:
-	./bin/accept $(ACCEPT_ARGS) -v exp -j $(EXP_ARGS) $(APPS:%=$(APPSDIR)/%)
+	./bin/accept $(ACCEPT_ARGS) -vv exp -j $(EXP_ARGS) $(APPS:%=$(APPSDIR)/%)
 
 exp_setup:
 	./$(VENV)/bin/pip install $(EXP_PY_DEPS)

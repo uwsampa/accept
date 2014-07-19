@@ -962,8 +962,9 @@ class Evaluation(object):
         """As an alternative to `test_runs`, get testing results for the
         optimal configurations in a test result set.
         """
-        optimal, _, _ = triage_results(results)
-        if optimal:
-            return self.test_runs([r.config for r in optimal])
+        optimal, good, _ = triage_results(results)
+        to_test = optimal + good
+        if to_test:
+            return self.test_runs([r.config for r in to_test])
         else:
             return []
