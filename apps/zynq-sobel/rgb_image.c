@@ -115,6 +115,7 @@ int loadRgbImage(const char* fileName, RgbImage* image) {
     }
     image->pixels = pixels;
 
+    /*
     c = readCell(&fp, w);
     image->meta = (char*)malloc(strlen(w) * sizeof(char));
     if(image->meta == NULL) {
@@ -128,6 +129,7 @@ int loadRgbImage(const char* fileName, RgbImage* image) {
 
     }
     strcpy(image->meta, w);
+    */
 
 #if DEBUG_MODE==1
     printf("%s\n", image->meta);
