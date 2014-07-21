@@ -9,6 +9,7 @@ CFLAGS=-mmcu=msp430fr5969 $(OPT) $(DBG)
 
 libadxl362z.a: adxl362z.o
 	$(AR) r $@ $^
+	$(RM) $^
 
 clean:
 	$(RM) *.elf *.o *.a

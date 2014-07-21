@@ -4,13 +4,14 @@ OPT=-O0
 DBG=-g
 CFLAGS=-mmcu=msp430fr5969 $(OPT) $(DBG)
 
-all: libperfctr.a
+all: libwisp5.a
 
-%.o: $(ACCEPTDIR)/rt/msp430/perfctr/%.c
+%.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-libperfctr.a: perfctr.o
+libwisp5.a: accel.o spi.o
 	$(AR) r $@ $^
+	$(RM) $^
 
 clean:
 	$(RM) *.elf *.o *.a

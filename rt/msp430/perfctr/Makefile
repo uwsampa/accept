@@ -11,6 +11,7 @@ all: libperfctr.a
 
 libperfctr.a: perfctr.o
 	$(AR) r $@ $^
+	$(RM) $^
 
 clean:
 	$(RM) *.elf *.o *.a
