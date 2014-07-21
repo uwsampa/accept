@@ -7,6 +7,7 @@
 #include <spi.h>
 #include <math.h>
 #include <enerc.h>
+#include <perfctr.h>
 
 #define MODEL_SIZE 190
 #define MODEL_SIZE_PLUS_WARMUP (MODEL_SIZE+10)
@@ -236,8 +237,14 @@ int main(int argc, char *argv[]) {
   while (1) {
 
     if( __NV_totalCount > SAMPLES_TO_COLLECT ){
+      unsigned perfctr_hi, perfctr_lo;
+      /* Program is done!  Light lights and loop forever. */
+      perfctr_lo = (unsigned)(__perfctr & 0x0000ffff);
+      perfctr_hi = (unsigned)(__perfctr >> 16);
       P4OUT |= BIT0;
       PJOUT &= ~BIT6;
+      asm volatile ("MOV %0, R14\n"
+                    "MOV %1, R15" ::"m"(perfctr_hi), "m"(perfctr_lo));
       while(1);
     }
     getNextSample();
