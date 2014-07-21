@@ -41,8 +41,8 @@ typedef accelReading accelWindow[ACCEL_WINDOW_SIZE];
 static accelWindow aWin;
 static int currSamp = 0;
 
-APPROX static accelReading mean;
-APPROX static accelReading stddev;
+static accelReading mean;
+static accelReading stddev;
 
 #ifdef TRAINING
 static int modelEntry = 0;
@@ -76,7 +76,7 @@ void getNextSample() {
   }
 }
 
-APPROX void featurize() {
+void featurize() {
   mean[0] = mean[1] = mean[2] = 0;
   stddev[0] = stddev[1] = stddev[2] = 0;
   int i;
