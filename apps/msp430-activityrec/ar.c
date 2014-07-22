@@ -15,7 +15,7 @@
 #undef FLASH_ON_BOOT
 
 // number of samples until experiment is "done" and "moving" light goes on
-#define SAMPLES_TO_COLLECT 10000
+#define SAMPLES_TO_COLLECT 5000
 
 // two features: mean & stdev
 #define NUM_FEATURES 2
