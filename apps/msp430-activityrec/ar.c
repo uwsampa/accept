@@ -52,17 +52,11 @@ static long int model[MODEL_SIZE_PLUS_WARMUP];
 APPROX static long int meanmag;
 APPROX static long int stddevmag;
 
-static int g_x, g_y, g_z;
 static threeAxis_t accelOut;
 
 void getOneSample(accelReading tr) {
   threeAxis_t threeAxis;
   ACCEL_singleSample(&threeAxis);
-
-  // HACK: set globals to the accelerometer values
-  g_x = threeAxis.x;
-  g_y = threeAxis.y;
-  g_z = threeAxis.z;
 
   tr[0] = (long)threeAxis.x;
   tr[1] = (long)threeAxis.y;
@@ -80,6 +74,10 @@ void featurize() {
   mean[0] = mean[1] = mean[2] = 0;
   stddev[0] = stddev[1] = stddev[2] = 0;
   int i;
+
+  /* compute the average accel value in the window of accel values.  use right
+   * shift by 2 instead of division by 4 because mspgcc is too dumb to convert
+   * the latter to the former. */
   for (i = 0; i < ACCEL_WINDOW_SIZE; i++) {
     mean[0] += aWin[i][0];  // x
     mean[1] += aWin[i][1];  // y
@@ -89,6 +87,9 @@ void featurize() {
   mean[1] >>= 2;
   mean[2] >>= 2;
 
+  /* compute the (nonstandard) deviation of the values in the window versus the
+   * mean computed above.  this is actually the mean distance from the
+   * population mean. */
   for (i = 0; i < ACCEL_WINDOW_SIZE; i++) {
     stddev[0] += aWin[i][0] > mean[0] ? aWin[i][0] - mean[0]
                                       : mean[0] - aWin[i][0];  // x
@@ -101,6 +102,7 @@ void featurize() {
   stddev[1] >>= 2;
   stddev[2] >>= 2;
 
+  /* compute the magnitude of each feature vector. */
   float meanmag_f = (float)
     ((mean[0]*mean[0]) + (mean[1]*mean[1]) + (mean[2]*mean[2]));
   float stddevmag_f = (float)
@@ -119,6 +121,9 @@ int classify() {
   int stat_less_error = 0;
   int i;
 
+  /* classify the current sample (stored in meanmag, stddevmag by featurize())
+   * as stationary or moving based on its relative similarity to the first
+   * MODEL_COMPARISONS entries of the moving and stationary models. */
   for (i = 0; i < MODEL_COMPARISONS; i += NUM_FEATURES) {
     long int stat_mean_err = (stationary[i] > meanmag)
                                  ? (stationary[i] - meanmag)
