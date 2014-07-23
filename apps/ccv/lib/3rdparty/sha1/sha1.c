@@ -76,8 +76,8 @@
     defined(__powerpc__) || defined(__powerpc64__) || \
     defined(__s390__) || defined(__s390x__)
 
-#define get_be32(p)	ntohl(*(unsigned int *) ENDORSE(p))
-#define put_be32(p, v)	do { *(unsigned int *) ENDORSE(p) = htonl(ENDORSE(v)); } while (0)
+#define get_be32(p)	ntohl(*(unsigned int *) (p))
+#define put_be32(p, v)	do { *(unsigned int *) (p) = htonl(v); } while (0)
 
 #else
 
@@ -106,7 +106,7 @@
 #define SHA_MIX(t) SHA_ROL(W(t+13) ^ W(t+8) ^ W(t+2) ^ W(t), 1)
 
 #define SHA_ROUND(t, input, fn, constant, A, B, C, D, E) do { \
-	APPROX unsigned int TEMP = input(t); setW(t, TEMP); \
+	unsigned int TEMP = input(t); setW(t, TEMP); \
 	E += TEMP + SHA_ROL(A,5) + (fn) + (constant); \
 	B = SHA_ROR(B, 2); } while (0)
 
@@ -116,10 +116,10 @@
 #define T_40_59(t, A, B, C, D, E) SHA_ROUND(t, SHA_MIX, ((B&C)+(D&(B^C))) , 0x8f1bbcdc, A, B, C, D, E )
 #define T_60_79(t, A, B, C, D, E) SHA_ROUND(t, SHA_MIX, (B^C^D) ,  0xca62c1d6, A, B, C, D, E )
 
-static void blk_SHA1_Block(APPROX blk_SHA_CTX *ctx, APPROX const unsigned int *data)
+static void blk_SHA1_Block(blk_SHA_CTX *ctx, const unsigned int *data)
 {
-	APPROX unsigned int A,B,C,D,E;
-	APPROX unsigned int array[16];
+	unsigned int A,B,C,D,E;
+	unsigned int array[16];
 
 	A = ctx->H[0];
 	B = ctx->H[1];
@@ -236,43 +236,43 @@ void blk_SHA1_Init(blk_SHA_CTX *ctx)
 	ctx->H[4] = 0xc3d2e1f0;
 }
 
-void blk_SHA1_Update(APPROX blk_SHA_CTX *ctx, APPROX const void *data, APPROX unsigned long len)
+void blk_SHA1_Update(blk_SHA_CTX *ctx, const void *data, unsigned long len)
 {
-	APPROX unsigned int lenW = ctx->size & 63;
+	unsigned int lenW = ctx->size & 63;
 
 	ctx->size += len;
 
 	/* Read the data into W and process blocks as they get full */
-	if (ENDORSE(lenW)) {
-		APPROX unsigned int left = 64 - lenW;
-		if (ENDORSE(len) < ENDORSE(left))
+	if (lenW) {
+		unsigned int left = 64 - lenW;
+		if (len < left)
 			left = len;
 		memcpy(lenW + (char *)ctx->W, data, left);
 		lenW = (lenW + left) & 63;
 		len -= left;
 		data = ((const char *)data + left);
-		if (ENDORSE(lenW))
+		if (lenW)
 			return;
 		blk_SHA1_Block(ctx, ctx->W);
 	}
-	while (ENDORSE(len) >= 64) {
+	while (len >= 64) {
 		blk_SHA1_Block(ctx, data);
 		data = ((const char *)data + 64);
 		len -= 64;
 	}
-	if (ENDORSE(len))
+	if (len)
 		memcpy(ctx->W, data, len);
 }
 
-void blk_SHA1_Final(APPROX unsigned char hashout[20], APPROX blk_SHA_CTX *ctx)
+void blk_SHA1_Final(unsigned char hashout[20], blk_SHA_CTX *ctx)
 {
 	static const unsigned char pad[64] = { 0x80 };
 	unsigned int padlen[2];
 	int i;
 
 	/* Pad with a binary 1 (ie 0x80), then zeroes, then length */
-	padlen[0] = htonl((uint32_t) ENDORSE(ctx->size >> 29));
-	padlen[1] = htonl((uint32_t) ENDORSE(ctx->size << 3));
+	padlen[0] = htonl((uint32_t) ctx->size >> 29);
+	padlen[1] = htonl((uint32_t) ctx->size << 3);
 
 	i = ctx->size & 63;
 	blk_SHA1_Update(ctx, pad, 1+ (63 & (55 - i)));

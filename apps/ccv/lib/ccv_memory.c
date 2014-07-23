@@ -177,10 +177,10 @@ void ccv_matrix_free(ccv_matrix_t* mat)
 	{
 		ccv_dense_matrix_t* dmt = (ccv_dense_matrix_t*)mat;
 		dmt->refcount = 0;
-		if (!ccv_cache_opt || // e don't enable cache
+		if (ENDORSE(!ccv_cache_opt || // e don't enable cache
 			!(dmt->type & CCV_REUSABLE) || // or this is not a reusable piece
 			dmt->sig == 0 || // or this doesn't have valid signature
-			(dmt->type & CCV_NO_DATA_ALLOC)) // or this matrix is allocated as header-only, therefore we cannot cache it
+			(dmt->type & CCV_NO_DATA_ALLOC))) // or this matrix is allocated as header-only, therefore we cannot cache it
 			ccfree(dmt);
 		else {
 			assert(CCV_GET_DATA_TYPE(dmt->type) == CCV_8U ||
@@ -189,7 +189,7 @@ void ccv_matrix_free(ccv_matrix_t* mat)
 				   CCV_GET_DATA_TYPE(dmt->type) == CCV_64S ||
 				   CCV_GET_DATA_TYPE(dmt->type) == CCV_64F);
 			size_t size = ccv_compute_dense_matrix_size(dmt->rows, dmt->cols, dmt->type);
-			ccv_cache_put(&ccv_cache, dmt->sig, dmt, size, 0 /* type 0 */);
+			ccv_cache_put(&ccv_cache, ENDORSE(dmt->sig), dmt, size, 0 /* type 0 */);
 		}
 	} else if (type & CCV_MATRIX_SPARSE) {
 		ccv_sparse_matrix_t* smt = (ccv_sparse_matrix_t*)mat;

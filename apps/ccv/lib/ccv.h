@@ -6,6 +6,7 @@
 #ifndef GUARD_ccv_h
 #define GUARD_ccv_h
 
+#include <enerc.h>
 #include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -70,7 +71,7 @@ typedef union {
 
 typedef struct {
 	int type;
-	uint64_t sig;
+	APPROX uint64_t sig;
 	int refcount;
 	int rows;
 	int cols;
@@ -413,13 +414,13 @@ inline static int ccv_size_is_zero(ccv_size_t size)
 }
 
 typedef struct {
-	int x;
-	int y;
-	int width;
-	int height;
+	APPROX int x;
+	APPROX int y;
+	APPROX int width;
+	APPROX int height;
 } ccv_rect_t;
 
-inline static ccv_rect_t ccv_rect(int x, int y, int width, int height)
+inline static ccv_rect_t ccv_rect(APPROX int x, APPROX int y, APPROX int width, APPROX int height)
 {
 	ccv_rect_t rect;
 	rect.x = x;
@@ -431,7 +432,7 @@ inline static ccv_rect_t ccv_rect(int x, int y, int width, int height)
 
 inline static int ccv_rect_is_zero(ccv_rect_t rect)
 {
-	return rect.x == 0 && rect.y == 0 && rect.width == 0 && rect.height == 0;
+	return ENDORSE(rect.x == 0 && rect.y == 0 && rect.width == 0 && rect.height == 0);
 }
 
 typedef struct {
@@ -737,19 +738,19 @@ typedef struct {
 #define CCV_DPM_PART_MAX (10)
 
 typedef struct {
-	int id;
-	float confidence;
+	APPROX int id;
+	APPROX float confidence;
 } ccv_classification_t;
 
 typedef struct {
 	ccv_rect_t rect;
-	int neighbors;
+	APPROX int neighbors;
 	ccv_classification_t classification;
 } ccv_comp_t;
 
 typedef struct {
 	ccv_rect_t rect;
-	int neighbors;
+	APPROX int neighbors;
 	ccv_classification_t classification;
 	int pnum;
 	ccv_comp_t part[CCV_DPM_PART_MAX];
@@ -824,24 +825,24 @@ void ccv_dpm_mixture_model_free(ccv_dpm_mixture_model_t* model);
 #define CCV_BBF_POINT_MIN (3)
 
 typedef struct {
-	int size;
-	int px[CCV_BBF_POINT_MAX];
-	int py[CCV_BBF_POINT_MAX];
-	int pz[CCV_BBF_POINT_MAX];
-	int nx[CCV_BBF_POINT_MAX];
-	int ny[CCV_BBF_POINT_MAX];
-	int nz[CCV_BBF_POINT_MAX];
+	APPROX int size;
+	APPROX int px[CCV_BBF_POINT_MAX];
+	APPROX int py[CCV_BBF_POINT_MAX];
+	APPROX int pz[CCV_BBF_POINT_MAX];
+	APPROX int nx[CCV_BBF_POINT_MAX];
+	APPROX int ny[CCV_BBF_POINT_MAX];
+	APPROX int nz[CCV_BBF_POINT_MAX];
 } ccv_bbf_feature_t;
 
 typedef struct {
-	int count;
-	float threshold;
+	APPROX int count;
+	APPROX float threshold;
 	ccv_bbf_feature_t* feature;
-	float* alpha;
+	APPROX float* alpha;
 } ccv_bbf_stage_classifier_t;
 
 typedef struct {
-	int count;
+	APPROX int count;
 	ccv_size_t size;
 	ccv_bbf_stage_classifier_t* stage_classifier;
 } ccv_bbf_classifier_cascade_t;

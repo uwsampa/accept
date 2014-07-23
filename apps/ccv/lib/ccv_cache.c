@@ -23,8 +23,8 @@ void ccv_cache_init(ccv_cache_t* cache, size_t up, int cache_types, ccv_cache_in
 	memset(&cache->origin, 0, sizeof(ccv_cache_index_t));
 }
 
-static int bits_in_16bits[0x1u << 16];
-static int bits_in_16bits_init = 0;
+static APPROX int bits_in_16bits[0x1u << 16];
+static APPROX int bits_in_16bits_init = 0;
 
 static int sparse_bitcount(unsigned int n) {
 	int count = 0;
@@ -43,14 +43,14 @@ static void precomputed_16bits() {
 }
 
 static uint32_t compute_bits(uint64_t m) {
-	return (bits_in_16bits[m & 0xffff] + bits_in_16bits[(m >> 16) & 0xffff] +
+	return ENDORSE(bits_in_16bits[m & 0xffff] + bits_in_16bits[(m >> 16) & 0xffff] +
 			bits_in_16bits[(m >> 32) & 0xffff] + bits_in_16bits[(m >> 48) & 0xffff]);
 }
 
 /* update age along a path in the radix tree */
 static void _ccv_cache_aging(ccv_cache_index_t* branch, uint64_t sign)
 {
-	if (!bits_in_16bits_init)
+	if (!ENDORSE(bits_in_16bits_init))
 		precomputed_16bits();
 	int i;
 	uint64_t j = 63;
@@ -105,7 +105,7 @@ static void _ccv_cache_aging(ccv_cache_index_t* branch, uint64_t sign)
 
 static ccv_cache_index_t* _ccv_cache_seek(ccv_cache_index_t* branch, uint64_t sign, int* depth)
 {
-	if (!bits_in_16bits_init)
+	if (!ENDORSE(bits_in_16bits_init))
 		precomputed_16bits();
 	int i;
 	uint64_t j = 63;
@@ -343,7 +343,7 @@ static void _ccv_cache_cleanup_and_free(ccv_cache_index_t* branch, ccv_cache_ind
 
 void* ccv_cache_out(ccv_cache_t* cache, uint64_t sign, uint8_t* type)
 {
-	if (!bits_in_16bits_init)
+	if (!ENDORSE(bits_in_16bits_init))
 		precomputed_16bits();
 	if (cache->rnum == 0)
 		return 0;

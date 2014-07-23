@@ -4,8 +4,8 @@
 /* area interpolation resample is adopted from OpenCV */
 
 typedef struct {
-	int si, di;
-	unsigned int alpha;
+	APPROX int si, di;
+	APPROX unsigned int alpha;
 } ccv_int_alpha;
 
 static void _ccv_resample_area_8u(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
@@ -17,48 +17,49 @@ static void _ccv_resample_area_8u(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
 	double scale_y = (double)a->rows / b->rows;
 	// double scale = 1.f / (scale_x * scale_y);
 	unsigned int inv_scale_256 = (int)(scale_x * scale_y * 0x10000);
-	int dx, dy, sx, sy, i, k;
-	for (dx = 0, k = 0; dx < b->cols; dx++)
+	int dy, sy, i;
+        APPROX int dx, sx, k;
+	for (dx = 0, k = 0; ENDORSE(dx) < b->cols; dx++)
 	{
-		double fsx1 = dx * scale_x, fsx2 = fsx1 + scale_x;
-		int sx1 = (int)(fsx1 + 1.0 - 1e-6), sx2 = (int)(fsx2);
+		APPROX double fsx1 = dx * scale_x, fsx2 = fsx1 + scale_x;
+		APPROX int sx1 = (int)(fsx1 + 1.0 - 1e-6), sx2 = (int)(fsx2);
 		sx1 = ccv_min(sx1, a->cols - 1);
 		sx2 = ccv_min(sx2, a->cols - 1);
 
-		if (sx1 > fsx1)
+		if (ENDORSE(sx1 > fsx1))
 		{
 			xofs[k].di = dx * ch;
 			xofs[k].si = (sx1 - 1) * ch;
 			xofs[k++].alpha = (unsigned int)((sx1 - fsx1) * 0x100);
 		}
 
-		for (sx = sx1; sx < sx2; sx++)
+		for (sx = sx1; ENDORSE(sx < sx2); sx++)
 		{
 			xofs[k].di = dx * ch;
 			xofs[k].si = sx * ch;
 			xofs[k++].alpha = 256;
 		}
 
-		if (fsx2 - sx2 > 1e-3)
+		if (ENDORSE(fsx2 - sx2) > 1e-3)
 		{
 			xofs[k].di = dx * ch;
 			xofs[k].si = sx2 * ch;
 			xofs[k++].alpha = (unsigned int)((fsx2 - sx2) * 256);
 		}
 	}
-	int xofs_count = k;
-	unsigned int* buf = (unsigned int*)alloca(b->cols * ch * sizeof(unsigned int));
-	unsigned int* sum = (unsigned int*)alloca(b->cols * ch * sizeof(unsigned int));
-	for (dx = 0; dx < b->cols * ch; dx++)
+	APPROX int xofs_count = k;
+	APPROX unsigned int* buf = (unsigned int*)DEDORSE(alloca(b->cols * ch * sizeof(unsigned int)));
+	APPROX unsigned int* sum = (unsigned int*)DEDORSE(alloca(b->cols * ch * sizeof(unsigned int)));
+	for (dx = 0; ENDORSE(dx) < b->cols * ch; dx++)
 		buf[dx] = sum[dx] = 0;
 	dy = 0;
 	for (sy = 0; sy < a->rows; sy++)
 	{
 		unsigned char* a_ptr = a->data.u8 + a->step * sy;
-		for (k = 0; k < xofs_count; k++)
+		for (k = 0; ENDORSE(k < xofs_count); k++)
 		{
-			int dxn = xofs[k].di;
-			unsigned int alpha = xofs[k].alpha;
+			APPROX int dxn = xofs[k].di;
+			APPROX unsigned int alpha = xofs[k].alpha;
 			for (i = 0; i < ch; i++)
 				buf[dxn + i] += a_ptr[xofs[k].si + i] * alpha;
 		}
@@ -69,13 +70,13 @@ static void _ccv_resample_area_8u(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
 			unsigned char* b_ptr = b->data.u8 + b->step * dy;
 			if (beta <= 0)
 			{
-				for (dx = 0; dx < b->cols * ch; dx++)
+				for (dx = 0; ENDORSE(dx) < b->cols * ch; dx++)
 				{
 					b_ptr[dx] = ccv_clamp((sum[dx] + buf[dx] * 256) / inv_scale_256, 0, 255);
 					sum[dx] = buf[dx] = 0;
 				}
 			} else {
-				for (dx = 0; dx < b->cols * ch; dx++)
+				for (dx = 0; ENDORSE(dx) < b->cols * ch; dx++)
 				{
 					b_ptr[dx] = ccv_clamp((sum[dx] + buf[dx] * beta1) / inv_scale_256, 0, 255);
 					sum[dx] = buf[dx] * beta;
@@ -86,7 +87,7 @@ static void _ccv_resample_area_8u(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
 		}
 		else
 		{
-			for(dx = 0; dx < b->cols * ch; dx++)
+			for(dx = 0; ENDORSE(dx) < b->cols * ch; dx++)
 			{
 				sum[dx] += buf[dx] * 256;
 				buf[dx] = 0;
@@ -345,7 +346,7 @@ static void _ccv_resample_cubic_integer_only(ccv_dense_matrix_t* a, ccv_dense_ma
 void ccv_resample(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int btype, int rows, int cols, int type)
 {
 	assert(rows > 0 && cols > 0);
-	ccv_declare_derived_signature(sig, a->sig != 0, ccv_sign_with_format(64, "ccv_resample(%d,%d,%d)", rows, cols, type), a->sig, CCV_EOF_SIGN);
+	ccv_declare_derived_signature(sig, a->sig != 0, ccv_sign_with_format(64, "ccv_resample(%d,%d,%d)", rows, cols, type), ENDORSE(a->sig), CCV_EOF_SIGN);
 	btype = (btype == 0) ? CCV_GET_DATA_TYPE(a->type) | CCV_GET_CHANNEL(a->type) : CCV_GET_DATA_TYPE(btype) | CCV_GET_CHANNEL(a->type);
 	ccv_dense_matrix_t* db = *b = ccv_dense_matrix_renew(*b, rows, cols, CCV_ALL_DATA_TYPE | CCV_GET_CHANNEL(a->type), btype, sig);
 	ccv_object_return_if_cached(, db);
@@ -382,7 +383,7 @@ void ccv_resample(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int btype, int 
 void ccv_sample_down(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int src_x, int src_y)
 {
 	assert(src_x >= 0 && src_y >= 0);
-	ccv_declare_derived_signature(sig, a->sig != 0, ccv_sign_with_format(64, "ccv_sample_down(%d,%d)", src_x, src_y), a->sig, CCV_EOF_SIGN);
+	ccv_declare_derived_signature(sig, a->sig != 0, ccv_sign_with_format(64, "ccv_sample_down(%d,%d)", src_x, src_y), ENDORSE(a->sig), CCV_EOF_SIGN);
 	type = (type == 0) ? CCV_GET_DATA_TYPE(a->type) | CCV_GET_CHANNEL(a->type) : CCV_GET_DATA_TYPE(type) | CCV_GET_CHANNEL(a->type);
 	ccv_dense_matrix_t* db = *b = ccv_dense_matrix_renew(*b, a->rows / 2, a->cols / 2, CCV_ALL_DATA_TYPE | CCV_GET_CHANNEL(a->type), type, sig);
 	ccv_object_return_if_cached(, db);
@@ -449,7 +450,7 @@ void ccv_sample_down(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, in
 void ccv_sample_up(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int src_x, int src_y)
 {
 	assert(src_x >= 0 && src_y >= 0);
-	ccv_declare_derived_signature(sig, a->sig != 0, ccv_sign_with_format(64, "ccv_sample_up(%d,%d)", src_x, src_y), a->sig, CCV_EOF_SIGN);
+	ccv_declare_derived_signature(sig, a->sig != 0, ccv_sign_with_format(64, "ccv_sample_up(%d,%d)", src_x, src_y), ENDORSE(a->sig), CCV_EOF_SIGN);
 	type = (type == 0) ? CCV_GET_DATA_TYPE(a->type) | CCV_GET_CHANNEL(a->type) : CCV_GET_DATA_TYPE(type) | CCV_GET_CHANNEL(a->type);
 	ccv_dense_matrix_t* db = *b = ccv_dense_matrix_renew(*b, a->rows * 2, a->cols * 2, CCV_ALL_DATA_TYPE | CCV_GET_CHANNEL(a->type), type, sig);
 	ccv_object_return_if_cached(, db);

@@ -22,7 +22,7 @@ ccv_sparse_matrix_t* ccv_get_sparse_matrix(ccv_matrix_t* mat)
 void ccv_visualize(ccv_matrix_t* a, ccv_matrix_t** b, int type)
 {
 	ccv_dense_matrix_t* da = ccv_get_dense_matrix(a);
-	ccv_declare_derived_signature(sig, da->sig != 0, ccv_sign_with_literal("ccv_visualize"), da->sig, CCV_EOF_SIGN);
+	ccv_declare_derived_signature(sig, da->sig != 0, ccv_sign_with_literal("ccv_visualize"), ENDORSE(da->sig), CCV_EOF_SIGN);
 	ccv_dense_matrix_t* db = *b = ccv_dense_matrix_renew(*b, da->rows, da->cols, CCV_8U | CCV_C1, CCV_8U | CCV_C1, sig);
 	ccv_object_return_if_cached(, db);
 	ccv_dense_matrix_t* dc = 0;
@@ -91,7 +91,7 @@ int ccv_any_nan(ccv_matrix_t *a)
 void ccv_flatten(ccv_matrix_t* a, ccv_matrix_t** b, int type, int flag)
 {
 	ccv_dense_matrix_t* da = ccv_get_dense_matrix(a);
-	ccv_declare_derived_signature(sig, da->sig != 0, ccv_sign_with_format(64, "ccv_flatten(%d)", flag), da->sig, CCV_EOF_SIGN);
+	ccv_declare_derived_signature(sig, da->sig != 0, ccv_sign_with_format(64, "ccv_flatten(%d)", flag), ENDORSE(da->sig), CCV_EOF_SIGN);
 	int no_8u_type = (da->type & CCV_8U) ? CCV_32S : da->type;
 	type = (type == 0) ? CCV_GET_DATA_TYPE(no_8u_type) | CCV_C1 : CCV_GET_DATA_TYPE(type) | CCV_C1;
 	ccv_dense_matrix_t* db = *b = ccv_dense_matrix_renew(*b, da->rows, da->cols, CCV_ALL_DATA_TYPE | CCV_C1, type, sig);
@@ -119,7 +119,7 @@ void ccv_flatten(ccv_matrix_t* a, ccv_matrix_t** b, int type, int flag)
 void ccv_border(ccv_matrix_t* a, ccv_matrix_t** b, int type, ccv_margin_t margin)
 {
 	ccv_dense_matrix_t* da = ccv_get_dense_matrix(a);
-	ccv_declare_derived_signature(sig, da->sig != 0, ccv_sign_with_format(64, "ccv_border(%d,%d,%d,%d)", margin.left, margin.top, margin.right, margin.bottom), da->sig, CCV_EOF_SIGN);
+	ccv_declare_derived_signature(sig, da->sig != 0, ccv_sign_with_format(64, "ccv_border(%d,%d,%d,%d)", margin.left, margin.top, margin.right, margin.bottom), ENDORSE(da->sig), CCV_EOF_SIGN);
 	int ch = CCV_GET_CHANNEL(da->type);
 	type = (type == 0) ? CCV_GET_DATA_TYPE(da->type) | ch : CCV_GET_DATA_TYPE(type) | ch;
 	ccv_dense_matrix_t* db = *b = ccv_dense_matrix_renew(*b, da->rows + margin.top + margin.bottom, da->cols + margin.left + margin.right, CCV_ALL_DATA_TYPE | ch, type, sig);
@@ -157,7 +157,7 @@ void ccv_border(ccv_matrix_t* a, ccv_matrix_t** b, int type, ccv_margin_t margin
 void ccv_shift(ccv_matrix_t* a, ccv_matrix_t** b, int type, int lr, int rr)
 {
 	ccv_dense_matrix_t* da = ccv_get_dense_matrix(a);
-	ccv_declare_derived_signature(sig, da->sig != 0, ccv_sign_with_format(64, "ccv_shift(%d,%d)", lr, rr), da->sig, CCV_EOF_SIGN);
+	ccv_declare_derived_signature(sig, da->sig != 0, ccv_sign_with_format(64, "ccv_shift(%d,%d)", lr, rr), ENDORSE(da->sig), CCV_EOF_SIGN);
 	type = (type == 0) ? CCV_GET_DATA_TYPE(da->type) | CCV_GET_CHANNEL(da->type) : CCV_GET_DATA_TYPE(type) | CCV_GET_CHANNEL(da->type);
 	ccv_dense_matrix_t* db = *b = ccv_dense_matrix_renew(*b, da->rows, da->cols, CCV_ALL_DATA_TYPE | CCV_GET_CHANNEL(da->type), type, sig); 
 	ccv_object_return_if_cached(, db);
@@ -540,7 +540,7 @@ void ccv_slice(ccv_matrix_t* a, ccv_matrix_t** b, int btype, int y, int x, int r
 	if (type & CCV_MATRIX_DENSE)
 	{
 		ccv_dense_matrix_t* da = ccv_get_dense_matrix(a);
-		ccv_declare_derived_signature(sig, da->sig != 0, ccv_sign_with_format(128, "ccv_slice(%d,%d,%d,%d)", y, x, rows, cols), da->sig, CCV_EOF_SIGN);
+		ccv_declare_derived_signature(sig, da->sig != 0, ccv_sign_with_format(128, "ccv_slice(%d,%d,%d,%d)", y, x, rows, cols), ENDORSE(da->sig), CCV_EOF_SIGN);
 		btype = (btype == 0) ? CCV_GET_DATA_TYPE(da->type) | CCV_GET_CHANNEL(da->type) : CCV_GET_DATA_TYPE(btype) | CCV_GET_CHANNEL(da->type);
 		ccv_dense_matrix_t* db = *b = ccv_dense_matrix_renew(*b, rows, cols, CCV_ALL_DATA_TYPE | CCV_GET_CHANNEL(da->type), btype, sig);
 		ccv_object_return_if_cached(, db);
@@ -578,7 +578,7 @@ void ccv_move(ccv_matrix_t* a, ccv_matrix_t** b, int btype, int y, int x)
 	if (type & CCV_MATRIX_DENSE)
 	{
 		ccv_dense_matrix_t* da = ccv_get_dense_matrix(a);
-		ccv_declare_derived_signature(sig, da->sig != 0, ccv_sign_with_format(64, "ccv_move(%d,%d)", y, x), da->sig, CCV_EOF_SIGN);
+		ccv_declare_derived_signature(sig, da->sig != 0, ccv_sign_with_format(64, "ccv_move(%d,%d)", y, x), ENDORSE(da->sig), CCV_EOF_SIGN);
 		btype = (btype == 0) ? CCV_GET_DATA_TYPE(da->type) | CCV_GET_CHANNEL(da->type) : CCV_GET_DATA_TYPE(btype) | CCV_GET_CHANNEL(da->type);
 		ccv_dense_matrix_t* db = *b = ccv_dense_matrix_renew(*b, da->rows, da->cols, CCV_ALL_DATA_TYPE | CCV_GET_CHANNEL(da->type), btype, sig);
 		ccv_object_return_if_cached(, db);
@@ -1109,18 +1109,18 @@ void ccv_contour_push(ccv_contour_t* contour, ccv_point_t point)
 		contour->m02 = point.y * point.y;
 		contour->size = 1;
 	} else {
-		if (point.x < contour->rect.x)
+		if (point.x < ENDORSE(contour->rect.x))
 		{
 			contour->rect.width += contour->rect.x - point.x;
 			contour->rect.x = point.x;
-		} else if (point.x > contour->rect.x + contour->rect.width - 1) {
+		} else if (point.x > ENDORSE(contour->rect.x + contour->rect.width) - 1) {
 			contour->rect.width = point.x - contour->rect.x + 1;
 		}
-		if (point.y < contour->rect.y)
+		if (point.y < ENDORSE(contour->rect.y))
 		{
 			contour->rect.height += contour->rect.y - point.y;
 			contour->rect.y = point.y;
-		} else if (point.y > contour->rect.y + contour->rect.height - 1) {
+		} else if (point.y > ENDORSE(contour->rect.y + contour->rect.height) - 1) {
 			contour->rect.height = point.y - contour->rect.y + 1;
 		}
 		contour->m10 += point.x;

@@ -1,5 +1,3 @@
-#include <enerc.h>
-
 /*
  * SHA1 routine optimized to do word accesses rather than byte accesses,
  * and to avoid unnecessary copies into the context array.
@@ -9,9 +7,9 @@
  */
 
 typedef struct {
-	APPROX unsigned long long size;
-	APPROX unsigned int H[5];
-	APPROX unsigned int W[16];
+	unsigned long long size;
+	unsigned int H[5];
+	unsigned int W[16];
 } blk_SHA_CTX;
 
 void blk_SHA1_Init(blk_SHA_CTX *ctx);
