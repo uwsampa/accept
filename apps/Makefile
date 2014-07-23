@@ -1,4 +1,4 @@
-SUBDIRS = blackscholes cpptest jpeg strawman streamcluster sobel canneal fluidanimate x264 zynq-sobel zynq-jmeint zynq-inversek2j zynq-fft ccv
+SUBDIRS = blackscholes cpptest jpeg strawman streamcluster sobel canneal fluidanimate x264 zynq-sobel zynq-jmeint zynq-inversek2j zynq-fft ccv zynq-blackscholes
 CLEANDIRS = $(SUBDIRS:%=clean-%)
 
 .PHONY: subdirs $(SUBDIRS)

@@ -157,6 +157,7 @@ def run_experiments(ev, only=None, test=True):
     # Main results.
     if only and 'main' not in only:
         main_results = []
+        ev.setup()
     else:
         main_results = ev.run()
 

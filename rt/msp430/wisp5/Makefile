@@ -11,6 +11,7 @@ all: libwisp5.a
 
 libwisp5.a: accel.o spi.o
 	$(AR) r $@ $^
+	$(RM) $^
 
 clean:
 	$(RM) *.elf *.o *.a

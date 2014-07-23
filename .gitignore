@@ -9,6 +9,7 @@ apps/fluidanimate/in_*.fluid
 site/
 venv/
 rt/acceptrt.*.bc
+rt/msp430/*/*.a
 *.pyc
 *.pyo
 *~

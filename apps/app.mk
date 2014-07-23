@@ -93,7 +93,7 @@ RUN_TARGETS := $(CONFIGS:%=run_%)
 
 all: build_orig
 
-$(BUILD_TARGETS): build_%: setup $(EXTRADEPS) $(TARGET).%
+# See below for BUILD_TARGETS rule
 
 $(RUN_TARGETS): run_%: $(TARGET).%
 	$(RUNSHIM) ./$< $(RUNARGS)
@@ -107,6 +107,7 @@ ifeq ($(ARCH),zynq)
 ZYNQDIR := $(ACCEPTDIR)/plat/zynqlib
 override CFLAGS += -target arm-none-linux-gnueabi \
 	-ccc-gcc-name arm-linux-gnueabi-gcc \
+	-D_GNU_SOURCE=1 \
 	-I$(ZYNQDIR) -I$(ZYNQDIR)/bsp/include
 ARMTOOLCHAIN ?= /sampa/share/Xilinx/14.6/14.6/ISE_DS/EDK/gnu/arm/lin
 LINKER := $(ARMTOOLCHAIN)/bin/arm-xilinx-eabi-gcc
@@ -120,13 +121,27 @@ endif
 
 # And for msp430.
 ifeq ($(ARCH),msp430)
-override CFLAGS += -target msp430-elf $(addprefix -I, \
-		$(shell msp430-cpp -Wp,-v </dev/null 2>&1 | grep /include | \
-			sed -e 's/^ *//'))
-LLCARGS += -march=msp430 -msp430-hwmult-mode=no
-LINKER := msp430-gcc
-RUNSHIM := $(ACCEPTDIR)/plat/msp430/run.sh
+LINKER     := msp430-gcc
+LLCARGS    += -march=msp430 -msp430-hwmult-mode=no
+LDFLAGS    += -mmcu=msp430fr5969
+RUNSHIM    := $(ACCEPTDIR)/plat/msp430/run.sh
+MSP430LIBS += perfctr
+MSP430DEPS := $(foreach L,$(MSP430LIBS),$(ACCEPTDIR)/rt/msp430/$(L)/lib$(L).a)
+EXTRADEPS  += $(MSP430DEPS)
+override \
+CFLAGS     += -target msp430-elf -Wall -fno-stack-protector -D__MSP430FR5969__ \
+		$(addprefix -I, \
+			$(shell msp430-cpp -Wp,-v </dev/null 2>&1 | \
+			grep /include | sed -e 's/^ *//')) \
+		$(addprefix -I$(ACCEPTDIR)/rt/msp430/,$(MSP430LIBS))
+LIBS       += $(foreach L,$(MSP430LIBS),-L$(ACCEPTDIR)/rt/msp430/$(L) -l$(L))
+
+$(MSP430DEPS):
+	make -C $(dir $@)
 endif
+
+# BUILD_TARGETS rule is here to catch any EXTRADEPS assigned above
+$(BUILD_TARGETS): build_%: setup $(EXTRADEPS) $(TARGET).%
 
 # Make LLVM bitcode from C/C++ sources.
 %.bc: %.c $(HEADERS)
