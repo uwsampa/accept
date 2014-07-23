@@ -28,6 +28,11 @@ MAIN_ENV
 //EnerC
 #include<enerc.h>
 
+#include "npu.h"
+#include "xil_io.h"
+#include "xil_mmu.h"
+#include "xil_types.h"
+
 
 // Multi-threaded OpenMP header
 #ifdef ENABLE_OPENMP
@@ -223,22 +228,22 @@ int bs_thread(void *tid_ptr) {
     int end = start + (numOptions / nThreads);
 
     int _dummy = 0;
+    Xil_SetTlbAttributes(OCM_SRC,0x15C06);
+    Xil_SetTlbAttributes(OCM_DST,0x15C06);
+
+    accept_roi_begin();
     for (j=0; j<NUM_RUNS; j++) {
         _dummy = 1; // ACCEPT: Prohibit perforation of this loop.
-        accept_roi_begin();
-#ifdef ENABLE_OPENMP
-#pragma omp parallel for
-        for (i=0; i<numOptions; i++) {
-#else  //ENABLE_OPENMP
         for (i=start; i<end; i++) {
-#endif //ENABLE_OPENMP
             /* Calling main function to calculate option value based on 
              * Black & Sholes's equation.
              */
+            sptprice[i] /= 100;
+            strike[i] /= 100;
             price = BlkSchlsEqEuroNoDiv( sptprice[i], strike[i],
                                          rate[i], volatility[i], otime[i], 
                                          otype[i], 0);
-            prices[i] = price;
+            prices[i] = price*30;
             
 #ifdef ERR_CHK   
             priceDelta = data[i].DGrefval - price;
