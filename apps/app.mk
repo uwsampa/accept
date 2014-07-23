@@ -107,6 +107,7 @@ ifeq ($(ARCH),zynq)
 ZYNQDIR := $(ACCEPTDIR)/plat/zynqlib
 override CFLAGS += -target arm-none-linux-gnueabi \
 	-ccc-gcc-name arm-linux-gnueabi-gcc \
+	-D_GNU_SOURCE=1 \
 	-I$(ZYNQDIR) -I$(ZYNQDIR)/bsp/include
 ARMTOOLCHAIN ?= /sampa/share/Xilinx/14.6/14.6/ISE_DS/EDK/gnu/arm/lin
 LINKER := $(ARMTOOLCHAIN)/bin/arm-xilinx-eabi-gcc
