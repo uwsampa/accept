@@ -209,6 +209,7 @@ char const* _funcWhitelistArray[] = {
   "modf",
   "pow",
   "sqrt",
+  "sqrtf",
   "ceil",
   "fabs",
   "floor",

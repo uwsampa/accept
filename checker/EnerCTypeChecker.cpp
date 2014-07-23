@@ -322,7 +322,9 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
       }
 
       // Special cases for standard math functions.
-      if (name.equals("abs") || name.equals("cos") || name.equals("log") || name.equals("exp") || name.equals("pow")) {
+      if (name.equals("abs") || name.equals("cos") || name.equals("log") ||
+          name.equals("exp") || name.equals("pow") || name.equals("sqrt") ||
+          name.equals("sqrtf")) {
         Expr *arg = call->getArg(0);
         // Parametric-esque: return qualifier is the argument qualifier.
         uint32_t outType = typeOf(arg);
