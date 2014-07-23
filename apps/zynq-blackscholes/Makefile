@@ -1,6 +1,6 @@
 ARCH := zynq
 TARGET := blackscholes
-CFLAGS := -pthread -DENABLE_THREADS
+CFLAGS := -pthread
 ZYNQBIT := blackscholes_x8_x64.bit
 LDFLAGS := -lm -pthread
 OPTARGS += -accept-npu-bufsize=896
