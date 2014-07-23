@@ -5,8 +5,8 @@ ZYNQBIT := blackscholes_x8_x64.bit
 LDFLAGS := -lm -pthread
 OPTARGS += -accept-npu-bufsize=896
 
-RUNARGS := 1 in_64K.txt output.txt  # simlarge
-TESTARGS := 1 in_64K.txt output.txt  # simlarge
+RUNARGS := in_64K.txt
+TESTARGS := in_64K.txt
 
 APP_MK := ../app.mk
 include $(APP_MK)

@@ -46,6 +46,7 @@ MAIN_ENV
 #define fptype float
 
 int NUM_RUNS = 10;
+#define SRC_IMAGE_ADDR 0x08000000
 
 typedef struct OptionData_ {
         APPROX fptype s;          // spot price
@@ -255,14 +256,29 @@ int bs_thread(void *tid_ptr) {
     return 0;
 }
 
+void readCell(char **fp, char* w) {
+    char c;
+    int i;
+
+    w[0] = 0;
+    // HACK: '%' character stands for EOF
+    for (c = **fp, (*fp)++, i = 0; c != '%'; c = **fp, (*fp)++) {
+        if (c == ' ' || c == '\n')
+            break;
+
+        w[i] = c;
+        i++;
+    }
+    w[i] = 0;
+}
+
 int main (int argc, char **argv)
 {
-    FILE *file;
+    char *file;
     int i;
     int loopnum;
     APPROX fptype * buffer;
     int * buffer2;
-    int rv;
 
 #ifdef PARSEC_VERSION
 #define __PARSEC_STRING(x) #x
@@ -277,55 +293,36 @@ int main (int argc, char **argv)
    __parsec_bench_begin(__parsec_blackscholes);
 #endif
 
-   if (argc != 4)
-        {
-                printf("Usage:\n\t%s <nthreads> <inputFile> <outputFile>\n", argv[0]);
-                exit(1);
-        }
-    nThreads = atoi(argv[1]);
-    char *inputFile = argv[2];
-    char *outputFile = argv[3];
+    nThreads = 1;
 
     //Read input data from file
-    file = fopen(inputFile, "r");
-    if(file == NULL) {
-      printf("ERROR: Unable to open file `%s'.\n", inputFile);
-      exit(1);
-    }
-    rv = fscanf(file, "%i", &numOptions);
-    if(rv != 1) {
-      printf("ERROR: Unable to read from file `%s'.\n", inputFile);
-      fclose(file);
-      exit(1);
-    }
-    if(nThreads > numOptions) {
-      printf("WARNING: Not enough work, reducing number of threads to match number of options.\n");
-      nThreads = numOptions;
-    }
-
-#if !defined(ENABLE_THREADS) && !defined(ENABLE_OPENMP)
-    if(nThreads != 1) {
-        printf("Error: <nthreads> must be 1 (serial version)\n");
-        exit(1);
-    }
-#endif
+    file = (char*) SRC_IMAGE_ADDR;
+    numOptions = 65536;
 
     // alloc spaces for the option data
     data = (OptionData*)malloc(numOptions*sizeof(OptionData));
     prices = (fptype*)malloc(numOptions*sizeof(fptype));
+    char w[256];
     for ( loopnum = 0; loopnum < numOptions; ++ loopnum )
     {
-        rv = fscanf(file, "%f %f %f %f %f %f %c %f %f", &data[loopnum].s, &data[loopnum].strike, &data[loopnum].r, &data[loopnum].divq, &data[loopnum].v, &data[loopnum].t, &data[loopnum].OptionType, &data[loopnum].divs, &data[loopnum].DGrefval);
-        if(rv != 9) {
-          printf("ERROR: Unable to read from file `%s'.\n", inputFile);
-          fclose(file);
-          exit(1);
-        }
-    }
-    rv = fclose(file);
-    if(rv != 0) {
-      printf("ERROR: Unable to close file `%s'.\n", inputFile);
-      exit(1);
+        readCell(&file, w);
+        data[loopnum].s = atof(w);
+        readCell(&file, w);
+        data[loopnum].strike = atof(w);
+        readCell(&file, w);
+        data[loopnum].r = atof(w);
+        readCell(&file, w);
+        data[loopnum].divq = atof(w);
+        readCell(&file, w);
+        data[loopnum].v = atof(w);
+        readCell(&file, w);
+        data[loopnum].t = atof(w);
+        readCell(&file, w);
+        data[loopnum].OptionType = w[0];
+        readCell(&file, w);
+        data[loopnum].divs = atof(w);
+        readCell(&file, w);
+        data[loopnum].DGrefval = atof(w);
     }
 
 #ifdef ENABLE_THREADS
@@ -399,29 +396,9 @@ int main (int argc, char **argv)
 #endif
 
     //Write prices to output file
-    file = fopen(outputFile, "w");
-    if(file == NULL) {
-      printf("ERROR: Unable to open file `%s'.\n", outputFile);
-      exit(1);
-    }
-    rv = fprintf(file, "%i\n", numOptions);
-    if(rv < 0) {
-      printf("ERROR: Unable to write to file `%s'.\n", outputFile);
-      fclose(file);
-      exit(1);
-    }
+    printf("%i\n", numOptions);
     for(i=0; i<numOptions; i++) {
-      rv = fprintf(file, "%.18f\n", prices[i]);
-      if(rv < 0) {
-        printf("ERROR: Unable to write to file `%s'.\n", outputFile);
-        fclose(file);
-        exit(1);
-      }
-    }
-    rv = fclose(file);
-    if(rv != 0) {
-      printf("ERROR: Unable to close file `%s'.\n", outputFile);
-      exit(1);
+      printf("%.18f\n", prices[i]);
     }
 
 #ifdef ERR_CHK
