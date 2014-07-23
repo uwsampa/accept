@@ -115,7 +115,7 @@ void featurize() {
   stddevmag = (long)stddevmag_f;
 }
 
-#define MODEL_COMPARISONS 10
+#define MODEL_COMPARISONS 20
 int classify() {
   int move_less_error = 0;
   int stat_less_error = 0;
