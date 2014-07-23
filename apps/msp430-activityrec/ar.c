@@ -239,17 +239,21 @@ int main(int argc, char *argv[]) {
   initializeHardware();
   initializeNVData();
 
+  __perfctr_start();
+
   while (1) {
 
     if( __NV_totalCount > SAMPLES_TO_COLLECT ){
       unsigned perfctr_hi, perfctr_lo;
+
       /* Program is done!  Light lights and loop forever. */
+      __perfctr_stop();
       perfctr_lo = (unsigned)(__perfctr & 0x0000ffff);
       perfctr_hi = (unsigned)(__perfctr >> 16);
       P4OUT |= BIT0;
       PJOUT &= ~BIT6;
-      asm volatile ("MOV %0, R14\n"
-                    "MOV %1, R15" ::"m"(perfctr_hi), "m"(perfctr_lo));
+      asm volatile ("MOV %0, R9\n"
+                    "MOV %1, R10" ::"m"(perfctr_hi), "m"(perfctr_lo));
       while(1);
     }
     getNextSample();
