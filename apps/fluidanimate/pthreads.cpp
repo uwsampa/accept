@@ -458,6 +458,7 @@ void SaveFile(char const *fileName)
 
     }
   }
+  printf("count: %i\n", count);
   assert(count == numParticles);
 }
 
