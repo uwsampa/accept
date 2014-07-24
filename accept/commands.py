@@ -152,16 +152,19 @@ def run_experiments(ev, only=None, test=True):
     results. Returns the main results, a dict of kind-restricted
     results, and elapsed time for the main results.
     """
-    start_time = time.time()
+    stats = {}
 
     # Main results.
+    start_time = time.time()
     if only and 'main' not in only:
         main_results = []
         ev.setup()
     else:
-        main_results = ev.run()
-
+        main_results, main_stats = ev.run()
     end_time = time.time()
+
+    stats['time'] = end_time - start_time
+    stats['main'] = main_stats
 
     # "Testing" phase.
     if test:
@@ -185,13 +188,14 @@ def run_experiments(ev, only=None, test=True):
 
         # Run the experiment workflow.
         logging.info('isolated configs: {}'.format(len(kind_configs)))
-        train_results = ev.run(kind_configs)
+        train_results, kind_stats = ev.run(kind_configs)
         if test:
             kind_results[kind] = ev.test_results(train_results)
         else:
             kind_results[kind] = train_results
+        stats[kind] = kind_stats
 
-    return main_results, kind_results, end_time - start_time
+    return main_results, kind_results, stats
 
 
 @cli.command()
@@ -223,7 +227,7 @@ def exp(ctx, appdirs, verbose, as_json, include_time, only, notest):
         # Run the experiments themselves.
         exp = get_eval(appdir, ctx.obj)
         with exp.client:
-            main_results, kind_results, exp_time = \
+            main_results, kind_results, stats = \
                 run_experiments(exp, only, not notest)
 
         # Output as JSON to the results file.
@@ -234,7 +238,7 @@ def exp(ctx, appdirs, verbose, as_json, include_time, only, notest):
             for kind, results in kind_results.items():
                 isolated[kind] = dump_results_json(results)
             out['isolated'] = isolated
-            out['time'] = exp_time
+            out['stats'] = stats
 
             if not include_time:
                 del out['time']
@@ -282,7 +286,7 @@ def run(ctx, appdir, verbose, test):
     exp = get_eval(appdir, ctx.obj)
 
     with ctx.obj.client:
-        results = exp.run()
+        results, _ = exp.run()
 
         # If we're getting test executions, run the optimal
         # configurations and instead print those results.

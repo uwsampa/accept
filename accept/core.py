@@ -946,7 +946,16 @@ class Evaluation(object):
         results = {}
         for result in base_results + tuned_results + composite_results:
             results[result.config] = result
-        return results.values()
+
+        # Statistics.
+        stats = {
+            'base': len(base_configs),
+            'tuned': len(tuned_results),
+            'composite': len(composite_results),
+            'all': len(results),
+        }
+
+        return results.values(), stats
 
     def test_runs(self, configs):
         """Get *testing* (as opposed to *training*) executions for the
