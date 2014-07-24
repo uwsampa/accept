@@ -1,39 +1,29 @@
 #include <enerc.h>
 
-struct foo {
-    APPROX int f;
-};
+APPROX volatile static int x;
 
-void foofunc(struct foo s) {
-}
+#define ITERS 100
 
-int precisefunc(int val) {
-    val = val + 1;
-    return val;
-}
-
-APPROX int func(APPROX int val) {
-    val = val + 1;
-    return val;
+APPROX int identity (APPROX int x) {
+    APPROX volatile int y = x;
+    return y;
 }
 
 #ifdef __clang__
-// work around a bug wherein clang doesn't know that main() belongs in section
-// .init9 or that it has to be aligned in a certain way (mspgcc4 introduced
-// these things)
 __attribute__((section(".init9"), aligned(2)))
 #endif
-int main() {
-    volatile int x = 5;
-    volatile APPROX int y = 2;
-    y = y + 1;
-    if (x) {
-        y = 3;
-    }
-    y = func(y);
-    x = precisefunc(x);
-    struct foo bar;
-    bar.f = 12;
-    foofunc(bar);
-    return x;
+int main(void) {
+    unsigned i;
+
+    accept_roi_begin();
+
+    for (i = 0; i < ITERS; ++i)
+        x++;
+
+    accept_roi_end();
+
+    (void)identity(x);
+
+    // loop forever (break here)
+    while(1);
 }
