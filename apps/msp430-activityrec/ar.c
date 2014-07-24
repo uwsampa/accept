@@ -1,12 +1,10 @@
 #include <msp430.h>
 #include <stdlib.h>
-#include <stdarg.h>
-#include <stdio.h>
+#include <enerc.h>
 #include <wisp5.h>
 #include <accel.h>
 #include <spi.h>
 #include <math.h>
-#include <enerc.h>
 #include <perfctr.h>
 
 #define MODEL_SIZE 190
@@ -35,14 +33,11 @@ volatile __fram unsigned int __NV_totalCount;
 APPROX volatile __fram float __NV_movingPct;
 APPROX volatile __fram float __NV_stationaryPct;
 
-typedef long int accelReading[3];
-typedef accelReading accelWindow[ACCEL_WINDOW_SIZE];
+APPROX static long int aWin[ACCEL_WINDOW_SIZE][3];
+static unsigned currSamp = 0;
 
-static accelWindow aWin;
-static int currSamp = 0;
-
-static accelReading mean;
-static accelReading stddev;
+APPROX static long int mean[3];
+APPROX static long int stddev[3];
 
 #ifdef TRAINING
 static int modelEntry = 0;
@@ -54,17 +49,15 @@ APPROX static long int stddevmag;
 
 static threeAxis_t accelOut;
 
-void getOneSample(accelReading tr) {
-  threeAxis_t threeAxis;
-  ACCEL_singleSample(&threeAxis);
-
-  tr[0] = (long)threeAxis.x;
-  tr[1] = (long)threeAxis.y;
-  tr[2] = (long)threeAxis.z;
-}
-
 void getNextSample() {
-  getOneSample(aWin[currSamp++]);
+  threeAxis_t threeAxis;
+  ACCEL_singleSample(&threeAxis);  // ACCEPT_PERMIT
+
+  aWin[currSamp][0] = (long)threeAxis.x;
+  aWin[currSamp][1] = (long)threeAxis.y;
+  aWin[currSamp][2] = (long)threeAxis.z;
+  currSamp++;
+
   if (currSamp >= ACCEL_WINDOW_SIZE) {
     currSamp = 0;
   }
@@ -73,7 +66,7 @@ void getNextSample() {
 void featurize() {
   mean[0] = mean[1] = mean[2] = 0;
   stddev[0] = stddev[1] = stddev[2] = 0;
-  int i;
+  unsigned i;
 
   /* compute the average accel value in the window of accel values.  use right
    * shift by 2 instead of division by 4 because mspgcc is too dumb to convert
@@ -103,9 +96,9 @@ void featurize() {
   stddev[2] >>= 2;
 
   /* compute the magnitude of each feature vector. */
-  float meanmag_f = (float)
+  APPROX float meanmag_f = (float)
     ((mean[0]*mean[0]) + (mean[1]*mean[1]) + (mean[2]*mean[2]));
-  float stddevmag_f = (float)
+  APPROX float stddevmag_f = (float)
     ((stddev[0]*stddev[0]) + (stddev[1]*stddev[1]) + (stddev[2]*stddev[2]));
 
   meanmag_f   = sqrtf(meanmag_f);
@@ -116,44 +109,44 @@ void featurize() {
 }
 
 #define MODEL_COMPARISONS 20
-int classify() {
-  int move_less_error = 0;
-  int stat_less_error = 0;
+APPROX int classify() {
+  APPROX int move_less_error = 0;
+  APPROX int stat_less_error = 0;
   int i;
 
   /* classify the current sample (stored in meanmag, stddevmag by featurize())
    * as stationary or moving based on its relative similarity to the first
    * MODEL_COMPARISONS entries of the moving and stationary models. */
   for (i = 0; i < MODEL_COMPARISONS; i += NUM_FEATURES) {
-    long int stat_mean_err = (stationary[i] > meanmag)
+    APPROX long int stat_mean_err = (stationary[i] > meanmag)
                                  ? (stationary[i] - meanmag)
                                  : (meanmag - stationary[i]);
 
-    long int stat_sd_err = (stationary[i + 1] > stddevmag)
+    APPROX long int stat_sd_err = (stationary[i + 1] > stddevmag)
                                ? (stationary[i + 1] - stddevmag)
                                : (stddevmag - stationary[i + 1]);
 
-    long int move_mean_err = (moving[i] > meanmag) ? (moving[i] - meanmag)
+    APPROX long int move_mean_err = (moving[i] > meanmag) ? (moving[i] - meanmag)
                                                     : (meanmag - moving[i]);
 
-    long int move_sd_err = (moving[i + 1] > stddevmag)
+    APPROX long int move_sd_err = (moving[i + 1] > stddevmag)
                                ? (moving[i + 1] - stddevmag)
                                : (stddevmag - moving[i + 1]);
 
-    if (move_mean_err < stat_mean_err) {
+    if (ENDORSE(move_mean_err < stat_mean_err)) {
       move_less_error++;
     } else {
       stat_less_error++;
     }
 
-    if (move_sd_err < stat_sd_err) {
+    if (ENDORSE(move_sd_err < stat_sd_err)) {
       move_less_error++;
     } else {
       stat_less_error++;
     }
   }
 
-  if (move_less_error > stat_less_error) {
+  if (ENDORSE(move_less_error > stat_less_error)) {
     return 1;
   } else {
     return 0;
@@ -232,29 +225,19 @@ void initializeHardware() {
 }
 
 __attribute__((section(".init9"), aligned(2)))
-int main(int argc, char *argv[]) {
+int main(void) {
   WDTCTL = WDTPW | WDTHOLD;  // Stop watchdog timer
   PM5CTL0 &= ~LOCKLPM5;
 
   initializeHardware();
   initializeNVData();
 
-  __perfctr_start();
+  accept_roi_begin();
 
   while (1) {
 
     if( __NV_totalCount > SAMPLES_TO_COLLECT ){
-      unsigned perfctr_hi, perfctr_lo;
-
-      /* Program is done!  Light lights and loop forever. */
-      __perfctr_stop();
-      perfctr_lo = (unsigned)(__perfctr & 0x0000ffff);
-      perfctr_hi = (unsigned)(__perfctr >> 16);
-      P4OUT |= BIT0;
-      PJOUT &= ~BIT6;
-      asm volatile ("MOV %0, R9\n"
-                    "MOV %1, R10" ::"m"(perfctr_hi), "m"(perfctr_lo));
-      while(1);
+      break;
     }
     getNextSample();
     featurize();
@@ -269,14 +252,14 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
-    int class = classify();
+    APPROX int class = classify();
     /* __NV_totalCount, __NV_movingCount, and __NV_stationaryCount have an
      * nv-internal consistency requirement.  This code should be atomic. */
 
     __NV_totalCount++;
 
 
-    if (class) {
+    if (ENDORSE(class)) {
 
 #if defined (USE_LEDS)
       PJOUT &= ~BIT6;
@@ -298,6 +281,13 @@ int main(int argc, char *argv[]) {
 
     }
   }
+
+  accept_roi_end();
+
+  /* Light LEDs and loop forever */
+  P4OUT |= BIT0;
+  PJOUT &= ~BIT6;
+  while(1);
 }
 
 /* vim: set ai et ts=2 sw=2: */
