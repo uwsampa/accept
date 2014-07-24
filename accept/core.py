@@ -926,6 +926,8 @@ class Evaluation(object):
 
         Run the setup stage if it has not been executed yet.
         """
+        start_time = time.time()
+
         if not self.pout:
             self.setup()
 
@@ -948,11 +950,13 @@ class Evaluation(object):
             results[result.config] = result
 
         # Statistics.
+        end_time = time.time()
         stats = {
             'base': len(base_configs),
             'tuned': len(tuned_results),
             'composite': len(composite_results),
             'all': len(results),
+            'time': end_time - start_time,
         }
 
         return results.values(), stats

@@ -8,7 +8,6 @@ import os
 import subprocess
 import json
 import traceback
-import time
 from collections import namedtuple
 from . import core
 from . import cwmemo
@@ -155,15 +154,11 @@ def run_experiments(ev, only=None, test=True):
     stats = {}
 
     # Main results.
-    start_time = time.time()
     if only and 'main' not in only:
         main_results = []
         ev.setup()
     else:
         main_results, main_stats = ev.run()
-    end_time = time.time()
-
-    stats['time'] = end_time - start_time
     stats['main'] = main_stats
 
     # "Testing" phase.
