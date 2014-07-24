@@ -933,7 +933,9 @@ class Evaluation(object):
             base_configs = self.base_configs
 
         # The phases.
-        logging.info('evaluating base configurations')
+        logging.info('evaluating {} base configurations'.format(
+            len(base_configs)
+        ))
         base_results = self.run_approx(base_configs)
         logging.info('evaluating tuned parameters')
         tuned_results = self.parameter_search(base_results)
