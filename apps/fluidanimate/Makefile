@@ -1,7 +1,8 @@
 TARGET := fluidanimate
 
-RUNARGS := 1 5 in_100K.fluid out.fluid  # simmedium
-TESTARGS := 4 5 in_300K.fluid out.fluid  # simlarge
+# RUNARGS := 12 5 in_100K.fluid out.fluid  # simmedium
+RUNARGS := 12 5 in_300K.fluid out.fluid  # simlarge
+TESTARGS := 12 10 in_500K.fluid out.fluid  # native
 
 SOURCES := pthreads.cpp cellpool.cpp parsec_barrier.cpp
 HEADERS := cellpool.hpp fluid.hpp parsec_barrier.hpp
