@@ -4,6 +4,7 @@
 //#include <wisp5.h>
 //#include <accel.h>
 //#include <spi.h>
+#include <string.h>
 #include <math.h>
 #include <enerc.h>
 //#include <perfctr.h>
@@ -15,7 +16,7 @@
 #undef FLASH_ON_BOOT
 
 // number of samples until experiment is "done" and "moving" light goes on
-#define SAMPLES_TO_COLLECT 5000
+#define SAMPLES_TO_COLLECT 2500
 
 // two features: mean & stdev
 #define NUM_FEATURES 2
@@ -50,17 +51,20 @@ APPROX static int32_t meanmag;
 APPROX static int32_t stddevmag;
 
 typedef struct {
-  APPROX uint8_t x;
-  APPROX uint8_t y;
-  APPROX uint8_t z;
+  APPROX int8_t x;
+  APPROX int8_t y;
+  APPROX int8_t z;
+  uint8_t padding;
 } threeAxis_t;
 
 static threeAxis_t accelOut;
 
+/* trace of stored values */
+static threeAxis_t trace[SAMPLES_TO_COLLECT];
+static unsigned traceIndex = 0;
+
 APPROX void ACCEL_singleSample(threeAxis_t *taxis) {
-  taxis->x = (uint8_t)(rand() & 0xff);
-  taxis->y = (uint8_t)(rand() & 0xff);
-  taxis->z = (uint8_t)(rand() & 0xff);
+  memcpy(taxis, &trace[traceIndex++], sizeof(threeAxis_t));
 }
 
 void getNextSample() {
@@ -173,18 +177,42 @@ void initializeNVData() {
   __NV_totalCount = 0;
 }
 
+void read_trace (FILE *infile) {
+  size_t sofar = 0;
+  while (sofar < SAMPLES_TO_COLLECT) {
+    sofar += fread(trace, sizeof(threeAxis_t),
+                   SAMPLES_TO_COLLECT - sofar, infile);
+  }
+  /*
+  printf("Sanity check: trace[1]{x,y,z] == (%d,%d,%d,%d) (should be 95,-48,-53,0)\n",
+      trace[1].x, trace[1].y, trace[1].z, trace[1].padding);
+  printf("Sanity check: trace[2]{x,y,z] == (%d,%d,%d,%d) (should be 81,-44,-55,0)\n",
+      trace[2].x, trace[2].y, trace[2].z, trace[2].padding);
+  */
+}
+
 int main(int argc, char *argv[]) {
 
   initializeNVData();
-  srand(getpid());
+  // srand(getpid());
 
-  if (argc != 2) {
-    fprintf(stderr, "Usage: %s outfile\n", argv[0]);
+  if (argc != 3) {
+    fprintf(stderr, "Usage: %s infile outfile\n", argv[0]);
     return 1;
   }
-  FILE *outf = fopen(argv[1], "w");
+
+  /* read stored accelerometer readings from input file */
+  FILE *inf = fopen(argv[1], "r");
+  if (!inf) {
+    perror("Cannot open input file");
+    return 1;
+  }
+  read_trace(inf);
+  fclose(inf);
+
+  FILE *outf = fopen(argv[2], "w");
   if (!outf) {
-    perror("fopen()");
+    perror("Cannot open output file");
     return 1;
   }
 
