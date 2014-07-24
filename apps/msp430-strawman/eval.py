@@ -24,7 +24,7 @@ def score(orig, relaxed):
         regs_relaxed = parse(relaxedf.readlines())
         score_relaxed = _retval(regs_relaxed)
 
-    return abs(score_orig - score_relaxed)
+    return float(abs(score_orig - score_relaxed)) / score_orig
 
 if __name__ == '__main__':
     assert score('testout.txt', 'testout.txt') == 0
