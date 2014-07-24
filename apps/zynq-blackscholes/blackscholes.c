@@ -152,7 +152,7 @@ void print_xmm(fptype in, char* s) {
 //////////////////////////////////////////////////////////////////////////////////////
 fptype BlkSchlsEqEuroNoDiv( APPROX fptype sptprice,
                             APPROX fptype strike, APPROX fptype rate, APPROX fptype volatility,
-                            APPROX fptype time, int otype, float timet )
+                            APPROX fptype time, int otype)
 {
     APPROX fptype OptionPrice;
 
@@ -178,6 +178,8 @@ fptype BlkSchlsEqEuroNoDiv( APPROX fptype sptprice,
     fptype NegNofXd1;
     fptype NegNofXd2;    
     
+    sptprice *= 100;
+    strike *= 100;
     xStockPrice = sptprice; xStrikePrice = strike; xRiskFreeRate = rate; xVolatility = volatility; 
     xTime = time;
     xSqrtTime = sqrt(ENDORSE(xTime));
@@ -209,7 +211,7 @@ fptype BlkSchlsEqEuroNoDiv( APPROX fptype sptprice,
         OptionPrice = (FutureValueX * NegNofXd2) - (sptprice * NegNofXd1);
     }
     
-    return ENDORSE(OptionPrice);
+    return ENDORSE(OptionPrice/30);
 }
 
 //////////////////////////////////////////////////////////////////////////////////////
@@ -238,11 +240,9 @@ int bs_thread(void *tid_ptr) {
             /* Calling main function to calculate option value based on 
              * Black & Sholes's equation.
              */
-            sptprice[i] /= 100;
-            strike[i] /= 100;
-            price = BlkSchlsEqEuroNoDiv( sptprice[i], strike[i],
+            price = BlkSchlsEqEuroNoDiv( sptprice[i]/100, strike[i]/100,
                                          rate[i], volatility[i], otime[i], 
-                                         otype[i], 0);
+                                         otype[i]);
             prices[i] = price*30;
             
 #ifdef ERR_CHK   
@@ -266,7 +266,6 @@ void readCell(char **fp, char* w) {
     int i;
 
     w[0] = 0;
-    // HACK: '%' character stands for EOF
     for (c = **fp, (*fp)++, i = 0; c != '%'; c = **fp, (*fp)++) {
         if (c == ' ' || c == '\n')
             break;
@@ -288,10 +287,10 @@ int main (int argc, char **argv)
 #ifdef PARSEC_VERSION
 #define __PARSEC_STRING(x) #x
 #define __PARSEC_XSTRING(x) __PARSEC_STRING(x)
-        printf("PARSEC Benchmark Suite Version "__PARSEC_XSTRING(PARSEC_VERSION)"\n");
+        //printf("PARSEC Benchmark Suite Version "__PARSEC_XSTRING(PARSEC_VERSION)"\n");
 	fflush(NULL);
 #else
-        printf("PARSEC Benchmark Suite\n");
+        //printf("PARSEC Benchmark Suite\n");
 	fflush(NULL);
 #endif //PARSEC_VERSION
 #ifdef ENABLE_PARSEC_HOOKS
@@ -302,7 +301,7 @@ int main (int argc, char **argv)
 
     //Read input data from file
     file = (char*) SRC_IMAGE_ADDR;
-    numOptions = 65536;
+    numOptions = 1024;
 
     // alloc spaces for the option data
     data = (OptionData*)malloc(numOptions*sizeof(OptionData));
@@ -333,8 +332,8 @@ int main (int argc, char **argv)
 #ifdef ENABLE_THREADS
     MAIN_INITENV(,8000000,nThreads);
 #endif
-    printf("Num of Options: %d\n", numOptions);
-    printf("Num of Runs: %d\n", NUM_RUNS);
+    //printf("Num of Options: %d\n", numOptions);
+    //printf("Num of Runs: %d\n", NUM_RUNS);
 
 #define PAD 256
 #define LINESIZE 64
@@ -358,7 +357,7 @@ int main (int argc, char **argv)
         otime[i]      = data[i].t;
     }
 
-    printf("Size of data: %d\n", numOptions * (sizeof(OptionData) + sizeof(int)));
+    //printf("Size of data: %d\n", numOptions * (sizeof(OptionData) + sizeof(int)));
 
 #ifdef ENABLE_PARSEC_HOOKS
     __parsec_roi_begin();
@@ -401,13 +400,13 @@ int main (int argc, char **argv)
 #endif
 
     //Write prices to output file
-    printf("%i\n", numOptions);
+    //printf("%i\n", numOptions);
     for(i=0; i<numOptions; i++) {
       printf("%.18f\n", prices[i]);
     }
 
 #ifdef ERR_CHK
-    printf("Num Errors: %d\n", numError);
+    //printf("Num Errors: %d\n", numError);
 #endif
     free(data);
     free(ENDORSE(prices));

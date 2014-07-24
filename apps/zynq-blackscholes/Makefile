@@ -3,10 +3,10 @@ TARGET := blackscholes
 CFLAGS := -pthread
 ZYNQBIT := blackscholes_x8_x64.bit
 LDFLAGS := -lm -pthread
-OPTARGS += -accept-npu-bufsize=896
+OPTARGS += -accept-npu-bufsize=768
 
-RUNARGS := in_64K.txt
-TESTARGS := in_64K.txt
+RUNARGS := in_1k.txt
+TESTARGS := in_1k.txt
 
 APP_MK := ../app.mk
 include $(APP_MK)
