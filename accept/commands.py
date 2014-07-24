@@ -146,6 +146,16 @@ OPT_KINDS = {
 }
 
 
+def _triage_stats(results, test):
+    prefix = 'test-' if test else 'train-'
+    optimal, suboptimal, bad = core.triage_results(results)
+    return {
+        prefix + 'optimal': len(optimal),
+        prefix + 'suboptimal': len(suboptimal),
+        prefix + 'bad': len(bad),
+    }
+
+
 def run_experiments(ev, only=None, test=True):
     """Run all stages in the Evaluation for producing paper-ready
     results. Returns the main results, a dict of kind-restricted
@@ -159,11 +169,13 @@ def run_experiments(ev, only=None, test=True):
         ev.setup()
     else:
         main_results, main_stats = ev.run()
+    main_stats.update(_triage_stats(main_results, False))
     stats['main'] = main_stats
 
     # "Testing" phase.
     if test:
         main_results = ev.test_results(main_results)
+        main_stats.update(_triage_stats(main_results, True))
 
     # Experiments with only one optimization type at a time.
     kind_results = {}
@@ -184,8 +196,11 @@ def run_experiments(ev, only=None, test=True):
         # Run the experiment workflow.
         logging.info('isolated configs: {}'.format(len(kind_configs)))
         train_results, kind_stats = ev.run(kind_configs)
+        kind_stats.update(_triage_stats(train_results, False))
         if test:
-            kind_results[kind] = ev.test_results(train_results)
+            test_results = ev.test_results(train_results)
+            kind_stats.update(_triage_stats(test_results, True))
+            kind_results[kind] = test_results
         else:
             kind_results[kind] = train_results
         stats[kind] = kind_stats
