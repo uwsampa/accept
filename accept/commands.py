@@ -86,8 +86,11 @@ def dump_result_human(res, verbose):
         yield '{} % error'.format(res.error * 100)
     if hasattr(res, 'speedup'):
         yield '{} speedup'.format(res.speedup)
-    if verbose and hasattr(res, 'outputs') and isinstance(res.outputs[0], str):
-        yield 'output: {}'.format(res.outputs[0])
+    if verbose and hasattr(res, 'outputs'):
+        output = res.outputs[0]
+        if isinstance(output, basestring) or \
+           (isinstance(output, (list, tuple, dict)) and len(output) < 16):
+            yield 'output: {}'.format(output)
     if res.desc != 'good':
         yield res.desc
 
