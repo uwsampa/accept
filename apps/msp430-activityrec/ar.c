@@ -13,7 +13,7 @@
 #undef FLASH_ON_BOOT
 
 // number of samples until experiment is "done" and "moving" light goes on
-#define SAMPLES_TO_COLLECT 5000
+#define SAMPLES_TO_COLLECT 2500
 
 // two features: mean & stdev
 #define NUM_FEATURES 2
@@ -25,6 +25,13 @@ static const unsigned stationary[MODEL_SIZE] = {
 static const unsigned moving[MODEL_SIZE] = {
 #include "int_wisp5_flapping.h"
 };
+
+#ifdef USE_TRACE
+static const threeAxis_t trace[SAMPLES_TO_COLLECT] = {
+#include "readings.h"
+};
+static unsigned traceIndex = 0;
+#endif // USE_TRACE
 
 /* These "pinned" variables are fixed at these addresses. */
 APPROX volatile __fram unsigned int __NV_movingCount;
@@ -50,15 +57,24 @@ APPROX static long int stddevmag;
 static threeAxis_t accelOut;
 
 void getNextSample() {
+#ifdef USE_TRACE
+  threeAxis_t *threeAxis = &trace[traceIndex++];
+  aWin[currSamp][0] = (long)threeAxis->x;
+  aWin[currSamp][1] = (long)threeAxis->y;
+  aWin[currSamp][2] = (long)threeAxis->z;
+  if (traceIndex > SAMPLES_TO_COLLECT) {
+    traceIndex = 0;
+  }
+#else
   threeAxis_t threeAxis;
   ACCEL_singleSample(&threeAxis);  // ACCEPT_PERMIT
 
   aWin[currSamp][0] = (long)threeAxis.x;
   aWin[currSamp][1] = (long)threeAxis.y;
   aWin[currSamp][2] = (long)threeAxis.z;
-  currSamp++;
+#endif // USE_TRACE
 
-  if (currSamp >= ACCEL_WINDOW_SIZE) {
+  if (++currSamp >= ACCEL_WINDOW_SIZE) {
     currSamp = 0;
   }
 }
@@ -287,6 +303,8 @@ int main(void) {
   /* Light LEDs and loop forever */
   P4OUT |= BIT0;
   PJOUT &= ~BIT6;
+  asm volatile ("MOV %0, R8\n"
+                "MOV %1, R7" ::"m"(__NV_movingCount), "m"(__NV_totalCount));
   while(1);
 }
 
