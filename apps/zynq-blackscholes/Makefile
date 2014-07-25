@@ -6,7 +6,7 @@ LDFLAGS := -lm -pthread
 OPTARGS += -accept-npu-bufsize=768
 
 RUNARGS := in_1k.txt
-TESTARGS := in_1k.txt
+TESTARGS := in_1k_2.txt
 
 APP_MK := ../app.mk
 include $(APP_MK)
