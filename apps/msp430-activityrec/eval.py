@@ -13,7 +13,7 @@ def parse(lines):
     return regfile
 
 def load():
-    pass
+    return 'file:msp430out.txt'
 
 def score(orig, relaxed):
     def _retval(regs):
