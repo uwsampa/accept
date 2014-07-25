@@ -69,7 +69,8 @@ int main (int argc, const char* argv[]) {
     
     // Allocate input and output arrays
     float* xy           = (float*)malloc(n * 2 * sizeof (float));
-    APPROX float* t1t2 = (float*)malloc(n * 2 * sizeof (float));
+    float* t1t2 = (float*)malloc(n * 2 * sizeof (float));
+    APPROX float *t1t2out = (float*)malloc(n * 2 * sizeof (float));
     
     // Ensure memory allocation was successful
     if(t1t2 == NULL || xy == NULL) {
@@ -93,7 +94,7 @@ int main (int argc, const char* argv[]) {
 
     for (i = 0; i < n * NUM_INPUTS; i += NUM_INPUTS) {
     
-        inversek2j(xy[i + 0], xy[i + 1], t1t2 + (i + 0), t1t2 + (i + 1));
+        inversek2j(xy[i + 0], xy[i + 1], t1t2out + (i + 0), t1t2out + (i + 1));
 
     }
 
@@ -101,9 +102,10 @@ int main (int argc, const char* argv[]) {
 
     // Output results.
     for (int k = 0; k < n * NUM_INPUTS; k += NUM_INPUTS)
-      printf("\n%f\t%f", *(t1t2 + (k + 0)), *(t1t2 + (k + 1)));
+      printf("\n%f\t%f", *(t1t2out + (k + 0)), *(t1t2out + (k + 1)));
     
     free(t1t2);
+    free(t1t2out);
     free(xy);
 
     return 0;
