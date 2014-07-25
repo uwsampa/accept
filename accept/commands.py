@@ -88,9 +88,17 @@ def dump_result_human(res, verbose):
         yield '{} speedup'.format(res.speedup)
     if verbose and hasattr(res, 'outputs'):
         output = res.outputs[0]
-        if isinstance(output, basestring) or \
-           (isinstance(output, (list, tuple, dict)) and len(output) < 16):
+        if isinstance(output, basestring):
             yield 'output: {}'.format(output)
+        elif isinstance(output, (list, tuple, dict)):
+            if len(output) < 32:
+                yield 'output: {}'.format(output)
+            else:
+                yield 'output is a {} of length {}'.format(
+                    type(output).__name__, len(output)
+                )
+        else:
+            yield 'output has type {}'.format(type(output).__name__)
     if res.desc != 'good':
         yield res.desc
 
