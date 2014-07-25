@@ -185,7 +185,7 @@ endif
 
 # Zynq platform experiments.
 ifeq ($(EXPLAT),zynq)
-APPS := zynq-inversek2j zynq-sobel
+APPS := zynq-inversek2j zynq-sobel zynq-blackscholes
 endif
 
 exp:
