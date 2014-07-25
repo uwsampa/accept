@@ -29,6 +29,8 @@
 // 2 - Loop on approximate execution
 #define POWER_MODE      0 
 
+#define INPUT_FILE_ADDR 0x08000000
+
 // Global variables
 // andreolb: not measuring anything for now.
 /*
@@ -57,8 +59,13 @@ int main (int argc, const char* argv[]) {
     int x;
     int n;
     
-    // Init rand number generator:
-    srand (1);
+    // Init rand number generator using input file.
+    char *datastr = (char *)INPUT_FILE_ADDR;
+    char *pos;
+    for (pos = datastr; *pos != '\n'; ++pos) {}
+    *pos = '\0';
+    int datanum = atoi(datastr);
+    srand (datanum);
     
     // Set input size if not set.
     if (argc < 2) {
