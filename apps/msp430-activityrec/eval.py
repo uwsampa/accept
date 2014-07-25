@@ -1,6 +1,6 @@
-import re
+import os.path
 import pprint
-import random # XXX remove
+import re
 
 def parse(lines):
     regfile = {}
