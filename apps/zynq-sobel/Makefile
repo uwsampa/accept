@@ -5,7 +5,7 @@ LDFLAGS := -lm
 OPTARGS += -accept-npu-bufsize=1152
 
 RUNARGS := lena.dat
-TESTARGS := lena.dat
+TESTARGS := baboon.dat
 
 APP_MK := ../app.mk
 include $(APP_MK)

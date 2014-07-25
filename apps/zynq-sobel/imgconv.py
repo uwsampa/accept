@@ -1,3 +1,4 @@
+from __future__ import print_function
 import subprocess
 import sys
 import re
@@ -18,12 +19,16 @@ def imgconv(image_fn):
         for line in f:
             line = line.strip()
             if line:
-                value = re.search(r'\((\d+),', line).group(1)
-                value = int(value)
-                row.append(value)
-            if len(row) == width:
+                values = re.findall(r'\d+', line)
+                r, g, b = map(int, values[2:5])
+                row += [r, g, b]
+            if len(row) == width * 3:
                 print(','.join(map(str, row)))
                 del row[:]
+
+        print("\"{'bitdepth': 8, 'interlace': 0, 'planes': 3, "
+              "'greyscale': False, 'alpha': False, 'size': (256, 256)}\"",
+              end='')
 
 
 if __name__ == '__main__':
