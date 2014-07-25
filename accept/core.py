@@ -17,6 +17,7 @@ from .uncertain import umean
 from collections import namedtuple
 import itertools
 import errno
+import math
 
 
 EVALSCRIPT = 'eval.py'
@@ -619,6 +620,8 @@ class Result(object):
                     i, exc
                 )
                 return
+            if math.isnan(error):
+                error = 1.0
             self.errors.append(error)
         self.error = umean(self.errors)
 
