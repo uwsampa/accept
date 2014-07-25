@@ -6,6 +6,7 @@ memo.db
 apps/blackscholes/in_*.txt
 apps/canneal/*.nets
 apps/fluidanimate/in_*.fluid
+apps/msp430-activityrec/readings.h
 site/
 venv/
 rt/acceptrt.*.bc
