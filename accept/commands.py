@@ -259,10 +259,9 @@ def exp(ctx, appdirs, verbose, as_json, include_time, only, notest):
             for kind, results in kind_results.items():
                 isolated[kind] = dump_results_json(results)
             out['isolated'] = isolated
-            out['stats'] = stats
+            if include_time:
+                out['stats'] = stats
 
-            if not include_time:
-                del out['time']
             if appname not in results_json:
                 results_json[appname] = {}
             results_json[appname].update(out)
