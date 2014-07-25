@@ -17,17 +17,25 @@ def load():
 
 def score(orig, relaxed):
     def _retval(regs):
-        return (regs['R14'] << 16) | regs['R15']
+        return regs['R8']
+
+    assert orig is not None and os.path.exists(orig)
+    assert relaxed is not None and os.path.exists(relaxed)
+
     with open(orig, 'r') as origf:
         regs_orig = parse(origf.readlines())
         score_orig = _retval(regs_orig)
+        orig_total = regs_orig['R7']
+
     with open(relaxed, 'r') as relaxedf:
         regs_relaxed = parse(relaxedf.readlines())
         score_relaxed = _retval(regs_relaxed)
+        relaxed_total = regs_relaxed['R7']
 
-    # XXX scores represent cycle counts.  dump relevant portions of memory and
-    # compare contents instead.
-    return abs(score_orig - score_relaxed)
+    assert relaxed_total == orig_total
+
+    diff = float(abs(score_orig - score_relaxed))
+    return diff / orig_total
 
 if __name__ == '__main__':
     test_input = \
