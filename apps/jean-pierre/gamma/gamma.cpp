@@ -97,7 +97,6 @@ int main()  {
       perror("fprintf of x-value failed\n");
       return EXIT_FAILURE;
     }
-    fprintf(file, "%.10f\n", yval[i]);
     retval = fprintf(file, "%.10f\n", ENDORSE(yval[i]));
     if (retval < 0) {
       perror("fprintf of y-value failed\n");
