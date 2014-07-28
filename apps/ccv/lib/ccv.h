@@ -140,14 +140,14 @@ typedef void(*ccv_cache_index_free_f)(void*);
 
 typedef union {
 	struct {
-		uint64_t bitmap;
-		uint64_t set;
-		uint64_t age;
+		APPROX uint64_t bitmap;
+		APPROX uint64_t set;
+		APPROX uint64_t age;
 	} branch;
 	struct {
-		uint64_t sign;
-		uint64_t off;
-		uint64_t type;
+		APPROX uint64_t sign;
+		APPROX uint64_t off;
+		APPROX uint64_t type;
 	} terminal;
 } ccv_cache_index_t;
 
@@ -396,8 +396,8 @@ void ccv_half_precision_to_float(uint16_t* h, float* f, size_t len);
 /* basic data structures ccv_util.c */
 
 typedef struct {
-	int width;
-	int height;
+	APPROX int width;
+	APPROX int height;
 } ccv_size_t;
 
 inline static ccv_size_t ccv_size(int width, int height)
@@ -410,7 +410,7 @@ inline static ccv_size_t ccv_size(int width, int height)
 
 inline static int ccv_size_is_zero(ccv_size_t size)
 {
-	return size.width == 0 && size.height == 0;
+	return ENDORSE(size.width == 0 && size.height == 0);
 }
 
 typedef struct {

@@ -26,13 +26,13 @@ void ccv_cache_init(ccv_cache_t* cache, size_t up, int cache_types, ccv_cache_in
 static APPROX int bits_in_16bits[0x1u << 16];
 static APPROX int bits_in_16bits_init = 0;
 
-static int sparse_bitcount(unsigned int n) {
-	int count = 0;
-	while (n) {
+static int sparse_bitcount(APPROX unsigned int n) {
+	APPROX int count = 0;
+	while (ENDORSE(n)) {
 		count++;
 		n &= (n - 1);
 	}
-	return count;
+	return ENDORSE(count);
 }
 
 static void precomputed_16bits() {
@@ -53,27 +53,27 @@ static void _ccv_cache_aging(ccv_cache_index_t* branch, uint64_t sign)
 	if (!ENDORSE(bits_in_16bits_init))
 		precomputed_16bits();
 	int i;
-	uint64_t j = 63;
+	APPROX uint64_t j = 63;
 	ccv_cache_index_t* breadcrumb[10];
 	for (i = 0; i < 10; i++)
 	{
 		breadcrumb[i] = branch;
-		int leaf = branch->terminal.off & 0x1;
-		int full = branch->terminal.off & 0x2;
+		int leaf = ENDORSE(branch->terminal.off) & 0x1;
+		int full = ENDORSE(branch->terminal.off) & 0x2;
 		if (leaf)
 		{
 			break;
 		} else {
-			ccv_cache_index_t* set = (ccv_cache_index_t*)(branch->branch.set - (branch->branch.set & 0x3));
-			int dice = (sign & j) >> (i * 6);
+			ccv_cache_index_t* set = (ccv_cache_index_t*)ENDORSE(branch->branch.set - (branch->branch.set & 0x3));
+			int dice = (sign & ENDORSE(j)) >> (i * 6);
 			if (full)
 			{
 				branch = set + dice;
 			} else {
 				uint64_t k = 1;
 				k = k << dice;
-				if (k & branch->branch.bitmap) {
-					uint64_t m = (k - 1) & branch->branch.bitmap;
+				if (k & ENDORSE(branch->branch.bitmap)) {
+					uint64_t m = (k - 1) & ENDORSE(branch->branch.bitmap);
 					branch = set + compute_bits(m);
 				} else {
 					break;
@@ -86,16 +86,16 @@ static void _ccv_cache_aging(ccv_cache_index_t* branch, uint64_t sign)
 	for (; i >= 0; i--)
 	{
 		branch = breadcrumb[i];
-		int leaf = branch->terminal.off & 0x1;
+		int leaf = ENDORSE(branch->terminal.off) & 0x1;
 		if (!leaf)
 		{
-			ccv_cache_index_t* set = (ccv_cache_index_t*)(branch->branch.set - (branch->branch.set & 0x3));
-			uint32_t total = compute_bits(branch->branch.bitmap);
-			uint32_t min_age = (set[0].terminal.off & 0x1) ? CCV_GET_TERMINAL_AGE(set[0].terminal.type) : set[0].branch.age;
-			for (j = 1; j < total; j++)
+			ccv_cache_index_t* set = (ccv_cache_index_t*)ENDORSE(branch->branch.set - (branch->branch.set & 0x3));
+			uint32_t total = compute_bits(ENDORSE(branch->branch.bitmap));
+			APPROX uint32_t min_age = (set[0].terminal.off & 0x1) ? CCV_GET_TERMINAL_AGE(set[0].terminal.type) : set[0].branch.age;
+			for (j = 1; ENDORSE(j) < total; j++)
 			{
 				uint32_t age = (set[j].terminal.off & 0x1) ? CCV_GET_TERMINAL_AGE(set[j].terminal.type) : set[j].branch.age;
-				if (age < min_age)
+				if (age < ENDORSE(min_age))
 					min_age = age;
 			}
 			branch->branch.age = min_age;
@@ -103,32 +103,32 @@ static void _ccv_cache_aging(ccv_cache_index_t* branch, uint64_t sign)
 	}
 }
 
-static ccv_cache_index_t* _ccv_cache_seek(ccv_cache_index_t* branch, uint64_t sign, int* depth)
+static ccv_cache_index_t* _ccv_cache_seek(ccv_cache_index_t* branch, uint64_t sign, APPROX int* depth)
 {
 	if (!ENDORSE(bits_in_16bits_init))
 		precomputed_16bits();
 	int i;
-	uint64_t j = 63;
+	APPROX uint64_t j = 63;
 	for (i = 0; i < 10; i++)
 	{
-		int leaf = branch->terminal.off & 0x1;
-		int full = branch->terminal.off & 0x2;
+		int leaf = ENDORSE(branch->terminal.off) & 0x1;
+		int full = ENDORSE(branch->terminal.off) & 0x2;
 		if (leaf)
 		{
 			if (depth)
 				*depth = i;
 			return branch;
 		} else {
-			ccv_cache_index_t* set = (ccv_cache_index_t*)(branch->branch.set - (branch->branch.set & 0x3));
-			int dice = (sign & j) >> (i * 6);
+			ccv_cache_index_t* set = (ccv_cache_index_t*)ENDORSE(branch->branch.set - (branch->branch.set & 0x3));
+			int dice = (sign & ENDORSE(j)) >> (i * 6);
 			if (full)
 			{
 				branch = set + dice;
 			} else {
 				uint64_t k = 1;
 				k = k << dice;
-				if (k & branch->branch.bitmap) {
-					uint64_t m = (k - 1) & branch->branch.bitmap;
+				if (k & ENDORSE(branch->branch.bitmap)) {
+					uint64_t m = (k - 1) & ENDORSE(branch->branch.bitmap);
 					branch = set + compute_bits(m);
 				} else {
 					if (depth)
@@ -149,25 +149,25 @@ void* ccv_cache_get(ccv_cache_t* cache, uint64_t sign, uint8_t* type)
 	ccv_cache_index_t* branch = _ccv_cache_seek(&cache->origin, sign, 0);
 	if (!branch)
 		return 0;
-	int leaf = branch->terminal.off & 0x1;
+	int leaf = ENDORSE(branch->terminal.off) & 0x1;
 	if (!leaf)
 		return 0;
-	if (branch->terminal.sign != sign)
+	if (ENDORSE(branch->terminal.sign) != sign)
 		return 0;
 	if (type)
-		*type = CCV_GET_CACHE_TYPE(branch->terminal.type);
-	return (void*)(branch->terminal.off - (branch->terminal.off & 0x3));
+		*type = CCV_GET_CACHE_TYPE(ENDORSE(branch->terminal.type));
+	return (void*)ENDORSE(branch->terminal.off - (branch->terminal.off & 0x3));
 }
 
 // only call this function when the cache space is delpeted
 static void _ccv_cache_lru(ccv_cache_t* cache)
 {
 	ccv_cache_index_t* branch = &cache->origin;
-	int leaf = branch->terminal.off & 0x1;
+	int leaf = ENDORSE(branch->terminal.off) & 0x1;
 	if (leaf)
 	{
-		void* result = (void*)(branch->terminal.off - (branch->terminal.off & 0x3));
-		uint8_t type = CCV_GET_CACHE_TYPE(branch->terminal.type);
+		void* result = (void*)ENDORSE(branch->terminal.off - (branch->terminal.off & 0x3));
+		uint8_t type = CCV_GET_CACHE_TYPE(ENDORSE(branch->terminal.type));
 		if (result != 0)
 		{
 			assert(type >= 0 && type < 16);
@@ -177,19 +177,19 @@ static void _ccv_cache_lru(ccv_cache_t* cache)
 		cache->size = 0;
 		return;
 	}
-	uint32_t min_age = branch->branch.age;
+	uint32_t min_age = ENDORSE(branch->branch.age);
 	int i, j;
 	for (i = 0; i < 10; i++)
 	{
 		ccv_cache_index_t* old_branch = branch;
-		int leaf = branch->terminal.off & 0x1;
+		int leaf = ENDORSE(branch->terminal.off) & 0x1;
 		if (leaf)
 		{
-			ccv_cache_delete(cache, branch->terminal.sign);
+			ccv_cache_delete(cache, ENDORSE(branch->terminal.sign));
 			break;
 		} else {
-			ccv_cache_index_t* set = (ccv_cache_index_t*)(branch->branch.set - (branch->branch.set & 0x3));
-			uint32_t total = compute_bits(branch->branch.bitmap);
+			ccv_cache_index_t* set = (ccv_cache_index_t*)ENDORSE(branch->branch.set - (branch->branch.set & 0x3));
+			uint32_t total = compute_bits(ENDORSE(branch->branch.bitmap));
 			for (j = 0; j < total; j++)
 			{
 				uint32_t age = (set[j].terminal.off & 0x1) ? CCV_GET_TERMINAL_AGE(set[j].terminal.type) : set[j].branch.age;
@@ -230,36 +230,37 @@ int ccv_cache_put(ccv_cache_t* cache, uint64_t sign, void* x, uint32_t size, uin
 		return 0;
 	}
 	++cache->age;
-	int i, depth = -1;
+	int i;
+        APPROX int depth = -1;
 	ccv_cache_index_t* branch = _ccv_cache_seek(&cache->origin, sign, &depth);
 	if (!branch)
 		return -1;
-	int leaf = branch->terminal.off & 0x1;
+	int leaf = ENDORSE(branch->terminal.off) & 0x1;
 	uint64_t on = 1;
 	assert(depth >= 0);
 	if (leaf)
 	{
-		if (sign == branch->terminal.sign)
+		if (sign == ENDORSE(branch->terminal.sign))
 		{
 			cache->ffree[CCV_GET_CACHE_TYPE(branch->terminal.type)]((void*)(branch->terminal.off - (branch->terminal.off & 0x3)));
 			branch->terminal.off = (uint64_t)x | 0x1;
-			uint32_t old_size = CCV_GET_TERMINAL_SIZE(branch->terminal.type);
+			uint32_t old_size = CCV_GET_TERMINAL_SIZE(ENDORSE(branch->terminal.type));
 			cache->size = cache->size + size - old_size;
 			branch->terminal.type = CCV_SET_TERMINAL_TYPE(type, cache->age, size);
 			_ccv_cache_aging(&cache->origin, sign);
 			return 1;
 		} else {
 			ccv_cache_index_t t = *branch;
-			uint32_t age = CCV_GET_TERMINAL_AGE(branch->terminal.type);
-			uint64_t j = 63;
+			uint32_t age = CCV_GET_TERMINAL_AGE(ENDORSE(branch->terminal.type));
+			APPROX uint64_t j = 63;
 			j = j << (depth * 6);
-			int dice, udice;
+			APPROX int dice, udice;
 			assert(depth < 10);
-			for (i = depth; i < 10; i++)
+			for (i = ENDORSE(depth); i < 10; i++)
 			{
 				dice = (t.terminal.sign & j) >> (i * 6);
 				udice = (sign & j) >> (i * 6);
-				if (dice == udice)
+				if (ENDORSE(dice == udice))
 				{
 					branch->branch.bitmap = on << dice;
 					ccv_cache_index_t* set = (ccv_cache_index_t*)ccmalloc(sizeof(ccv_cache_index_t));
@@ -277,7 +278,7 @@ int ccv_cache_put(ccv_cache_t* cache, uint64_t sign, void* x, uint32_t size, uin
 			assert(((uint64_t)set & 0x3) == 0);
 			branch->branch.set = (uint64_t)set;
 			branch->branch.age = age;
-			int u = dice < udice;
+			int u = ENDORSE(dice < udice);
 			set[u].terminal.sign = sign;
 			set[u].terminal.off = (uint64_t)x | 0x1;
 			set[u].terminal.type = CCV_SET_TERMINAL_TYPE(type, cache->age, size);
@@ -285,11 +286,11 @@ int ccv_cache_put(ccv_cache_t* cache, uint64_t sign, void* x, uint32_t size, uin
 		}
 	} else {
 		uint64_t k = 1, j = 63;
-		k = k << ((sign & (j << (depth * 6))) >> (depth * 6));
-		uint64_t m = (k - 1) & branch->branch.bitmap;
+		k = k << ((sign & (j << (ENDORSE(depth) * 6))) >> (ENDORSE(depth) * 6));
+		uint64_t m = (k - 1) & ENDORSE(branch->branch.bitmap);
 		uint32_t start = compute_bits(m);
-		uint32_t total = compute_bits(branch->branch.bitmap);
-		ccv_cache_index_t* set = (ccv_cache_index_t*)(branch->branch.set - (branch->branch.set & 0x3));
+		uint32_t total = compute_bits(ENDORSE(branch->branch.bitmap));
+		ccv_cache_index_t* set = (ccv_cache_index_t*)ENDORSE(branch->branch.set - (branch->branch.set & 0x3));
 		set = (ccv_cache_index_t*)ccrealloc(set, sizeof(ccv_cache_index_t) * (total + 1));
 		assert(((uint64_t)set & 0x3) == 0);
 		for (i = total; i > start; i--)
@@ -309,15 +310,15 @@ int ccv_cache_put(ccv_cache_t* cache, uint64_t sign, void* x, uint32_t size, uin
 
 static void _ccv_cache_cleanup(ccv_cache_index_t* branch)
 {
-	int leaf = branch->terminal.off & 0x1;
+	int leaf = ENDORSE(branch->terminal.off) & 0x1;
 	if (!leaf)
 	{
 		int i;
-		uint64_t total = compute_bits(branch->branch.bitmap);
-		ccv_cache_index_t* set = (ccv_cache_index_t*)(branch->branch.set - (branch->branch.set & 0x3));
+		uint64_t total = compute_bits(ENDORSE(branch->branch.bitmap));
+		ccv_cache_index_t* set = (ccv_cache_index_t*)ENDORSE(branch->branch.set - (branch->branch.set & 0x3));
 		for (i = 0; i < total; i++)
 		{
-			if (!(set[i].terminal.off & 0x1))
+			if (!(ENDORSE(set[i].terminal.off) & 0x1))
 				_ccv_cache_cleanup(set + i);
 		}
 		ccfree(set);
@@ -326,12 +327,12 @@ static void _ccv_cache_cleanup(ccv_cache_index_t* branch)
 
 static void _ccv_cache_cleanup_and_free(ccv_cache_index_t* branch, ccv_cache_index_free_f ffree[])
 {
-	int leaf = branch->terminal.off & 0x1;
+	int leaf = ENDORSE(branch->terminal.off) & 0x1;
 	if (!leaf)
 	{
 		int i;
-		uint64_t total = compute_bits(branch->branch.bitmap);
-		ccv_cache_index_t* set = (ccv_cache_index_t*)(branch->branch.set - (branch->branch.set & 0x3));
+		uint64_t total = compute_bits(ENDORSE(branch->branch.bitmap));
+		ccv_cache_index_t* set = (ccv_cache_index_t*)ENDORSE(branch->branch.set - (branch->branch.set & 0x3));
 		for (i = 0; i < total; i++)
 			_ccv_cache_cleanup_and_free(set + i, ffree);
 		ccfree(set);
@@ -347,35 +348,36 @@ void* ccv_cache_out(ccv_cache_t* cache, uint64_t sign, uint8_t* type)
 		precomputed_16bits();
 	if (cache->rnum == 0)
 		return 0;
-	int i, found = 0, depth = -1;
+	int i;
+        APPROX int found = 0, depth = -1;
 	ccv_cache_index_t* parent = 0;
 	ccv_cache_index_t* uncle = &cache->origin;
 	ccv_cache_index_t* branch = &cache->origin;
-	uint64_t j = 63;
+	APPROX uint64_t j = 63;
 	for (i = 0; i < 10; i++)
 	{
-		int leaf = branch->terminal.off & 0x1;
-		int full = branch->terminal.off & 0x2;
+		int leaf = ENDORSE(branch->terminal.off) & 0x1;
+		int full = ENDORSE(branch->terminal.off) & 0x2;
 		if (leaf)
 		{
 			found = 1;
 			break;
 		}
-		if (parent != 0 && compute_bits(parent->branch.bitmap) > 1)
+		if (parent != 0 && compute_bits(ENDORSE(parent->branch.bitmap)) > 1)
 			uncle = branch;
 		parent = branch;
 		depth = i;
-		ccv_cache_index_t* set = (ccv_cache_index_t*)(branch->branch.set - (branch->branch.set & 0x3));
-		int dice = (sign & j) >> (i * 6);
+		ccv_cache_index_t* set = (ccv_cache_index_t*)ENDORSE(branch->branch.set - (branch->branch.set & 0x3));
+		int dice = (sign & ENDORSE(j)) >> (i * 6);
 		if (full)
 		{
 			branch = set + dice;
 		} else {
 			uint64_t k = 1;
 			k = k << dice;
-			if (k & branch->branch.bitmap)
+			if (k & ENDORSE(branch->branch.bitmap))
 			{
-				uint64_t m = (k - 1) & branch->branch.bitmap;
+				uint64_t m = (k - 1) & ENDORSE(branch->branch.bitmap);
 				branch = set + compute_bits(m);
 			} else {
 				return 0;
@@ -383,28 +385,28 @@ void* ccv_cache_out(ccv_cache_t* cache, uint64_t sign, uint8_t* type)
 		}
 		j <<= 6;
 	}
-	if (!found)
+	if (!ENDORSE(found))
 		return 0;
-	int leaf = branch->terminal.off & 0x1;
+	int leaf = ENDORSE(branch->terminal.off) & 0x1;
 	if (!leaf)
 		return 0;
-	if (branch->terminal.sign != sign)
+	if (ENDORSE(branch->terminal.sign) != sign)
 		return 0;
-	void* result = (void*)(branch->terminal.off - (branch->terminal.off & 0x3));
+	void* result = (void*)ENDORSE(branch->terminal.off - (branch->terminal.off & 0x3));
 	if (type)
-		*type = CCV_GET_CACHE_TYPE(branch->terminal.type);
-	uint32_t size = CCV_GET_TERMINAL_SIZE(branch->terminal.type);
+		*type = CCV_GET_CACHE_TYPE(ENDORSE(branch->terminal.type));
+	uint32_t size = CCV_GET_TERMINAL_SIZE(ENDORSE(branch->terminal.type));
 	if (branch != &cache->origin)
 	{
 		uint64_t k = 1, j = 63;
-		int dice = (sign & (j << (depth * 6))) >> (depth * 6);
+		int dice = (sign & (j << (ENDORSE(depth) * 6))) >> (ENDORSE(depth) * 6);
 		k = k << dice;
-		uint64_t m = (k - 1) & parent->branch.bitmap;
+		uint64_t m = (k - 1) & ENDORSE(parent->branch.bitmap);
 		uint32_t start = compute_bits(m);
-		uint32_t total = compute_bits(parent->branch.bitmap);
+		uint32_t total = compute_bits(ENDORSE(parent->branch.bitmap));
 		assert(total > 1);
-		ccv_cache_index_t* set = (ccv_cache_index_t*)(parent->branch.set - (parent->branch.set & 0x3));
-		if (total > 2 || (total == 2 && !(set[1 - start].terminal.off & 0x1)))
+		ccv_cache_index_t* set = (ccv_cache_index_t*)ENDORSE(parent->branch.set - (parent->branch.set & 0x3));
+		if (total > 2 || (total == 2 && !(ENDORSE(set[1 - start].terminal.off) & 0x1)))
 		{
 			parent->branch.bitmap &= ~k;
 			for (i = start + 1; i < total; i++)

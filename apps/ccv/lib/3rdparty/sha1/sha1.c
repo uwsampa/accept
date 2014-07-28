@@ -9,6 +9,7 @@
 /* this is only to get definitions for memcpy(), ntohl() and htonl() */
 #include <string.h>
 #include <arpa/inet.h>
+#include <enerc.h>
 
 #include "sha1.h"
 
@@ -118,8 +119,8 @@
 
 static void blk_SHA1_Block(blk_SHA_CTX *ctx, const unsigned int *data)
 {
-	unsigned int A,B,C,D,E;
-	unsigned int array[16];
+	APPROX unsigned int A,B,C,D,E;
+	APPROX unsigned int array[16];
 
 	A = ctx->H[0];
 	B = ctx->H[1];
@@ -236,7 +237,7 @@ void blk_SHA1_Init(blk_SHA_CTX *ctx)
 	ctx->H[4] = 0xc3d2e1f0;
 }
 
-void blk_SHA1_Update(blk_SHA_CTX *ctx, const void *data, unsigned long len)
+void blk_SHA1_Update(blk_SHA_CTX *ctx, const void *data, APPROX unsigned long len)
 {
 	unsigned int lenW = ctx->size & 63;
 
@@ -245,8 +246,8 @@ void blk_SHA1_Update(blk_SHA_CTX *ctx, const void *data, unsigned long len)
 	/* Read the data into W and process blocks as they get full */
 	if (lenW) {
 		unsigned int left = 64 - lenW;
-		if (len < left)
-			left = len;
+		if (ENDORSE(len) < left)
+			left = ENDORSE(len);
 		memcpy(lenW + (char *)ctx->W, data, left);
 		lenW = (lenW + left) & 63;
 		len -= left;
@@ -255,16 +256,16 @@ void blk_SHA1_Update(blk_SHA_CTX *ctx, const void *data, unsigned long len)
 			return;
 		blk_SHA1_Block(ctx, ctx->W);
 	}
-	while (len >= 64) {
+	while (ENDORSE(len) >= 64) {
 		blk_SHA1_Block(ctx, data);
 		data = ((const char *)data + 64);
 		len -= 64;
 	}
-	if (len)
+	if (ENDORSE(len))
 		memcpy(ctx->W, data, len);
 }
 
-void blk_SHA1_Final(unsigned char hashout[20], blk_SHA_CTX *ctx)
+void blk_SHA1_Final(APPROX unsigned char hashout[20], blk_SHA_CTX *ctx)
 {
 	static const unsigned char pad[64] = { 0x80 };
 	unsigned int padlen[2];

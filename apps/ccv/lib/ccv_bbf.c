@@ -66,11 +66,11 @@ static int _ccv_read_bbf_stage_classifier(const char* file, ccv_bbf_stage_classi
 	if (r == 0) return -1;
 	APPROX int stat = 0;
 	stat |= fscanf(r, "%d", &classifier->count);
-	union { APPROX float fl; int i; } fli;
+	union { float fl; int i; } fli;
 	stat |= fscanf(r, "%d", &fli.i);
 	classifier->threshold = fli.fl;
 	classifier->feature = (ccv_bbf_feature_t*)ccmalloc(ENDORSE(classifier->count) * sizeof(ccv_bbf_feature_t));
-	classifier->alpha = (float*)ccmalloc(ENDORSE(classifier->count) * 2 * sizeof(float));
+	classifier->alpha = (float*)DEDORSE(ccmalloc(ENDORSE(classifier->count) * 2 * sizeof(float)));
 	int i, j;
 	for (i = 0; i < ENDORSE(classifier->count); i++)
 	{
@@ -125,15 +125,15 @@ static int _ccv_is_equal_same_class(const void* _r1, const void* _r2, void* data
 
 ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_cascade_t** _cascade, int count, ccv_bbf_param_t params)
 {
-	int hr = a->rows / params.size.height;
-	int wr = a->cols / params.size.width;
+	int hr = a->rows / ENDORSE(params.size.height);
+	int wr = a->cols / ENDORSE(params.size.width);
 	double scale = pow(2., 1. / (params.interval + 1.));
 	int next = params.interval + 1;
 	int scale_upto = (int)(log((double)ccv_min(hr, wr)) / log(scale));
 	ccv_dense_matrix_t** pyr = (ccv_dense_matrix_t**)alloca((scale_upto + next * 2) * 4 * sizeof(ccv_dense_matrix_t*));
 	memset(pyr, 0, (scale_upto + next * 2) * 4 * sizeof(ccv_dense_matrix_t*));
-	if (params.size.height != _cascade[0]->size.height || params.size.width != _cascade[0]->size.width)
-		ccv_resample(a, &pyr[0], 0, a->rows * _cascade[0]->size.height / params.size.height, a->cols * _cascade[0]->size.width / params.size.width, CCV_INTER_AREA);
+	if (ENDORSE(params.size.height != _cascade[0]->size.height || params.size.width != _cascade[0]->size.width))
+		ccv_resample(a, &pyr[0], 0, a->rows * ENDORSE(_cascade[0]->size.height / params.size.height), a->cols * ENDORSE(_cascade[0]->size.width / params.size.width), CCV_INTER_AREA);
 	else
 		pyr[0] = a;
 	int i, j, k, t, x, y, q;
@@ -163,9 +163,9 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 		{
 			int dx[] = {0, 1, 0, 1};
 			int dy[] = {0, 0, 1, 1};
-			int i_rows = pyr[i * 4 + next * 8]->rows - (cascade->size.height >> 2);
+			int i_rows = pyr[i * 4 + next * 8]->rows - ENDORSE(cascade->size.height >> 2);
 			int steps[] = { pyr[i * 4]->step, pyr[i * 4 + next * 4]->step, pyr[i * 4 + next * 8]->step };
-			int i_cols = pyr[i * 4 + next * 8]->cols - (cascade->size.width >> 2);
+			int i_cols = pyr[i * 4 + next * 8]->cols - ENDORSE(cascade->size.width >> 2);
 			int paddings[] = { pyr[i * 4]->step * 4 - i_cols * 4,
 							   pyr[i * 4 + next * 4]->step * 2 - i_cols * 2,
 							   pyr[i * 4 + next * 8]->step - i_cols };
@@ -271,7 +271,7 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 			for(i = 0; i < seq2->rnum; i++)
 			{
 				ccv_comp_t r1 = *(ccv_comp_t*)ccv_array_get(seq2, i);
-				int flag = 1;
+				APPROX int flag = 1;
 
 				for(j = 0; j < seq2->rnum; j++)
 				{
@@ -291,7 +291,7 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 					}
 				}
 
-				if(flag)
+				if(ENDORSE(flag))
 					ccv_array_push(result_seq, &r1);
 			}
 			ccv_array_free(idx_seq);
@@ -348,7 +348,7 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 			ccv_matrix_free(pyr[i * 4 + 2]);
 			ccv_matrix_free(pyr[i * 4 + 3]);
 		}
-	if (params.size.height != _cascade[0]->size.height || params.size.width != _cascade[0]->size.width)
+	if (ENDORSE(params.size.height != _cascade[0]->size.height || params.size.width != _cascade[0]->size.width))
 		ccv_matrix_free(pyr[0]);
 
 	return result_seq2;
@@ -383,7 +383,8 @@ ccv_bbf_classifier_cascade_t* ccv_bbf_classifier_cascade_read_binary(char* s)
 {
 	int i;
 	ccv_bbf_classifier_cascade_t* cascade = (ccv_bbf_classifier_cascade_t*)ccmalloc(sizeof(ccv_bbf_classifier_cascade_t));
-	memcpy(&cascade->count, s, sizeof(cascade->count)); s += sizeof(cascade->count);
+        APPROX int* count_ptr = DEDORSE(&cascade->count);
+	memcpy(count_ptr, s, sizeof(cascade->count)); s += sizeof(cascade->count);
 	memcpy(&cascade->size.width, s, sizeof(cascade->size.width)); s += sizeof(cascade->size.width);
 	memcpy(&cascade->size.height, s, sizeof(cascade->size.height)); s += sizeof(cascade->size.height);
 	ccv_bbf_stage_classifier_t* classifier = cascade->stage_classifier = (ccv_bbf_stage_classifier_t*)ccmalloc(ENDORSE(cascade->count) * sizeof(ccv_bbf_stage_classifier_t));
@@ -400,7 +401,7 @@ ccv_bbf_classifier_cascade_t* ccv_bbf_classifier_cascade_read_binary(char* s)
 
 }
 
-int ccv_bbf_classifier_cascade_write_binary(ccv_bbf_classifier_cascade_t* cascade, char* s, int slen)
+int ccv_bbf_classifier_cascade_write_binary(ccv_bbf_classifier_cascade_t* cascade, APPROX char* s, int slen)
 {
 	int i;
 	APPROX int len = sizeof(cascade->count) + sizeof(cascade->size.width) + sizeof(cascade->size.height);
@@ -409,7 +410,8 @@ int ccv_bbf_classifier_cascade_write_binary(ccv_bbf_classifier_cascade_t* cascad
 		len += sizeof(classifier->count) + sizeof(classifier->threshold) + classifier->count * sizeof(ccv_bbf_feature_t) + classifier->count * 2 * sizeof(float);
 	if (slen >= ENDORSE(len))
 	{
-		memcpy(s, &cascade->count, sizeof(cascade->count)); s += sizeof(cascade->count);
+                APPROX int* count_ptr = DEDORSE(&cascade->count);
+		memcpy(s, count_ptr, sizeof(cascade->count)); s += sizeof(cascade->count);
 		memcpy(s, &cascade->size.width, sizeof(cascade->size.width)); s += sizeof(cascade->size.width);
 		memcpy(s, &cascade->size.height, sizeof(cascade->size.height)); s += sizeof(cascade->size.height);
 		classifier = cascade->stage_classifier;

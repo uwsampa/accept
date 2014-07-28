@@ -163,7 +163,7 @@ void ccv_shift(ccv_matrix_t* a, ccv_matrix_t** b, int type, int lr, int rr)
 	ccv_object_return_if_cached(, db);
 	int i, j, ch = CCV_GET_CHANNEL(da->type);
 	unsigned char* aptr = da->data.u8;
-	unsigned char* bptr = db->data.u8;
+	APPROX unsigned char* bptr = DEDORSE(db->data.u8);
 #define for_block(_for_get, _for_set) \
 	for (i = 0; i < da->rows; i++) \
 	{ \
@@ -995,13 +995,14 @@ typedef struct ccv_ptree_node_t
 {
 	struct ccv_ptree_node_t* parent;
 	void* element;
-	int rank;
+	APPROX int rank;
 } ccv_ptree_node_t;
 
 /* the code for grouping array is adopted from OpenCV's cvSeqPartition func, it is essentially a find-union algorithm */
 int ccv_array_group(ccv_array_t* array, ccv_array_t** index, ccv_array_group_f gfunc, void* data)
 {
-	int i, j;
+	int i;
+        APPROX int j;
 	ccv_ptree_node_t* node = (ccv_ptree_node_t*)ccmalloc(array->rnum * sizeof(ccv_ptree_node_t));
 	for (i = 0; i < array->rnum; i++)
 	{
@@ -1016,18 +1017,18 @@ int ccv_array_group(ccv_array_t* array, ccv_array_t** index, ccv_array_group_f g
 		ccv_ptree_node_t* root = node + i;
 		while (root->parent)
 			root = root->parent;
-		for (j = 0; j < array->rnum; j++)
+		for (j = 0; ENDORSE(j) < array->rnum; j++)
 		{
-			if( i != j && node[j].element && gfunc(node[i].element, node[j].element, data))
+			if( i != ENDORSE(j) && node[j].element && gfunc(node[i].element, node[j].element, data))
 			{
-				ccv_ptree_node_t* root2 = node + j;
+				ccv_ptree_node_t* root2 = node + ENDORSE(j);
 
 				while(root2->parent)
 					root2 = root2->parent;
 
 				if(root2 != root)
 				{
-					if(root->rank > root2->rank)
+					if(ENDORSE(root->rank > root2->rank))
 						root2->parent = root;
 					else
 					{
@@ -1037,7 +1038,7 @@ int ccv_array_group(ccv_array_t* array, ccv_array_t** index, ccv_array_group_f g
 					}
 
 					/* compress path from node2 to the root: */
-					ccv_ptree_node_t* node2 = node + j;
+					ccv_ptree_node_t* node2 = node + ENDORSE(j);
 					while(node2->parent)
 					{
 						ccv_ptree_node_t* temp = node2;
@@ -1063,7 +1064,7 @@ int ccv_array_group(ccv_array_t* array, ccv_array_t** index, ccv_array_group_f g
 		ccv_array_clear(*index);
 	ccv_array_t* idx = *index;
 
-	int class_idx = 0;
+	APPROX int class_idx = 0;
 	for(i = 0; i < array->rnum; i++)
 	{
 		j = -1;
@@ -1072,14 +1073,14 @@ int ccv_array_group(ccv_array_t* array, ccv_array_t** index, ccv_array_group_f g
 		{
 			while(node1->parent)
 				node1 = node1->parent;
-			if(node1->rank >= 0)
+			if(ENDORSE(node1->rank) >= 0)
 				node1->rank = ~class_idx++;
 			j = ~node1->rank;
 		}
-		ccv_array_push(idx, &j);
+		ccv_array_push(idx, ENDORSE(&j));
 	}
 	ccfree(node);
-	return class_idx;
+	return ENDORSE(class_idx);
 }
 
 ccv_contour_t* ccv_contour_new(int set)

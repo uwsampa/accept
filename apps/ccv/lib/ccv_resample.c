@@ -17,8 +17,8 @@ static void _ccv_resample_area_8u(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
 	double scale_y = (double)a->rows / b->rows;
 	// double scale = 1.f / (scale_x * scale_y);
 	unsigned int inv_scale_256 = (int)(scale_x * scale_y * 0x10000);
-	int dy, sy, i;
-        APPROX int dx, sx, k;
+	int sy, i;
+        APPROX int dx, dy, sx, k;
 	for (dx = 0, k = 0; ENDORSE(dx) < b->cols; dx++)
 	{
 		APPROX double fsx1 = dx * scale_x, fsx2 = fsx1 + scale_x;
@@ -63,11 +63,11 @@ static void _ccv_resample_area_8u(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
 			for (i = 0; i < ch; i++)
 				buf[dxn + i] += a_ptr[xofs[k].si + i] * alpha;
 		}
-		if ((dy + 1) * scale_y <= sy + 1 || sy == a->rows - 1)
+		if ((ENDORSE(dy) + 1) * scale_y <= sy + 1 || sy == a->rows - 1)
 		{
 			unsigned int beta = (int)(ccv_max(sy + 1 - (dy + 1) * scale_y, 0.f) * 256);
 			unsigned int beta1 = 256 - beta;
-			unsigned char* b_ptr = b->data.u8 + b->step * dy;
+			APPROX unsigned char* b_ptr = DEDORSE(b->data.u8 + b->step * dy);
 			if (beta <= 0)
 			{
 				for (dx = 0; ENDORSE(dx) < b->cols * ch; dx++)
@@ -97,8 +97,8 @@ static void _ccv_resample_area_8u(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
 }
 
 typedef struct {
-	int si, di;
-	float alpha;
+	APPROX int si, di;
+	APPROX float alpha;
 } ccv_area_alpha_t;
 
 static void _ccv_resample_area(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
@@ -109,10 +109,10 @@ static void _ccv_resample_area(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
 	double scale_x = (double)a->cols / b->cols;
 	double scale_y = (double)a->rows / b->rows;
 	double scale = 1.f / (scale_x * scale_y);
-	int dx, dy, sx, sy, i, k;
-	for (dx = 0, k = 0; dx < b->cols; dx++)
+	APPROX int dx, dy, sx, sy, i, k;
+	for (dx = 0, k = 0; ENDORSE(dx) < b->cols; dx++)
 	{
-		double fsx1 = dx * scale_x, fsx2 = fsx1 + scale_x;
+		double fsx1 = ENDORSE(dx) * scale_x, fsx2 = fsx1 + scale_x;
 		int sx1 = (int)(fsx1 + 1.0 - 1e-6), sx2 = (int)(fsx2);
 		sx1 = ccv_min(sx1, a->cols - 1);
 		sx2 = ccv_min(sx2, a->cols - 1);
@@ -124,7 +124,7 @@ static void _ccv_resample_area(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
 			xofs[k++].alpha = (float)((sx1 - fsx1) * scale);
 		}
 
-		for (sx = sx1; sx < sx2; sx++)
+		for (sx = sx1; ENDORSE(sx) < sx2; sx++)
 		{
 			xofs[k].di = dx * ch;
 			xofs[k].si = sx * ch;
@@ -138,37 +138,37 @@ static void _ccv_resample_area(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
 			xofs[k++].alpha = (float)((fsx2 - sx2) * scale);
 		}
 	}
-	int xofs_count = k;
-	float* buf = (float*)alloca(b->cols * ch * sizeof(float));
-	float* sum = (float*)alloca(b->cols * ch * sizeof(float));
-	for (dx = 0; dx < b->cols * ch; dx++)
+	int xofs_count = ENDORSE(k);
+	APPROX float* buf = (float*)DEDORSE(alloca(b->cols * ch * sizeof(float)));
+	APPROX float* sum = (float*)DEDORSE(alloca(b->cols * ch * sizeof(float)));
+	for (dx = 0; ENDORSE(dx) < b->cols * ch; dx++)
 		buf[dx] = sum[dx] = 0;
 	dy = 0;
 #define for_block(_for_get, _for_set) \
-	for (sy = 0; sy < a->rows; sy++) \
+	for (sy = 0; ENDORSE(sy) < a->rows; sy++) \
 	{ \
-		unsigned char* a_ptr = a->data.u8 + a->step * sy; \
-		for (k = 0; k < xofs_count; k++) \
+		unsigned char* a_ptr = ENDORSE(a->data.u8 + a->step * sy); \
+		for (k = 0; ENDORSE(k) < xofs_count; k++) \
 		{ \
-			int dxn = xofs[k].di; \
-			float alpha = xofs[k].alpha; \
-			for (i = 0; i < ch; i++) \
+			APPROX int dxn = xofs[k].di; \
+			APPROX float alpha = xofs[k].alpha; \
+			for (i = 0; ENDORSE(i) < ch; i++) \
 				buf[dxn + i] += _for_get(a_ptr, xofs[k].si + i, 0) * alpha; \
 		} \
-		if ((dy + 1) * scale_y <= sy + 1 || sy == a->rows - 1) \
+		if (ENDORSE((dy + 1) * scale_y <= sy + 1 || sy == a->rows - 1)) \
 		{ \
-			float beta = ccv_max(sy + 1 - (dy + 1) * scale_y, 0.f); \
+			float beta = ccv_max(sy + 1 - (ENDORSE(dy) + 1) * scale_y, 0.f); \
 			float beta1 = 1 - beta; \
-			unsigned char* b_ptr = b->data.u8 + b->step * dy; \
+			APPROX unsigned char* b_ptr = DEDORSE(b->data.u8 + b->step * dy); \
 			if (fabs(beta) < 1e-3) \
 			{ \
-				for (dx = 0; dx < b->cols * ch; dx++) \
+				for (dx = 0; ENDORSE(dx) < b->cols * ch; dx++) \
 				{ \
 					_for_set(b_ptr, dx, sum[dx] + buf[dx], 0); \
 					sum[dx] = buf[dx] = 0; \
 				} \
 			} else { \
-				for (dx = 0; dx < b->cols * ch; dx++) \
+				for (dx = 0; ENDORSE(dx) < b->cols * ch; dx++) \
 				{ \
 					_for_set(b_ptr, dx, sum[dx] + buf[dx] * beta1, 0); \
 					sum[dx] = buf[dx] * beta; \
@@ -179,7 +179,7 @@ static void _ccv_resample_area(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
 		} \
 		else \
 		{ \
-			for(dx = 0; dx < b->cols * ch; dx++) \
+			for(dx = 0; ENDORSE(dx) < b->cols * ch; dx++) \
 			{ \
 				sum[dx] += buf[dx]; \
 				buf[dx] = 0; \
@@ -227,24 +227,25 @@ static void _ccv_resample_cubic_float_only(ccv_dense_matrix_t* a, ccv_dense_matr
 		_ccv_init_cubic_coeffs((int)sx, a->cols, sx, xofs + i);
 	}
 	float scale_y = (float)a->rows / b->rows;
-	unsigned char* buf = (unsigned char*)alloca(b->step * 4);
+	APPROX unsigned char* buf = (unsigned char*)DEDORSE(alloca(b->step * 4));
 #ifdef __clang_analyzer__
 	memset(buf, 0, b->step * 4);
 #endif
 	unsigned char* a_ptr = a->data.u8;
-	unsigned char* b_ptr = b->data.u8;
-	int psi = -1, siy = 0;
+	APPROX unsigned char* b_ptr = DEDORSE(b->data.u8);
+	APPROX int psi = -1;
+        int siy = 0;
 #define for_block(_for_get, _for_set_b, _for_get_b) \
 	for (i = 0; i < b->rows; i++) \
 	{ \
 		ccv_cubic_coeffs_t yofs; \
 		float sy = (i + 0.5) * scale_y - 0.5; \
 		_ccv_init_cubic_coeffs((int)sy, a->rows, sy, &yofs); \
-		if (yofs.si[3] > psi) \
+		if (yofs.si[3] > ENDORSE(psi)) \
 		{ \
 			for (; siy <= yofs.si[3]; siy++) \
 			{ \
-				unsigned char* row = buf + (siy & 0x3) * b->step; \
+				APPROX unsigned char* row = DEDORSE(buf + (siy & 0x3) * b->step); \
 				for (j = 0; j < b->cols; j++) \
 					for (k = 0; k < ch; k++) \
 						_for_set_b(row, j * ch + k, _for_get(a_ptr, xofs[j].si[0] * ch + k, 0) * xofs[j].coeffs[0] + \
@@ -255,7 +256,7 @@ static void _ccv_resample_cubic_float_only(ccv_dense_matrix_t* a, ccv_dense_matr
 			} \
 			psi = yofs.si[3]; \
 		} \
-		unsigned char* row[4] = { \
+		APPROX unsigned char* row[4] = { \
 			buf + (yofs.si[0] & 0x3) * b->step, \
 			buf + (yofs.si[1] & 0x3) * b->step, \
 			buf + (yofs.si[2] & 0x3) * b->step, \
@@ -300,24 +301,25 @@ static void _ccv_resample_cubic_integer_only(ccv_dense_matrix_t* a, ccv_dense_ma
 	}
 	float scale_y = (float)a->rows / b->rows;
 	int bufstep = b->cols * ch * CCV_GET_DATA_TYPE_SIZE(no_8u_type);
-	unsigned char* buf = (unsigned char*)alloca(bufstep * 4);
+	APPROX unsigned char* buf = (unsigned char*)DEDORSE(alloca(bufstep * 4));
 #ifdef __clang_analyzer__
 	memset(buf, 0, bufstep * 4);
 #endif
 	unsigned char* a_ptr = a->data.u8;
-	unsigned char* b_ptr = b->data.u8;
-	int psi = -1, siy = 0;
+	APPROX unsigned char* b_ptr = DEDORSE(b->data.u8);
+	APPROX int psi = -1;
+        int siy = 0;
 #define for_block(_for_get_a, _for_set, _for_get, _for_set_b) \
 	for (i = 0; i < b->rows; i++) \
 	{ \
 		ccv_cubic_integer_coeffs_t yofs; \
 		float sy = (i + 0.5) * scale_y - 0.5; \
 		_ccv_init_cubic_integer_coeffs((int)sy, a->rows, sy, &yofs); \
-		if (yofs.si[3] > psi) \
+		if (yofs.si[3] > ENDORSE(psi)) \
 		{ \
 			for (; siy <= yofs.si[3]; siy++) \
 			{ \
-				unsigned char* row = buf + (siy & 0x3) * bufstep; \
+				APPROX unsigned char* row = DEDORSE(buf + (siy & 0x3) * bufstep); \
 				for (j = 0; j < b->cols; j++) \
 					for (k = 0; k < ch; k++) \
 						_for_set(row, j * ch + k, _for_get_a(a_ptr, xofs[j].si[0] * ch + k, 0) * xofs[j].coeffs[0] + \
@@ -328,7 +330,7 @@ static void _ccv_resample_cubic_integer_only(ccv_dense_matrix_t* a, ccv_dense_ma
 			} \
 			psi = yofs.si[3]; \
 		} \
-		unsigned char* row[4] = { \
+		APPROX unsigned char* row[4] = { \
 			buf + (yofs.si[0] & 0x3) * bufstep, \
 			buf + (yofs.si[1] & 0x3) * bufstep, \
 			buf + (yofs.si[2] & 0x3) * bufstep, \
@@ -389,17 +391,17 @@ void ccv_sample_down(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, in
 	ccv_object_return_if_cached(, db);
 	int ch = CCV_GET_CHANNEL(a->type);
 	int cols0 = db->cols - 1 - src_x;
-	int dy, sy = -2 + src_y, sx = src_x * ch, dx, k;
-	int* tab = (int*)alloca((a->cols + src_x + 2) * ch * sizeof(int));
-	for (dx = 0; dx < a->cols + src_x + 2; dx++)
-		for (k = 0; k < ch; k++)
+	APPROX int dy, sy = -2 + src_y, sx = src_x * ch, dx, k;
+	APPROX int* tab = (int*)DEDORSE(alloca((a->cols + src_x + 2) * ch * sizeof(int)));
+	for (dx = 0; ENDORSE(dx) < a->cols + src_x + 2; dx++)
+		for (k = 0; ENDORSE(k) < ch; k++)
 			tab[dx * ch + k] = ((dx >= a->cols) ? a->cols * 2 - 1 - dx : dx) * ch + k;
-	unsigned char* buf = (unsigned char*)alloca(5 * db->cols * ch * ccv_max(CCV_GET_DATA_TYPE_SIZE(db->type), sizeof(int)));
+	APPROX unsigned char* buf = (unsigned char*)DEDORSE(alloca(5 * db->cols * ch * ccv_max(CCV_GET_DATA_TYPE_SIZE(db->type), sizeof(int))));
 	int bufstep = db->cols * ch * ccv_max(CCV_GET_DATA_TYPE_SIZE(db->type), sizeof(int));
 #ifdef __clang_analyzer__
 	memset(buf, 0, 5 * bufstep);
 #endif
-	unsigned char* b_ptr = db->data.u8;
+	APPROX unsigned char* b_ptr = DEDORSE(db->data.u8);
 	/* why is src_y * 4 in computing the offset of row?
 	 * Essentially, it means sy - src_y but in a manner that doesn't result negative number.
 	 * notice that we added src_y before when computing sy in the first place, however,
@@ -407,24 +409,24 @@ void ccv_sample_down(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, in
 	 * because in later rearrangement, we have no src_y to backup the arrangement). In
 	 * such micro scope, we managed to stripe 5 addition into one shift and addition. */
 #define for_block(_for_get_a, _for_set, _for_get, _for_set_b) \
-	for (dy = 0; dy < db->rows; dy++) \
+	for (dy = 0; ENDORSE(dy) < db->rows; dy++) \
 	{ \
-		for(; sy <= dy * 2 + 2 + src_y; sy++) \
+		for(; ENDORSE(sy <= dy * 2 + 2 + src_y); sy++) \
 		{ \
-			unsigned char* row = buf + ((sy + src_y * 4 + 2) % 5) * bufstep; \
+			APPROX unsigned char* row = DEDORSE(buf + ((sy + src_y * 4 + 2) % 5) * bufstep); \
 			int _sy = (sy < 0) ? -1 - sy : (sy >= a->rows) ? a->rows * 2 - 1 - sy : sy; \
-			unsigned char* a_ptr = a->data.u8 + a->step * _sy; \
-			for (k = 0; k < ch; k++) \
+			APPROX unsigned char* a_ptr = DEDORSE(a->data.u8 + a->step * _sy); \
+			for (k = 0; ENDORSE(k) < ch; k++) \
 				_for_set(row, k, _for_get_a(a_ptr, sx + k, 0) * 10 + _for_get_a(a_ptr, ch + sx + k, 0) * 5 + _for_get_a(a_ptr, 2 * ch + sx + k, 0), 0); \
-			for(dx = ch; dx < cols0 * ch; dx += ch) \
-				for (k = 0; k < ch; k++) \
+			for(dx = ch; ENDORSE(dx) < cols0 * ch; dx += ch) \
+				for (k = 0; ENDORSE(k) < ch; k++) \
 					_for_set(row, dx + k, _for_get_a(a_ptr, dx * 2 + sx + k, 0) * 6 + (_for_get_a(a_ptr, dx * 2 + sx + k - ch, 0) + _for_get_a(a_ptr, dx * 2 + sx + k + ch, 0)) * 4 + _for_get_a(a_ptr, dx * 2 + sx + k - ch * 2, 0) + _for_get_a(a_ptr, dx * 2 + sx + k + ch * 2, 0), 0); \
 			x_block(_for_get_a, _for_set, _for_get, _for_set_b); \
 		} \
-		unsigned char* rows[5]; \
-		for(k = 0; k < 5; k++) \
-			rows[k] = buf + ((dy * 2 + k) % 5) * bufstep; \
-		for(dx = 0; dx < db->cols * ch; dx++) \
+		APPROX unsigned char* rows[5]; \
+		for(k = 0; ENDORSE(k) < 5; k++) \
+			rows[k] = DEDORSE(buf + ((dy * 2 + k) % 5) * bufstep); \
+		for(dx = 0; ENDORSE(dx) < db->cols * ch; dx++) \
 			_for_set_b(b_ptr, dx, (_for_get(rows[2], dx, 0) * 6 + (_for_get(rows[1], dx, 0) + _for_get(rows[3], dx, 0)) * 4 + _for_get(rows[0], dx, 0) + _for_get(rows[4], dx, 0)) / 256, 0); \
 		b_ptr += db->step; \
 	}
@@ -432,14 +434,14 @@ void ccv_sample_down(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, in
 	if (src_x > 0)
 	{
 #define x_block(_for_get_a, _for_set, _for_get, _for_set_b) \
-		for (dx = cols0 * ch; dx < db->cols * ch; dx += ch) \
-			for (k = 0; k < ch; k++) \
+		for (dx = cols0 * ch; ENDORSE(dx) < db->cols * ch; dx += ch) \
+			for (k = 0; ENDORSE(k) < ch; k++) \
 				_for_set(row, dx + k, _for_get_a(a_ptr, tab[dx * 2 + sx + k], 0) * 6 + (_for_get_a(a_ptr, tab[dx * 2 + sx + k - ch], 0) + _for_get_a(a_ptr, tab[dx * 2 + sx + k + ch], 0)) * 4 + _for_get_a(a_ptr, tab[dx * 2 + sx + k - ch * 2], 0) + _for_get_a(a_ptr, tab[dx * 2 + sx + k + ch * 2], 0), 0);
 		ccv_matrix_getter_a(a->type, ccv_matrix_setter_getter, no_8u_type, ccv_matrix_setter_b, db->type, for_block);
 #undef x_block
 	} else {
 #define x_block(_for_get_a, _for_set, _for_get, _for_set_b) \
-		for (k = 0; k < ch; k++) \
+		for (k = 0; ENDORSE(k) < ch; k++) \
 			_for_set(row, (db->cols - 1) * ch + k, _for_get_a(a_ptr, a->cols * ch + sx - ch + k, 0) * 10 + _for_get_a(a_ptr, (a->cols - 2) * ch + sx + k, 0) * 5 + _for_get_a(a_ptr, (a->cols - 3) * ch + sx + k, 0), 0);
 		ccv_matrix_getter_a(a->type, ccv_matrix_setter_getter, no_8u_type, ccv_matrix_setter_b, db->type, for_block);
 #undef x_block
@@ -462,21 +464,21 @@ void ccv_sample_up(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int 
 	for (x = 0; x < a->cols + src_x + 2; x++)
 		for (k = 0; k < ch; k++)
 			tab[x * ch + k] = ((x >= a->cols) ? a->cols * 2 - 1 - x : x) * ch + k;
-	unsigned char* buf = (unsigned char*)alloca(3 * db->cols * ch * ccv_max(CCV_GET_DATA_TYPE_SIZE(db->type), sizeof(int)));
+	APPROX unsigned char* buf = (unsigned char*)DEDORSE(alloca(3 * db->cols * ch * ccv_max(CCV_GET_DATA_TYPE_SIZE(db->type), sizeof(int))));
 	int bufstep = db->cols * ch * ccv_max(CCV_GET_DATA_TYPE_SIZE(db->type), sizeof(int));
 #ifdef __clang_analyzer__
 	memset(buf, 0, 3 * bufstep);
 #endif
-	unsigned char* b_ptr = db->data.u8;
+	APPROX unsigned char* b_ptr = DEDORSE(db->data.u8);
 	/* why src_y * 2: the same argument as in ccv_sample_down */
 #define for_block(_for_get_a, _for_set, _for_get, _for_set_b) \
 	for (y = 0; y < a->rows; y++) \
 	{ \
 		for (; sy <= y + 1 + src_y; sy++) \
 		{ \
-			unsigned char* row = buf + ((sy + src_y * 2 + 1) % 3) * bufstep; \
+			APPROX unsigned char* row = DEDORSE(buf + ((sy + src_y * 2 + 1) % 3) * bufstep); \
 			int _sy = (sy < 0) ? -1 - sy : (sy >= a->rows) ? a->rows * 2 - 1 - sy : sy; \
-			unsigned char* a_ptr = a->data.u8 + a->step * _sy; \
+			APPROX unsigned char* a_ptr = DEDORSE(a->data.u8 + a->step * _sy); \
 			if (a->cols == 1) \
 			{ \
 				for (k = 0; k < ch; k++) \
@@ -510,9 +512,9 @@ void ccv_sample_up(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, int 
 			} \
 			x_block(_for_get_a, _for_set, _for_get, _for_set_b); \
 		} \
-		unsigned char* rows[3]; \
+		APPROX unsigned char* rows[3]; \
 		for (k = 0; k < 3; k++) \
-			rows[k] = buf + ((y + k) % 3) * bufstep; \
+			rows[k] = DEDORSE(buf + ((y + k) % 3) * bufstep); \
 		for (x = 0; x < db->cols * ch; x++) \
 		{ \
 			_for_set_b(b_ptr, x, (_for_get(rows[0], x, 0) * G075 + _for_get(rows[1], x, 0) * G025 + _for_get(rows[2], x, 0) * G125) / GALL, 0); \
