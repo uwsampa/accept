@@ -552,7 +552,7 @@ bool ApproxInfo::approxOrLocal(std::set<Instruction*> &insts,
     // Special case: out-parameters for memset and memcpy.
     StringRef funcName = calledFunc->getName();
     if (funcName.startswith("llvm.memset.") ||
-        funcName.equals("llvm.memcpy.")) {
+        funcName.startswith("llvm.memcpy.")) {
       CallInst *call = cast<CallInst>(inst);
       if (isApproxPtr(call->getArgOperand(0)))
         return true;
