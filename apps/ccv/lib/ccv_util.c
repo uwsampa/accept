@@ -161,13 +161,13 @@ void ccv_shift(ccv_matrix_t* a, ccv_matrix_t** b, int type, int lr, int rr)
 	type = (type == 0) ? CCV_GET_DATA_TYPE(da->type) | CCV_GET_CHANNEL(da->type) : CCV_GET_DATA_TYPE(type) | CCV_GET_CHANNEL(da->type);
 	ccv_dense_matrix_t* db = *b = ccv_dense_matrix_renew(*b, da->rows, da->cols, CCV_ALL_DATA_TYPE | CCV_GET_CHANNEL(da->type), type, sig); 
 	ccv_object_return_if_cached(, db);
-	int i, j, ch = CCV_GET_CHANNEL(da->type);
-	unsigned char* aptr = da->data.u8;
+	APPROX int i, j, ch = CCV_GET_CHANNEL(da->type);
+	APPROX unsigned char* aptr = DEDORSE(da->data.u8);
 	APPROX unsigned char* bptr = DEDORSE(db->data.u8);
 #define for_block(_for_get, _for_set) \
-	for (i = 0; i < da->rows; i++) \
+	for (i = 0; ENDORSE(i < da->rows); i++) \
 	{ \
-		for (j = 0; j < da->cols * ch; j++) \
+		for (j = 0; ENDORSE(j < da->cols * ch); j++) \
 		{ \
 			_for_set(bptr, j, _for_get(aptr, j, lr), rr); \
 		} \

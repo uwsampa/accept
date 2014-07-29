@@ -389,15 +389,15 @@ void ccv_sample_down(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, in
 	type = (type == 0) ? CCV_GET_DATA_TYPE(a->type) | CCV_GET_CHANNEL(a->type) : CCV_GET_DATA_TYPE(type) | CCV_GET_CHANNEL(a->type);
 	ccv_dense_matrix_t* db = *b = ccv_dense_matrix_renew(*b, a->rows / 2, a->cols / 2, CCV_ALL_DATA_TYPE | CCV_GET_CHANNEL(a->type), type, sig);
 	ccv_object_return_if_cached(, db);
-	int ch = CCV_GET_CHANNEL(a->type);
-	int cols0 = db->cols - 1 - src_x;
+	APPROX int ch = CCV_GET_CHANNEL(a->type);
+	APPROX int cols0 = db->cols - 1 - src_x;
 	APPROX int dy, sy = -2 + src_y, sx = src_x * ch, dx, k;
-	APPROX int* tab = (int*)DEDORSE(alloca((a->cols + src_x + 2) * ch * sizeof(int)));
-	for (dx = 0; ENDORSE(dx) < a->cols + src_x + 2; dx++)
-		for (k = 0; ENDORSE(k) < ch; k++)
+	APPROX int* tab = (int*)DEDORSE(alloca((a->cols + src_x + 2) * ENDORSE(ch) * sizeof(int)));
+	for (dx = 0; ENDORSE(dx < a->cols + src_x + 2); dx++)
+		for (k = 0; ENDORSE(k < ch); k++)
 			tab[dx * ch + k] = ((dx >= a->cols) ? a->cols * 2 - 1 - dx : dx) * ch + k;
-	APPROX unsigned char* buf = (unsigned char*)DEDORSE(alloca(5 * db->cols * ch * ccv_max(CCV_GET_DATA_TYPE_SIZE(db->type), sizeof(int))));
-	int bufstep = db->cols * ch * ccv_max(CCV_GET_DATA_TYPE_SIZE(db->type), sizeof(int));
+	APPROX unsigned char* buf = (unsigned char*)DEDORSE(alloca(5 * db->cols * ENDORSE(ch) * ccv_max(CCV_GET_DATA_TYPE_SIZE(db->type), sizeof(int))));
+	APPROX int bufstep = db->cols * ch * ccv_max(CCV_GET_DATA_TYPE_SIZE(db->type), sizeof(int));
 #ifdef __clang_analyzer__
 	memset(buf, 0, 5 * bufstep);
 #endif
@@ -409,24 +409,24 @@ void ccv_sample_down(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, in
 	 * because in later rearrangement, we have no src_y to backup the arrangement). In
 	 * such micro scope, we managed to stripe 5 addition into one shift and addition. */
 #define for_block(_for_get_a, _for_set, _for_get, _for_set_b) \
-	for (dy = 0; ENDORSE(dy) < db->rows; dy++) \
+	for (dy = 0; ENDORSE(dy < db->rows); dy++) \
 	{ \
 		for(; ENDORSE(sy <= dy * 2 + 2 + src_y); sy++) \
 		{ \
 			APPROX unsigned char* row = DEDORSE(buf + ((sy + src_y * 4 + 2) % 5) * bufstep); \
 			int _sy = (sy < 0) ? -1 - sy : (sy >= a->rows) ? a->rows * 2 - 1 - sy : sy; \
 			APPROX unsigned char* a_ptr = DEDORSE(a->data.u8 + a->step * _sy); \
-			for (k = 0; ENDORSE(k) < ch; k++) \
+			for (k = 0; ENDORSE(k < ch); k++) \
 				_for_set(row, k, _for_get_a(a_ptr, sx + k, 0) * 10 + _for_get_a(a_ptr, ch + sx + k, 0) * 5 + _for_get_a(a_ptr, 2 * ch + sx + k, 0), 0); \
-			for(dx = ch; ENDORSE(dx) < cols0 * ch; dx += ch) \
-				for (k = 0; ENDORSE(k) < ch; k++) \
+			for(dx = ch; ENDORSE(dx < cols0 * ch); dx += ch) \
+				for (k = 0; ENDORSE(k < ch); k++) \
 					_for_set(row, dx + k, _for_get_a(a_ptr, dx * 2 + sx + k, 0) * 6 + (_for_get_a(a_ptr, dx * 2 + sx + k - ch, 0) + _for_get_a(a_ptr, dx * 2 + sx + k + ch, 0)) * 4 + _for_get_a(a_ptr, dx * 2 + sx + k - ch * 2, 0) + _for_get_a(a_ptr, dx * 2 + sx + k + ch * 2, 0), 0); \
 			x_block(_for_get_a, _for_set, _for_get, _for_set_b); \
 		} \
 		APPROX unsigned char* rows[5]; \
 		for(k = 0; ENDORSE(k) < 5; k++) \
 			rows[k] = DEDORSE(buf + ((dy * 2 + k) % 5) * bufstep); \
-		for(dx = 0; ENDORSE(dx) < db->cols * ch; dx++) \
+		for(dx = 0; ENDORSE(dx < db->cols * ch); dx++) \
 			_for_set_b(b_ptr, dx, (_for_get(rows[2], dx, 0) * 6 + (_for_get(rows[1], dx, 0) + _for_get(rows[3], dx, 0)) * 4 + _for_get(rows[0], dx, 0) + _for_get(rows[4], dx, 0)) / 256, 0); \
 		b_ptr += db->step; \
 	}
@@ -434,14 +434,14 @@ void ccv_sample_down(ccv_dense_matrix_t* a, ccv_dense_matrix_t** b, int type, in
 	if (src_x > 0)
 	{
 #define x_block(_for_get_a, _for_set, _for_get, _for_set_b) \
-		for (dx = cols0 * ch; ENDORSE(dx) < db->cols * ch; dx += ch) \
-			for (k = 0; ENDORSE(k) < ch; k++) \
+		for (dx = cols0 * ch; ENDORSE(dx < db->cols * ch); dx += ch) \
+			for (k = 0; ENDORSE(k < ch); k++) \
 				_for_set(row, dx + k, _for_get_a(a_ptr, tab[dx * 2 + sx + k], 0) * 6 + (_for_get_a(a_ptr, tab[dx * 2 + sx + k - ch], 0) + _for_get_a(a_ptr, tab[dx * 2 + sx + k + ch], 0)) * 4 + _for_get_a(a_ptr, tab[dx * 2 + sx + k - ch * 2], 0) + _for_get_a(a_ptr, tab[dx * 2 + sx + k + ch * 2], 0), 0);
 		ccv_matrix_getter_a(a->type, ccv_matrix_setter_getter, no_8u_type, ccv_matrix_setter_b, db->type, for_block);
 #undef x_block
 	} else {
 #define x_block(_for_get_a, _for_set, _for_get, _for_set_b) \
-		for (k = 0; ENDORSE(k) < ch; k++) \
+		for (k = 0; ENDORSE(k < ch); k++) \
 			_for_set(row, (db->cols - 1) * ch + k, _for_get_a(a_ptr, a->cols * ch + sx - ch + k, 0) * 10 + _for_get_a(a_ptr, (a->cols - 2) * ch + sx + k, 0) * 5 + _for_get_a(a_ptr, (a->cols - 3) * ch + sx + k, 0), 0);
 		ccv_matrix_getter_a(a->type, ccv_matrix_setter_getter, no_8u_type, ccv_matrix_setter_b, db->type, for_block);
 #undef x_block

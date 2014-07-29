@@ -393,7 +393,7 @@ ccv_bbf_classifier_cascade_t* ccv_bbf_classifier_cascade_read_binary(char* s)
 		memcpy(&classifier->count, s, sizeof(classifier->count)); s += sizeof(classifier->count);
 		memcpy(&classifier->threshold, s, sizeof(classifier->threshold)); s += sizeof(classifier->threshold);
 		classifier->feature = (ccv_bbf_feature_t*)ccmalloc(ENDORSE(classifier->count) * sizeof(ccv_bbf_feature_t));
-		classifier->alpha = (float*)ccmalloc(ENDORSE(classifier->count) * 2 * sizeof(float));
+		classifier->alpha = (float*)DEDORSE(ccmalloc(ENDORSE(classifier->count) * 2 * sizeof(float)));
 		memcpy(classifier->feature, s, classifier->count * sizeof(ccv_bbf_feature_t)); s += classifier->count * sizeof(ccv_bbf_feature_t);
 		memcpy(classifier->alpha, s, classifier->count * 2 * sizeof(float)); s += classifier->count * 2 * sizeof(float);
 	}
