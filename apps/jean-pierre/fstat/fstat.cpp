@@ -103,6 +103,7 @@ void Stat_functions()  {
   double xnr;
   v1=0.0; v2=0.0; v3=0.0; v4=0.0; v5=0.0;
   n1=n-1; xnr=sqrt(ENDORSE(n));
+
   //choose type of calculus
   if (nt==2) goto e100;
   //case of one set X(i)
