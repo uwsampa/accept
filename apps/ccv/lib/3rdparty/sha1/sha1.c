@@ -239,7 +239,7 @@ void blk_SHA1_Init(blk_SHA_CTX *ctx)
 
 void blk_SHA1_Update(blk_SHA_CTX *ctx, const void *data, APPROX unsigned long len)
 {
-	unsigned int lenW = ctx->size & 63;
+	unsigned int lenW = ENDORSE(ctx->size) & 63;
 
 	ctx->size += len;
 
@@ -248,13 +248,14 @@ void blk_SHA1_Update(blk_SHA_CTX *ctx, const void *data, APPROX unsigned long le
 		unsigned int left = 64 - lenW;
 		if (ENDORSE(len) < left)
 			left = ENDORSE(len);
-		memcpy(lenW + (char *)ctx->W, data, left);
+                APPROX char *ptr = DEDORSE(lenW + (char *)ctx->W);
+		memcpy(ptr, data, left);
 		lenW = (lenW + left) & 63;
 		len -= left;
 		data = ((const char *)data + left);
 		if (lenW)
 			return;
-		blk_SHA1_Block(ctx, ctx->W);
+		blk_SHA1_Block(ctx, ENDORSE(ctx->W));
 	}
 	while (ENDORSE(len) >= 64) {
 		blk_SHA1_Block(ctx, data);
@@ -268,18 +269,18 @@ void blk_SHA1_Update(blk_SHA_CTX *ctx, const void *data, APPROX unsigned long le
 void blk_SHA1_Final(APPROX unsigned char hashout[20], blk_SHA_CTX *ctx)
 {
 	static const unsigned char pad[64] = { 0x80 };
-	unsigned int padlen[2];
+	APPROX unsigned int padlen[2];
 	int i;
 
 	/* Pad with a binary 1 (ie 0x80), then zeroes, then length */
-	padlen[0] = htonl((uint32_t) ctx->size >> 29);
-	padlen[1] = htonl((uint32_t) ctx->size << 3);
+	padlen[0] = htonl((uint32_t) ENDORSE(ctx->size) >> 29);
+	padlen[1] = htonl((uint32_t) ENDORSE(ctx->size) << 3);
 
-	i = ctx->size & 63;
+	i = ENDORSE(ctx->size) & 63;
 	blk_SHA1_Update(ctx, pad, 1+ (63 & (55 - i)));
-	blk_SHA1_Update(ctx, padlen, 8);
+	blk_SHA1_Update(ctx, ENDORSE(padlen), 8);
 
 	/* Output hash */
 	for (i = 0; i < 5; i++)
-		put_be32(hashout + i*4, ctx->H[i]);
+		put_be32(hashout + i*4, ENDORSE(ctx->H[i]));
 }

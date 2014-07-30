@@ -973,10 +973,10 @@ void ccv_half_precision_to_float(uint16_t* h, float* f, size_t len)
 void ccv_array_push(ccv_array_t* array, void* r)
 {
 	array->rnum++;
-	if (array->rnum > array->size)
+	if (ENDORSE(array->rnum > array->size))
 	{
 		array->size = ccv_max(array->size * 3 / 2, array->size + 1);
-		array->data = ccrealloc(array->data, (size_t)array->size * (size_t)array->rsize);
+		array->data = DEDORSE(ccrealloc(ENDORSE(array->data), (size_t)ENDORSE(array->size) * (size_t)ENDORSE(array->rsize)));
 	}
 	memcpy(ccv_array_get(array, array->rnum - 1), r, array->rsize);
 }
@@ -1001,25 +1001,25 @@ typedef struct ccv_ptree_node_t
 /* the code for grouping array is adopted from OpenCV's cvSeqPartition func, it is essentially a find-union algorithm */
 int ccv_array_group(ccv_array_t* array, ccv_array_t** index, ccv_array_group_f gfunc, void* data)
 {
-	int i;
+	APPROX int i;
         APPROX int j;
-	ccv_ptree_node_t* node = (ccv_ptree_node_t*)ccmalloc(array->rnum * sizeof(ccv_ptree_node_t));
-	for (i = 0; i < array->rnum; i++)
+	ccv_ptree_node_t* node = (ccv_ptree_node_t*)ccmalloc(ENDORSE(array->rnum) * sizeof(ccv_ptree_node_t));
+	for (i = 0; ENDORSE(i < array->rnum); i++)
 	{
 		node[i].parent = 0;
-		node[i].element = ccv_array_get(array, i);
+		node[i].element = ENDORSE(ccv_array_get(array, i));
 		node[i].rank = 0;
 	}
-	for (i = 0; i < array->rnum; i++)
+	for (i = 0; ENDORSE(i < array->rnum); i++)
 	{
 		if (!node[i].element)
 			continue;
-		ccv_ptree_node_t* root = node + i;
+		ccv_ptree_node_t* root = node + ENDORSE(i);
 		while (root->parent)
 			root = root->parent;
-		for (j = 0; ENDORSE(j) < array->rnum; j++)
+		for (j = 0; ENDORSE(j < array->rnum); j++)
 		{
-			if( i != ENDORSE(j) && node[j].element && gfunc(node[i].element, node[j].element, data))
+			if( ENDORSE(i != j) && node[j].element && gfunc(node[i].element, node[j].element, data))
 			{
 				ccv_ptree_node_t* root2 = node + ENDORSE(j);
 
@@ -1047,7 +1047,7 @@ int ccv_array_group(ccv_array_t* array, ccv_array_t** index, ccv_array_group_f g
 					}
 
 					/* compress path from node to the root: */
-					node2 = node + i;
+					node2 = node + ENDORSE(i);
 					while(node2->parent)
 					{
 						ccv_ptree_node_t* temp = node2;
@@ -1059,16 +1059,16 @@ int ccv_array_group(ccv_array_t* array, ccv_array_t** index, ccv_array_group_f g
 		}
 	}
 	if (*index == 0)
-		*index = ccv_array_new(sizeof(int), array->rnum, 0);
+		*index = ccv_array_new(sizeof(int), ENDORSE(array->rnum), 0);
 	else
 		ccv_array_clear(*index);
 	ccv_array_t* idx = *index;
 
 	APPROX int class_idx = 0;
-	for(i = 0; i < array->rnum; i++)
+	for(i = 0; ENDORSE(i < array->rnum); i++)
 	{
 		j = -1;
-		ccv_ptree_node_t* node1 = node + i;
+		ccv_ptree_node_t* node1 = node + ENDORSE(i);
 		if(node1->element)
 		{
 			while(node1->parent)

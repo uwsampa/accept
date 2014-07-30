@@ -153,10 +153,10 @@ typedef union {
 
 typedef struct {
 	ccv_cache_index_t origin;
-	uint32_t rnum;
-	uint32_t age;
-	size_t up;
-	size_t size;
+	APPROX uint32_t rnum;
+	APPROX uint32_t age;
+	APPROX size_t up;
+	APPROX size_t size;
 	ccv_cache_index_free_f ffree[16];
 } ccv_cache_t;
 
@@ -436,13 +436,13 @@ inline static int ccv_rect_is_zero(ccv_rect_t rect)
 }
 
 typedef struct {
-	int type;
-	uint64_t sig;
-	int refcount;
-	int rnum;
-	int size;
-	int rsize;
-	void* data;
+	APPROX int type;
+	APPROX uint64_t sig;
+	APPROX int refcount;
+	APPROX int rnum;
+	APPROX int size;
+	APPROX int rsize;
+	APPROX void* data;
 } ccv_array_t;
 
 ccv_array_t* __attribute__((warn_unused_result)) ccv_array_new(int rsize, int rnum, uint64_t sig);

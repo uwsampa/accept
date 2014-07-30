@@ -191,13 +191,13 @@ static void _ccv_resample_area(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
 }
 
 typedef struct {
-	int si[4];
-	float coeffs[4];
+	APPROX int si[4];
+	APPROX float coeffs[4];
 } ccv_cubic_coeffs_t;
 
 typedef struct {
-	int si[4];
-	int coeffs[4];
+	APPROX int si[4];
+	APPROX int coeffs[4];
 } ccv_cubic_integer_coeffs_t;
 
 static void _ccv_init_cubic_coeffs(int si, int sz, float s, ccv_cubic_coeffs_t* coeff)
@@ -217,37 +217,36 @@ static void _ccv_init_cubic_coeffs(int si, int sz, float s, ccv_cubic_coeffs_t* 
 static void _ccv_resample_cubic_float_only(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
 {
 	assert(CCV_GET_DATA_TYPE(b->type) == CCV_32F || CCV_GET_DATA_TYPE(b->type) == CCV_64F);
-	int i, j, k, ch = CCV_GET_CHANNEL(a->type);
+	APPROX int i, j, k, ch = CCV_GET_CHANNEL(a->type);
 	assert(b->cols > 0 && b->step > 0);
 	ccv_cubic_coeffs_t* xofs = (ccv_cubic_coeffs_t*)alloca(sizeof(ccv_cubic_coeffs_t) * b->cols);
 	float scale_x = (float)a->cols / b->cols;
-	for (i = 0; i < b->cols; i++)
+	for (i = 0; ENDORSE(i < b->cols); i++)
 	{
-		float sx = (i + 0.5) * scale_x - 0.5;
-		_ccv_init_cubic_coeffs((int)sx, a->cols, sx, xofs + i);
+		float sx = ENDORSE(i + 0.5) * scale_x - 0.5;
+		_ccv_init_cubic_coeffs((int)sx, a->cols, sx, xofs + ENDORSE(i));
 	}
 	float scale_y = (float)a->rows / b->rows;
 	APPROX unsigned char* buf = (unsigned char*)DEDORSE(alloca(b->step * 4));
 #ifdef __clang_analyzer__
 	memset(buf, 0, b->step * 4);
 #endif
-	unsigned char* a_ptr = a->data.u8;
+	APPROX unsigned char* a_ptr = DEDORSE(a->data.u8);
 	APPROX unsigned char* b_ptr = DEDORSE(b->data.u8);
-	APPROX int psi = -1;
-        int siy = 0;
+	APPROX int psi = -1, siy = 0;
 #define for_block(_for_get, _for_set_b, _for_get_b) \
-	for (i = 0; i < b->rows; i++) \
+	for (i = 0; ENDORSE(i < b->rows); i++) \
 	{ \
 		ccv_cubic_coeffs_t yofs; \
-		float sy = (i + 0.5) * scale_y - 0.5; \
+		float sy = ENDORSE(i + 0.5) * scale_y - 0.5; \
 		_ccv_init_cubic_coeffs((int)sy, a->rows, sy, &yofs); \
-		if (yofs.si[3] > ENDORSE(psi)) \
+		if (ENDORSE(yofs.si[3] > psi)) \
 		{ \
-			for (; siy <= yofs.si[3]; siy++) \
+			for (; ENDORSE(siy <= yofs.si[3]); siy++) \
 			{ \
 				APPROX unsigned char* row = DEDORSE(buf + (siy & 0x3) * b->step); \
-				for (j = 0; j < b->cols; j++) \
-					for (k = 0; k < ch; k++) \
+				for (j = 0; ENDORSE(j < b->cols); j++) \
+					for (k = 0; ENDORSE(k < ch); k++) \
 						_for_set_b(row, j * ch + k, _for_get(a_ptr, xofs[j].si[0] * ch + k, 0) * xofs[j].coeffs[0] + \
 													_for_get(a_ptr, xofs[j].si[1] * ch + k, 0) * xofs[j].coeffs[1] + \
 													_for_get(a_ptr, xofs[j].si[2] * ch + k, 0) * xofs[j].coeffs[2] + \
@@ -262,7 +261,7 @@ static void _ccv_resample_cubic_float_only(ccv_dense_matrix_t* a, ccv_dense_matr
 			buf + (yofs.si[2] & 0x3) * b->step, \
 			buf + (yofs.si[3] & 0x3) * b->step, \
 		}; \
-		for (j = 0; j < b->cols * ch; j++) \
+		for (j = 0; ENDORSE(j < b->cols * ch); j++) \
 			_for_set_b(b_ptr, j, _for_get_b(row[0], j, 0) * yofs.coeffs[0] + _for_get_b(row[1], j, 0) * yofs.coeffs[1] + \
 								 _for_get_b(row[2], j, 0) * yofs.coeffs[2] + _for_get_b(row[3], j, 0) * yofs.coeffs[3], 0); \
 		b_ptr += b->step; \
@@ -289,39 +288,38 @@ static void _ccv_init_cubic_integer_coeffs(int si, int sz, float s, ccv_cubic_in
 static void _ccv_resample_cubic_integer_only(ccv_dense_matrix_t* a, ccv_dense_matrix_t* b)
 {
 	assert(CCV_GET_DATA_TYPE(b->type) == CCV_8U || CCV_GET_DATA_TYPE(b->type) == CCV_32S || CCV_GET_DATA_TYPE(b->type) == CCV_64S);
-	int i, j, k, ch = CCV_GET_CHANNEL(a->type);
+	APPROX int i, j, k, ch = CCV_GET_CHANNEL(a->type);
 	int no_8u_type = (b->type & CCV_8U) ? CCV_32S : b->type;
 	assert(b->cols > 0);
 	ccv_cubic_integer_coeffs_t* xofs = (ccv_cubic_integer_coeffs_t*)alloca(sizeof(ccv_cubic_integer_coeffs_t) * b->cols);
 	float scale_x = (float)a->cols / b->cols;
-	for (i = 0; i < b->cols; i++)
+	for (i = 0; ENDORSE(i < b->cols); i++)
 	{
-		float sx = (i + 0.5) * scale_x - 0.5;
-		_ccv_init_cubic_integer_coeffs((int)sx, a->cols, sx, xofs + i);
+		float sx = ENDORSE(i + 0.5) * scale_x - 0.5;
+		_ccv_init_cubic_integer_coeffs((int)sx, a->cols, sx, xofs + ENDORSE(i));
 	}
-	float scale_y = (float)a->rows / b->rows;
-	int bufstep = b->cols * ch * CCV_GET_DATA_TYPE_SIZE(no_8u_type);
-	APPROX unsigned char* buf = (unsigned char*)DEDORSE(alloca(bufstep * 4));
+	APPROX float scale_y = (float)a->rows / b->rows;
+	APPROX int bufstep = ENDORSE(b->cols * ch) * CCV_GET_DATA_TYPE_SIZE(no_8u_type);
+	APPROX unsigned char* buf = (unsigned char*)DEDORSE(alloca(ENDORSE(bufstep) * 4));
 #ifdef __clang_analyzer__
 	memset(buf, 0, bufstep * 4);
 #endif
-	unsigned char* a_ptr = a->data.u8;
+	APPROX unsigned char* a_ptr = DEDORSE(a->data.u8);
 	APPROX unsigned char* b_ptr = DEDORSE(b->data.u8);
-	APPROX int psi = -1;
-        int siy = 0;
+	APPROX int psi = -1, siy = 0;
 #define for_block(_for_get_a, _for_set, _for_get, _for_set_b) \
-	for (i = 0; i < b->rows; i++) \
+	for (i = 0; ENDORSE(i < b->rows); i++) \
 	{ \
 		ccv_cubic_integer_coeffs_t yofs; \
-		float sy = (i + 0.5) * scale_y - 0.5; \
+		float sy = ENDORSE(i + 0.5 * scale_y - 0.5); \
 		_ccv_init_cubic_integer_coeffs((int)sy, a->rows, sy, &yofs); \
-		if (yofs.si[3] > ENDORSE(psi)) \
+		if (ENDORSE(yofs.si[3] > psi)) \
 		{ \
-			for (; siy <= yofs.si[3]; siy++) \
+			for (; ENDORSE(siy <= yofs.si[3]); siy++) \
 			{ \
 				APPROX unsigned char* row = DEDORSE(buf + (siy & 0x3) * bufstep); \
-				for (j = 0; j < b->cols; j++) \
-					for (k = 0; k < ch; k++) \
+				for (j = 0; ENDORSE(j < b->cols); j++) \
+					for (k = 0; ENDORSE(k < ch); k++) \
 						_for_set(row, j * ch + k, _for_get_a(a_ptr, xofs[j].si[0] * ch + k, 0) * xofs[j].coeffs[0] + \
 												  _for_get_a(a_ptr, xofs[j].si[1] * ch + k, 0) * xofs[j].coeffs[1] + \
 												  _for_get_a(a_ptr, xofs[j].si[2] * ch + k, 0) * xofs[j].coeffs[2] + \
@@ -336,7 +334,7 @@ static void _ccv_resample_cubic_integer_only(ccv_dense_matrix_t* a, ccv_dense_ma
 			buf + (yofs.si[2] & 0x3) * bufstep, \
 			buf + (yofs.si[3] & 0x3) * bufstep, \
 		}; \
-		for (j = 0; j < b->cols * ch; j++) \
+		for (j = 0; ENDORSE(j < b->cols * ch); j++) \
 			_for_set_b(b_ptr, j, ccv_descale(_for_get(row[0], j, 0) * yofs.coeffs[0] + _for_get(row[1], j, 0) * yofs.coeffs[1] + \
 											 _for_get(row[2], j, 0) * yofs.coeffs[2] + _for_get(row[3], j, 0) * yofs.coeffs[3], 12), 0); \
 		b_ptr += b->step; \

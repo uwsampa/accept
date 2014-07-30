@@ -128,21 +128,22 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 	int hr = a->rows / ENDORSE(params.size.height);
 	int wr = a->cols / ENDORSE(params.size.width);
 	double scale = pow(2., 1. / (params.interval + 1.));
-	int next = params.interval + 1;
+	APPROX int next = params.interval + 1;
 	int scale_upto = (int)(log((double)ccv_min(hr, wr)) / log(scale));
-	ccv_dense_matrix_t** pyr = (ccv_dense_matrix_t**)alloca((scale_upto + next * 2) * 4 * sizeof(ccv_dense_matrix_t*));
+	ccv_dense_matrix_t** pyr = (ccv_dense_matrix_t**)alloca(ENDORSE(scale_upto + next * 2) * 4 * sizeof(ccv_dense_matrix_t*));
 	memset(pyr, 0, (scale_upto + next * 2) * 4 * sizeof(ccv_dense_matrix_t*));
 	if (ENDORSE(params.size.height != _cascade[0]->size.height || params.size.width != _cascade[0]->size.width))
 		ccv_resample(a, &pyr[0], 0, a->rows * ENDORSE(_cascade[0]->size.height / params.size.height), a->cols * ENDORSE(_cascade[0]->size.width / params.size.width), CCV_INTER_AREA);
 	else
 		pyr[0] = a;
-	int i, j, k, t, x, y, q;
-	for (i = 1; i < ccv_min(params.interval + 1, scale_upto + next * 2); i++)
+	APPROX int i;
+        int j, k, t, x, y, q;
+	for (i = 1; ENDORSE(i < ccv_min(params.interval + 1, scale_upto + next * 2)); i++)
 		ccv_resample(pyr[0], &pyr[i * 4], 0, (int)(pyr[0]->rows / pow(scale, i)), (int)(pyr[0]->cols / pow(scale, i)), CCV_INTER_AREA);
-	for (i = next; i < scale_upto + next * 2; i++)
+	for (i = next; ENDORSE(i < scale_upto + next * 2); i++)
 		ccv_sample_down(pyr[i * 4 - next * 4], &pyr[i * 4], 0, 0, 0);
 	if (params.accurate)
-		for (i = next * 2; i < scale_upto + next * 2; i++)
+		for (i = next * 2; ENDORSE(i < scale_upto + next * 2); i++)
 		{
 			ccv_sample_down(pyr[i * 4 - next * 4], &pyr[i * 4 + 1], 0, 1, 0);
 			ccv_sample_down(pyr[i * 4 - next * 4], &pyr[i * 4 + 2], 0, 0, 1);
@@ -159,22 +160,22 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 		APPROX float scale_x = (float) params.size.width / (float) cascade->size.width;
 		APPROX float scale_y = (float) params.size.height / (float) cascade->size.height;
 		ccv_array_clear(seq);
-		for (i = 0; i < scale_upto; i++)
+		for (i = 0; ENDORSE(i < scale_upto); i++)
 		{
-			int dx[] = {0, 1, 0, 1};
-			int dy[] = {0, 0, 1, 1};
-			int i_rows = pyr[i * 4 + next * 8]->rows - ENDORSE(cascade->size.height >> 2);
-			int steps[] = { pyr[i * 4]->step, pyr[i * 4 + next * 4]->step, pyr[i * 4 + next * 8]->step };
-			int i_cols = pyr[i * 4 + next * 8]->cols - ENDORSE(cascade->size.width >> 2);
-			int paddings[] = { pyr[i * 4]->step * 4 - i_cols * 4,
+			APPROX int dx[] = {0, 1, 0, 1};
+			APPROX int dy[] = {0, 0, 1, 1};
+			APPROX int i_rows = pyr[i * 4 + next * 8]->rows - ENDORSE(cascade->size.height >> 2);
+			APPROX int steps[] = { pyr[i * 4]->step, pyr[i * 4 + next * 4]->step, pyr[i * 4 + next * 8]->step };
+			APPROX int i_cols = pyr[i * 4 + next * 8]->cols - ENDORSE(cascade->size.width >> 2);
+			APPROX int paddings[] = { pyr[i * 4]->step * 4 - i_cols * 4,
 							   pyr[i * 4 + next * 4]->step * 2 - i_cols * 2,
 							   pyr[i * 4 + next * 8]->step - i_cols };
 			for (q = 0; q < (params.accurate ? 4 : 1); q++)
 			{
 				APPROX unsigned char* u8[] = { pyr[i * 4]->data.u8 + dx[q] * 2 + dy[q] * pyr[i * 4]->step * 2, pyr[i * 4 + next * 4]->data.u8 + dx[q] + dy[q] * pyr[i * 4 + next * 4]->step, pyr[i * 4 + next * 8 + q]->data.u8 };
-				for (y = 0; y < i_rows; y++)
+				for (y = 0; ENDORSE(y < i_rows); y++)
 				{
-					for (x = 0; x < i_cols; x++)
+					for (x = 0; ENDORSE(x < i_cols); x++)
 					{
 						APPROX float sum;
 						APPROX int flag = 1;
@@ -185,7 +186,7 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 							APPROX float* alpha = classifier->alpha;
 							ccv_bbf_feature_t* feature = classifier->feature;
 							for (k = 0; k < ENDORSE(classifier->count); ++k, alpha += 2, ++feature)
-								sum += alpha[_ccv_run_bbf_feature(feature, steps, u8)];
+								sum += alpha[_ccv_run_bbf_feature(feature, ENDORSE(steps), u8)];
 							if (ENDORSE(sum) < ENDORSE(classifier->threshold))
 							{
 								flag = 0;
@@ -217,9 +218,9 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 		/* the following code from OpenCV's haar feature implementation */
 		if(params.min_neighbors == 0)
 		{
-			for (i = 0; i < seq->rnum; i++)
+			for (i = 0; ENDORSE(i < seq->rnum); i++)
 			{
-				ccv_comp_t* comp = (ccv_comp_t*)ccv_array_get(seq, i);
+				ccv_comp_t* comp = (ccv_comp_t*)ENDORSE(ccv_array_get(seq, i));
 				ccv_array_push(result_seq, comp);
 			}
 		} else {
@@ -231,10 +232,10 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 			memset(comps, 0, (ncomp + 1) * sizeof(ccv_comp_t));
 
 			// count number of neighbors
-			for(i = 0; i < seq->rnum; i++)
+			for(i = 0; ENDORSE(i < seq->rnum); i++)
 			{
-				ccv_comp_t r1 = *(ccv_comp_t*)ccv_array_get(seq, i);
-				int idx = *(int*)ccv_array_get(idx_seq, i);
+				ccv_comp_t r1 = *(ccv_comp_t*)ENDORSE(ccv_array_get(seq, i));
+				int idx = *(int*)ENDORSE(ccv_array_get(idx_seq, i));
 
 				if (ENDORSE(comps[idx].neighbors) == 0)
 					comps[idx].classification.confidence = r1.classification.confidence;
@@ -250,7 +251,7 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 			}
 
 			// calculate average bounding box
-			for(i = 0; i < ncomp; i++)
+			for(i = 0; ENDORSE(i < ncomp); i++)
 			{
 				int n = ENDORSE(comps[i].neighbors);
 				if(n >= params.min_neighbors)
@@ -268,18 +269,18 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 			}
 
 			// filter out small face rectangles inside large face rectangles
-			for(i = 0; i < seq2->rnum; i++)
+			for(i = 0; ENDORSE(i < seq2->rnum); i++)
 			{
-				ccv_comp_t r1 = *(ccv_comp_t*)ccv_array_get(seq2, i);
+				ccv_comp_t r1 = *(ccv_comp_t*)ENDORSE(ccv_array_get(seq2, i));
 				APPROX int flag = 1;
 
-				for(j = 0; j < seq2->rnum; j++)
+				for(j = 0; ENDORSE(j < seq2->rnum); j++)
 				{
-					ccv_comp_t r2 = *(ccv_comp_t*)ccv_array_get(seq2, j);
+					ccv_comp_t r2 = *(ccv_comp_t*)ENDORSE(ccv_array_get(seq2, j));
 					APPROX int distance = (int)(r2.rect.width * 0.25 + 0.5);
 
-					if(i != j &&
-					   ENDORSE(r1.classification.id == r2.classification.id &&
+					if(ENDORSE(i != j &&
+					   r1.classification.id == r2.classification.id &&
 					   r1.rect.x >= r2.rect.x - distance &&
 					   r1.rect.y >= r2.rect.y - distance &&
 					   r1.rect.x + r1.rect.width <= r2.rect.x + r2.rect.width + distance &&
@@ -314,10 +315,10 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 		memset(comps, 0, (ncomp + 1) * sizeof(ccv_comp_t));
 
 		// count number of neighbors
-		for(i = 0; i < result_seq->rnum; i++)
+		for(i = 0; ENDORSE(i < result_seq->rnum); i++)
 		{
-			ccv_comp_t r1 = *(ccv_comp_t*)ccv_array_get(result_seq, i);
-			int idx = *(int*)ccv_array_get(idx_seq, i);
+			ccv_comp_t r1 = *(ccv_comp_t*)ENDORSE(ccv_array_get(result_seq, i));
+			int idx = *(int*)ENDORSE(ccv_array_get(idx_seq, i));
 
 			if (ENDORSE(comps[idx].neighbors == 0 || comps[idx].classification.confidence < r1.classification.confidence))
 			{
@@ -329,7 +330,7 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 		}
 
 		// calculate average bounding box
-		for(i = 0; i < ncomp; i++)
+		for(i = 0; ENDORSE(i < ncomp); i++)
 			if(ENDORSE(comps[i].neighbors))
 				ccv_array_push(result_seq2, &comps[i]);
 
@@ -339,10 +340,10 @@ ccv_array_t* ccv_bbf_detect_objects(ccv_dense_matrix_t* a, ccv_bbf_classifier_ca
 		result_seq2 = result_seq;
 	}
 
-	for (i = 1; i < scale_upto + next * 2; i++)
+	for (i = 1; ENDORSE(i < scale_upto + next * 2); i++)
 		ccv_matrix_free(pyr[i * 4]);
 	if (params.accurate)
-		for (i = next * 2; i < scale_upto + next * 2; i++)
+		for (i = next * 2; ENDORSE(i < scale_upto + next * 2); i++)
 		{
 			ccv_matrix_free(pyr[i * 4 + 1]);
 			ccv_matrix_free(pyr[i * 4 + 2]);

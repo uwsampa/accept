@@ -30,9 +30,9 @@ int main(int argc, char** argv)
 		unsigned int elapsed_time = get_current_time();
 		seq = ccv_bbf_detect_objects(image, &cascade, 1, ccv_bbf_default_params);
 		elapsed_time = get_current_time() - elapsed_time;
-		for (i = 0; i < seq->rnum; i++)
+		for (i = 0; ENDORSE(i < seq->rnum); i++)
 		{
-			ccv_comp_t* comp = (ccv_comp_t*)ccv_array_get(seq, i);
+			ccv_comp_t* comp = (ccv_comp_t*)ENDORSE(ccv_array_get(seq, i));
 			printf("%d %d %d %d %f\n", comp->rect.x, comp->rect.y, comp->rect.width, comp->rect.height, comp->classification.confidence);
 		}
 		printf("total : %d in time %dms\n", seq->rnum, elapsed_time);
@@ -50,8 +50,8 @@ int main(int argc, char** argv)
                     APPROX int x;
                     APPROX int y;
                 };
-                for (i = 0; i < seq->rnum; i++) {
-                  ccv_comp_t* comp = (ccv_comp_t*) ccv_array_get(seq, i);
+                for (i = 0; ENDORSE(i < seq->rnum); i++) {
+                  ccv_comp_t* comp = (ccv_comp_t*) ENDORSE(ccv_array_get(seq, i));
                   struct coordinates upperleft, upperright, lowerleft, lowerright;
                   upperleft.x = comp->rect.x;
                   upperleft.y = comp->rect.y;
@@ -95,9 +95,9 @@ int main(int argc, char** argv)
 				ccv_read(file, &image, CCV_IO_GRAY | CCV_IO_ANY_FILE);
 				assert(image != 0);
 				seq = ccv_bbf_detect_objects(image, &cascade, 1, ccv_bbf_default_params); // seq already declared above
-				for (i = 0; i < seq->rnum; i++)
+				for (i = 0; ENDORSE(i < seq->rnum); i++)
 				{
-					ccv_comp_t* comp = (ccv_comp_t*)ccv_array_get(seq, i);
+					ccv_comp_t* comp = (ccv_comp_t*) ENDORSE(ccv_array_get(seq, i));
 					printf("%s %d %d %d %d %f\n", file, comp->rect.x, comp->rect.y, comp->rect.width, comp->rect.height, comp->classification.confidence);
 				}
 			}
@@ -112,8 +112,8 @@ int main(int argc, char** argv)
                   perror("fopen for write failed");
                   return EXIT_FAILURE;
                 }
-                for (i = 0; i < seq->rnum; i++) {
-                  ccv_comp_t* comp = (ccv_comp_t*) ccv_array_get(seq, i);
+                for (i = 0; ENDORSE(i < seq->rnum); i++) {
+                  ccv_comp_t* comp = (ccv_comp_t*) ENDORSE(ccv_array_get(seq, i));
                   ret_val = fprintf(file, "%d\n%d\n%d\n%d\n%f\n", comp->rect.x, comp->rect.y, comp->rect.width,
                       comp->rect.height, comp->classification.confidence);
                   if (ret_val < 0) {

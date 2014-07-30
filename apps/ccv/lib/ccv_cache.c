@@ -144,7 +144,7 @@ static ccv_cache_index_t* _ccv_cache_seek(ccv_cache_index_t* branch, uint64_t si
 
 void* ccv_cache_get(ccv_cache_t* cache, uint64_t sign, uint8_t* type)
 {
-	if (cache->rnum == 0)
+	if (ENDORSE(cache->rnum) == 0)
 		return 0;
 	ccv_cache_index_t* branch = _ccv_cache_seek(&cache->origin, sign, 0);
 	if (!branch)
@@ -208,18 +208,18 @@ static void _ccv_cache_lru(ccv_cache_t* cache)
 
 static void _ccv_cache_depleted(ccv_cache_t* cache, size_t size)
 {
-	while (cache->size > size)
+	while (ENDORSE(cache->size) > size)
 		_ccv_cache_lru(cache);
 }
 
 int ccv_cache_put(ccv_cache_t* cache, uint64_t sign, void* x, uint32_t size, uint8_t type)
 {
 	assert(((uint64_t)x & 0x3) == 0);
-	if (size > cache->up)
+	if (size > ENDORSE(cache->up))
 		return -1;
-	if (size + cache->size > cache->up)
-		_ccv_cache_depleted(cache, cache->up - size);
-	if (cache->rnum == 0)
+	if (ENDORSE(size + cache->size > cache->up))
+		_ccv_cache_depleted(cache, ENDORSE(cache->up) - size);
+	if (ENDORSE(cache->rnum) == 0)
 	{
 		cache->age = 1;
 		cache->origin.terminal.off = (uint64_t)x | 0x1;
@@ -346,7 +346,7 @@ void* ccv_cache_out(ccv_cache_t* cache, uint64_t sign, uint8_t* type)
 {
 	if (!ENDORSE(bits_in_16bits_init))
 		precomputed_16bits();
-	if (cache->rnum == 0)
+	if (ENDORSE(cache->rnum) == 0)
 		return 0;
 	int i;
         APPROX int found = 0, depth = -1;
@@ -430,8 +430,8 @@ void* ccv_cache_out(ccv_cache_t* cache, uint64_t sign, uint8_t* type)
 
 int ccv_cache_delete(ccv_cache_t* cache, uint64_t sign)
 {
-	uint8_t type = 0;
-	void* result = ccv_cache_out(cache, sign, &type);
+	APPROX uint8_t type = 0;
+	void* result = ccv_cache_out(cache, sign, ENDORSE(&type));
 	if (result != 0)
 	{
 		assert(type >= 0 && type < 16);
@@ -443,7 +443,7 @@ int ccv_cache_delete(ccv_cache_t* cache, uint64_t sign)
 
 void ccv_cache_cleanup(ccv_cache_t* cache)
 {
-	if (cache->rnum > 0)
+	if (ENDORSE(cache->rnum) > 0)
 	{
 		_ccv_cache_cleanup_and_free(&cache->origin, cache->ffree);
 		cache->size = 0;

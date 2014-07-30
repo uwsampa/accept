@@ -238,7 +238,7 @@ ccv_array_t* ccv_array_new(int rsize, int rnum, uint64_t sig)
 	array->rnum = 0;
 	array->rsize = rsize;
 	array->size = ccv_max(rnum, 2 /* allocate memory for at least 2 items */);
-	array->data = ccmalloc((size_t)array->size * (size_t)rsize);
+	array->data = DEDORSE(ccmalloc((size_t)ENDORSE(array->size) * (size_t)rsize));
 	return array;
 }
 
@@ -253,7 +253,7 @@ void ccv_make_array_immutable(ccv_array_t* array)
 	assert(array->sig == 0);
 	array->type &= ~CCV_REUSABLE;
 	/* TODO: trim the array */
-	array->sig = ccv_cache_generate_signature(array->data, array->size * array->rsize, (uint64_t)array->rsize, CCV_EOF_SIGN);
+	array->sig = ccv_cache_generate_signature(ENDORSE(array->data), ENDORSE(array->size * array->rsize), ENDORSE((uint64_t)array->rsize), CCV_EOF_SIGN);
 }
 
 void ccv_array_free_immediately(ccv_array_t* array)
@@ -265,20 +265,20 @@ void ccv_array_free_immediately(ccv_array_t* array)
 
 void ccv_array_free(ccv_array_t* array)
 {
-	if (!ccv_cache_opt || !(array->type & CCV_REUSABLE) || array->sig == 0)
+	if (!ccv_cache_opt || !(ENDORSE(array->type) & CCV_REUSABLE) || ENDORSE(array->sig) == 0)
 	{
 		array->refcount = 0;
 		ccfree(array->data);
 		ccfree(array);
 	} else {
-		size_t size = sizeof(ccv_array_t) + array->size * array->rsize;
-		ccv_cache_put(&ccv_cache, array->sig, array, size, 1 /* type 1 */);
+		size_t size = sizeof(ccv_array_t) + ENDORSE(array->size * array->rsize);
+		ccv_cache_put(&ccv_cache, ENDORSE(array->sig), array, size, 1 /* type 1 */);
 	}
 }
 
 void ccv_drain_cache(void)
 {
-	if (ccv_cache.rnum > 0)
+	if (ENDORSE(ccv_cache.rnum) > 0)
 		ccv_cache_cleanup(&ccv_cache);
 }
 
