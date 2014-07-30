@@ -52,12 +52,18 @@ namespace {
     // boolean indicating whether the code was changed (i.e., the loop
     // perforated).
     bool tryToOptimizeLoop(Loop *loop) {
+      Instruction *inst = loop->getHeader()->begin();
+      Function *func = inst->getParent()->getParent();
+      std::string funcName = func->getName().str();
+
+      ACCEPT_LOG << "---\nloop within function _" << funcName << "\n";
+
       std::stringstream ss;
       ss << "loop at "
          << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc());
       std::string loopName = ss.str();
 
-      ACCEPT_LOG << "---\n" << loopName << "\n";
+      ACCEPT_LOG << loopName << "\n";
 
       // Look for ACCEPT_FORBID marker.
       if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {

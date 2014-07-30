@@ -251,6 +251,7 @@ bool ApproxInfo::runOnFunction(Function &F) {
 
 bool ApproxInfo::doInitialization(Module &M) {
   // Analyze the purity of each function in the module up-front.
+  ACCEPT_LOG << "ANALYZING FUNCTIONS FOR PRECISE-PURITY:\n\n"; 
   for (Module::iterator i = M.begin(); i != M.end(); ++i) {
     isPrecisePure(&*i);
   }
@@ -666,7 +667,7 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   ACCEPT_LOG << " - blockers: " << blockers.size() << "\n";
   for (std::set<Instruction*>::iterator i = blockers.begin();
         i != blockers.end(); ++i) {
-    ACCEPT_LOG << " - * " << instDesc(*(func->getParent()), *i) << "\n";
+    ACCEPT_LOG << "   * " << instDesc(*(func->getParent()), *i) << "\n";
   }
   if (blockers.empty()) {
     ACCEPT_LOG << " - precise-pure function: _" << func->getName() << "\n";
