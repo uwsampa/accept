@@ -106,7 +106,7 @@ namespace {
       // Determine whether this is a for-like or while-like loop. This informs
       // the heuristic that determines which parts of the loop to perforate.
       bool isForLike = false;
-      if (loop->getHeader()->getName().startswith("for.cond")) {
+      if (loop->getHeader()->getName().startswith("for.cond") || loop->getLoopLatch() != NULL) {
         ACCEPT_LOG << "for-like loop\n";
         isForLike = true;
       } else {
