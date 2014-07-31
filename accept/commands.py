@@ -97,7 +97,7 @@ def dump_result_human(res, verbose):
                 yield 'output is a {} of length {}'.format(
                     type(output).__name__, len(output)
                 )
-        else:
+        elif output is not None:
             yield 'output has type {}'.format(type(output).__name__)
     if res.desc != 'good':
         yield res.desc
