@@ -225,6 +225,7 @@ void initializeHardware() {
   BITSET(P4SEL1, PIN_ACCEL_EN);
   BITSET(P4SEL0, PIN_ACCEL_EN);
 
+#ifndef USE_TRACE
   accelOut.x = 1;
   accelOut.y = 1;
   accelOut.z = 1;
@@ -238,6 +239,7 @@ void initializeHardware() {
   ACCEL_initialize();
   __delay_cycles(5);
   ACCEL_readID(&accelOut);
+#endif // USE_TRACE
 }
 
 __attribute__((section(".init9"), aligned(2)))
