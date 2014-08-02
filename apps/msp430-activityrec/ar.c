@@ -13,7 +13,7 @@
 #undef FLASH_ON_BOOT
 
 // number of samples until experiment is "done" and "moving" light goes on
-#define SAMPLES_TO_COLLECT 2500
+#define SAMPLES_TO_COLLECT 5000
 
 // two features: mean & stdev
 #define NUM_FEATURES 2
@@ -27,8 +27,8 @@ static const unsigned moving[MODEL_SIZE] = {
 };
 
 #ifdef USE_TRACE
-static const threeAxis_t trace[SAMPLES_TO_COLLECT] = {
-#include "readings.h"
+static const __fram threeAxis_t trace[SAMPLES_TO_COLLECT] = {
+#include "readings5k.h"
 };
 static unsigned traceIndex = 0;
 #endif // USE_TRACE
@@ -54,17 +54,16 @@ static long int model[MODEL_SIZE_PLUS_WARMUP];
 APPROX static long int meanmag;
 APPROX static long int stddevmag;
 
-static threeAxis_t accelOut;
-
 void getNextSample() {
 #ifdef USE_TRACE
-  threeAxis_t *threeAxis = &trace[traceIndex++];
+  const threeAxis_t *threeAxis = &trace[traceIndex++];
   aWin[currSamp][0] = (long)threeAxis->x;
   aWin[currSamp][1] = (long)threeAxis->y;
   aWin[currSamp][2] = (long)threeAxis->z;
   if (traceIndex > SAMPLES_TO_COLLECT) {
     traceIndex = 0;
   }
+  __delay_cycles(500);
 #else
   threeAxis_t threeAxis;
   ACCEL_singleSample(&threeAxis);  // ACCEPT_PERMIT
@@ -277,7 +276,7 @@ int main(void) {
     __NV_totalCount++;
 
 
-    if (ENDORSE(class)) {
+    if (!ENDORSE(class)) {
 
 #if defined (USE_LEDS)
       PJOUT &= ~BIT6;
