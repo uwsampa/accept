@@ -127,26 +127,28 @@ void featurize() {
 APPROX int classify() {
   APPROX int move_less_error = 0;
   APPROX int stat_less_error = 0;
+  APPROX long int stat_mean_err, stat_sd_err, move_mean_err, move_sd_err;
   int i;
 
   /* classify the current sample (stored in meanmag, stddevmag by featurize())
    * as stationary or moving based on its relative similarity to the first
    * MODEL_COMPARISONS entries of the moving and stationary models. */
-  for (i = 0; i < MODEL_COMPARISONS; i += NUM_FEATURES) {
-    APPROX long int stat_mean_err = (stationary[i] > meanmag)
-                                 ? (stationary[i] - meanmag)
-                                 : (meanmag - stationary[i]);
+  for (i = 0; ENDORSE(i < MODEL_COMPARISONS); i += NUM_FEATURES) {
+    stat_mean_err = (stationary[i] > meanmag)
+                      ? (stationary[i] - meanmag)
+                      : (meanmag - stationary[i]);
 
-    APPROX long int stat_sd_err = (stationary[i + 1] > stddevmag)
-                               ? (stationary[i + 1] - stddevmag)
-                               : (stddevmag - stationary[i + 1]);
+    stat_sd_err = (stationary[i + 1] > stddevmag)
+                    ? (stationary[i + 1] - stddevmag)
+                    : (stddevmag - stationary[i + 1]);
 
-    APPROX long int move_mean_err = (moving[i] > meanmag) ? (moving[i] - meanmag)
-                                                    : (meanmag - moving[i]);
+    move_mean_err = (moving[i] > meanmag)
+                      ? (moving[i] - meanmag)
+                      : (meanmag - moving[i]);
 
-    APPROX long int move_sd_err = (moving[i + 1] > stddevmag)
-                               ? (moving[i + 1] - stddevmag)
-                               : (stddevmag - moving[i + 1]);
+    move_sd_err = (moving[i + 1] > stddevmag)
+                     ? (moving[i + 1] - stddevmag)
+                     : (stddevmag - moving[i + 1]);
 
     if (ENDORSE(move_mean_err < stat_mean_err)) {
       move_less_error++;
