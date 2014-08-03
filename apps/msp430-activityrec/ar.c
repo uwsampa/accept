@@ -9,7 +9,7 @@
 
 #define MODEL_SIZE 190
 #define MODEL_SIZE_PLUS_WARMUP (MODEL_SIZE+10)
-#define ACCEL_WINDOW_SIZE 4
+#define ACCEL_WINDOW_SIZE 20
 #undef FLASH_ON_BOOT
 
 // number of samples until experiment is "done" and "moving" light goes on
@@ -63,7 +63,6 @@ void getNextSample() {
   if (traceIndex > SAMPLES_TO_COLLECT) {
     traceIndex = 0;
   }
-  __delay_cycles(500);
 #else
   threeAxis_t threeAxis;
   ACCEL_singleSample(&threeAxis);  // ACCEPT_PERMIT
@@ -133,7 +132,7 @@ APPROX int classify() {
   /* classify the current sample (stored in meanmag, stddevmag by featurize())
    * as stationary or moving based on its relative similarity to the first
    * MODEL_COMPARISONS entries of the moving and stationary models. */
-  for (i = 0; ENDORSE(i < MODEL_COMPARISONS); i += NUM_FEATURES) {
+  for (i = 0; i < MODEL_COMPARISONS; i += NUM_FEATURES) {
     stat_mean_err = (stationary[i] > meanmag)
                       ? (stationary[i] - meanmag)
                       : (meanmag - stationary[i]);
@@ -278,7 +277,7 @@ int main(void) {
     __NV_totalCount++;
 
 
-    if (!ENDORSE(class)) {
+    if (ENDORSE(class)) {
 
 #if defined (USE_LEDS)
       PJOUT &= ~BIT6;
