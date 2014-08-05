@@ -61,7 +61,7 @@ std::string llvm::instDesc(const Module &mod, Instruction *inst) {
       if (!name.empty() && name.front() == '_') {
         // C++ name. An extra leading underscore makes the name legible by
         // c++filt.
-        ss << "call to _" << name;
+        ss << "call to " << name;
       } else {
         ss << "call to " << name << "()";
       }
@@ -630,7 +630,7 @@ bool ApproxInfo::isPrecisePure(Function *func) {
     return functionPurity[func];
   }
 
-  ACCEPT_LOG << "checking function _" << func->getName() << "\n";
+  ACCEPT_LOG << "checking function " << func->getName() << "\n";
 
   // LLVM's own nominal purity analysis.
   if (func->onlyReadsMemory()) {
@@ -670,7 +670,9 @@ bool ApproxInfo::isPrecisePure(Function *func) {
     ACCEPT_LOG << "   * " << instDesc(*(func->getParent()), *i) << "\n";
   }
   if (blockers.empty()) {
-    ACCEPT_LOG << " - precise-pure function: _" << func->getName() << "\n";
+    ACCEPT_LOG << " - precise-pure function: " << func->getName() << "\n";
+  } else {
+    ACCEPT_LOG << " - precise-impure function: " << func->getName() << "\n";
   }
 
   functionPurity[func] = blockers.empty();

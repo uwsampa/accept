@@ -1,0 +1,69 @@
+ANALYZING FUNCTIONS FOR PRECISE-PURITY:
+
+checking function Gamma(double)
+checking function log
+ - whitelisted
+checking function exp
+ - whitelisted
+ - blockers: 0
+ - precise-pure function: Gamma(double)
+checking function llvm.dbg.declare
+ - only reads memory
+checking function main
+checking function accept_roi_begin
+checking function gettimeofday
+ - definition not available
+ - blockers: 2
+   * acceptrt.default.c:10: call to gettimeofday()
+   * acceptrt.default.c:11: store to time_begin
+ - precise-impure function: accept_roi_begin
+checking function accept_roi_end
+checking function fopen
+ - definition not available
+checking function fprintf
+ - definition not available
+checking function fclose
+ - definition not available
+ - blockers: 4
+   * acceptrt.default.c:16: call to gettimeofday()
+   * acceptrt.default.c:20: call to fopen()
+   * acceptrt.default.c:21: call to fprintf()
+   * acceptrt.default.c:22: call to fclose()
+ - precise-impure function: accept_roi_end
+checking function perror
+ - definition not available
+ - blockers: 14
+   * gamma.cpp:80: call to accept_roi_begin()
+   * gamma.cpp:82: store to i
+   * gamma.cpp:82: store to i
+   * gamma.cpp:88: call to accept_roi_end()
+   * gamma.cpp:90: call to fopen()
+   * gamma.cpp:92: call to perror()
+   * gamma.cpp:95: store to i
+   * gamma.cpp:96: call to fprintf()
+   * gamma.cpp:98: call to perror()
+   * gamma.cpp:101: call to fprintf()
+   * gamma.cpp:103: call to perror()
+   * gamma.cpp:95: store to i
+   * gamma.cpp:107: call to fclose()
+   * gamma.cpp:109: call to perror()
+ - precise-impure function: main
+---
+loop within function Gamma(double)
+loop at gamma.cpp:66
+for-like loop
+blockers: 0
+can perforate loop
+---
+loop within function main
+loop at gamma.cpp:95
+for-like loop
+contains loop exit
+cannot perforate loop
+---
+loop within function main
+loop at gamma.cpp:82
+for-like loop
+blockers: 0
+can perforate loop
+

@@ -56,7 +56,7 @@ namespace {
       Function *func = inst->getParent()->getParent();
       std::string funcName = func->getName().str();
 
-      ACCEPT_LOG << "---\nloop within function _" << funcName << "\n";
+      ACCEPT_LOG << "---\nloop within function " << funcName << "\n";
 
       std::stringstream ss;
       ss << "loop at "
@@ -152,6 +152,7 @@ namespace {
             i != bodyBlocks.end(); ++i) {
         if (loop->isLoopExiting(*i)) {
           ACCEPT_LOG << "contains loop exit\n";
+          ACCEPT_LOG << "cannot perforate loop\n";
           return false;
         }
       }

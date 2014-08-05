@@ -1,0 +1,118 @@
+ANALYZING FUNCTIONS FOR PRECISE-PURITY:
+
+checking function Stat_functions()
+checking function sqrt
+ - whitelisted
+ - blockers: 14
+   * fstat.cpp:130: store to v8
+   * fstat.cpp:132: store to a3
+   * fstat.cpp:132: store to a4
+   * fstat.cpp:133: store to a5
+   * fstat.cpp:133: store to a6
+   * fstat.cpp:134: store to v7
+   * fstat.cpp:128: store to v6
+   * fstat.cpp:129: store to v7
+   * fstat.cpp:115: store to v6
+   * fstat.cpp:117: store to a3
+   * fstat.cpp:117: store to a5
+   * fstat.cpp:134: store to a7
+   * fstat.cpp:136: store to v6
+   * fstat.cpp:139: store to v8
+ - precise-impure function: Stat_functions()
+checking function llvm.dbg.declare
+ - only reads memory
+checking function main
+checking function printf
+ - definition not available
+checking function rand
+ - definition not available
+checking function accept_roi_begin
+checking function gettimeofday
+ - definition not available
+ - blockers: 2
+   * acceptrt.default.c:10: call to gettimeofday()
+   * acceptrt.default.c:11: store to time_begin
+ - precise-impure function: accept_roi_begin
+checking function accept_roi_end
+checking function fopen
+ - definition not available
+checking function fprintf
+ - definition not available
+checking function fclose
+ - definition not available
+ - blockers: 4
+   * acceptrt.default.c:16: call to gettimeofday()
+   * acceptrt.default.c:20: call to fopen()
+   * acceptrt.default.c:21: call to fprintf()
+   * acceptrt.default.c:22: call to fclose()
+ - precise-impure function: accept_roi_end
+checking function perror
+ - definition not available
+checking function Verified_fprintf(_IO_FILE*, char const*, float)
+checking function exit
+ - definition not available
+ - blockers: 4
+   * fstat.cpp:197: call to fprintf()
+   * fstat.cpp:198: call to perror()
+   * fstat.cpp:199: call to fclose()
+   * fstat.cpp:200: call to exit()
+ - precise-impure function: Verified_fprintf(_IO_FILE*, char const*, float)
+ - blockers: 36
+   * fstat.cpp:147: call to printf()
+   * fstat.cpp:148: call to printf()
+   * fstat.cpp:149: call to printf()
+   * fstat.cpp:150: call to printf()
+   * fstat.cpp:151: call to printf()
+   * fstat.cpp:152: call to printf()
+   * fstat.cpp:153: call to printf()
+   * fstat.cpp:154: store to nt
+   * fstat.cpp:155: call to printf()
+   * fstat.cpp:156: call to printf()
+   * fstat.cpp:157: store to n
+   * fstat.cpp:158: store to i
+   * fstat.cpp:159: store to arrayidx
+   * fstat.cpp:160: call to rand()
+   * fstat.cpp:160: store to arrayidx13
+   * fstat.cpp:158: store to i
+   * fstat.cpp:163: call to accept_roi_begin()
+   * fstat.cpp:164: call to Stat_functions()
+   * fstat.cpp:165: call to accept_roi_end()
+   * fstat.cpp:167: call to fopen()
+   * fstat.cpp:169: call to perror()
+   * fstat.cpp:173: call to Verified_fprintf(_IO_FILE*, char const*, float)
+   * fstat.cpp:174: call to Verified_fprintf(_IO_FILE*, char const*, float)
+   * fstat.cpp:175: call to Verified_fprintf(_IO_FILE*, char const*, float)
+   * fstat.cpp:176: call to Verified_fprintf(_IO_FILE*, char const*, float)
+   * fstat.cpp:177: call to Verified_fprintf(_IO_FILE*, char const*, float)
+   * fstat.cpp:179: call to Verified_fprintf(_IO_FILE*, char const*, float)
+   * fstat.cpp:180: call to Verified_fprintf(_IO_FILE*, char const*, float)
+   * fstat.cpp:181: call to Verified_fprintf(_IO_FILE*, char const*, float)
+   * fstat.cpp:182: call to Verified_fprintf(_IO_FILE*, char const*, float)
+   * fstat.cpp:183: call to Verified_fprintf(_IO_FILE*, char const*, float)
+   * fstat.cpp:184: call to Verified_fprintf(_IO_FILE*, char const*, float)
+   * fstat.cpp:185: call to Verified_fprintf(_IO_FILE*, char const*, float)
+   * fstat.cpp:186: call to Verified_fprintf(_IO_FILE*, char const*, float)
+   * fstat.cpp:188: call to fclose()
+   * fstat.cpp:189: call to perror()
+ - precise-impure function: main
+---
+loop within function Stat_functions()
+loop at fstat.cpp:121
+for-like loop
+blockers: 0
+can perforate loop
+---
+loop within function Stat_functions()
+loop at fstat.cpp:111
+for-like loop
+blockers: 0
+can perforate loop
+---
+loop within function main
+loop at fstat.cpp:158
+for-like loop
+blockers: 3
+ * fstat.cpp:159: store to arrayidx
+ * fstat.cpp:160: call to rand()
+ * fstat.cpp:160: store to arrayidx13
+
