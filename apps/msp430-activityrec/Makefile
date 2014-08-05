@@ -2,7 +2,7 @@ ARCH    := msp430
 SOURCES := ar.c
 
 CFLAGS  := -DUSE_TRACE -DUSE_LEDS -O0
-LDFLAGS := -O0 -Wl,--section-start -Wl,FRAMVARS=0xD000
+LDFLAGS := -O0 -Wl,--section-start -Wl,FRAMVARS=0x7000
 LIBS     = -lm
 
 # msp430 library dependencies

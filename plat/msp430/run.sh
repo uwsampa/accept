@@ -38,7 +38,7 @@ else
 	fi
 fi
 
-EXTRAARGS="-H 192.168.60.132 -m /opt/mspdebug/bin/mspdebug" # ransford's VM
+EXTRAARGS="-H 192.168.60.133 -m /opt/mspdebug/bin/mspdebug" # ransford's VM
 
 "$WHERE"/mspdebug-wrapper/mspdebug_wrapper.py -d -b "$bkpt" \
 	-o "$outfile" ${EXTRAARGS} -T accept_time.txt "$elf"

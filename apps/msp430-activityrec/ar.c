@@ -9,11 +9,11 @@
 
 #define MODEL_SIZE 190
 #define MODEL_SIZE_PLUS_WARMUP (MODEL_SIZE+10)
-#define ACCEL_WINDOW_SIZE 4
+#define ACCEL_WINDOW_SIZE 20
 #undef FLASH_ON_BOOT
 
 // number of samples until experiment is "done" and "moving" light goes on
-#define SAMPLES_TO_COLLECT 2500
+#define SAMPLES_TO_COLLECT 5000
 
 // two features: mean & stdev
 #define NUM_FEATURES 2
@@ -27,8 +27,8 @@ static const unsigned moving[MODEL_SIZE] = {
 };
 
 #ifdef USE_TRACE
-static const threeAxis_t trace[SAMPLES_TO_COLLECT] = {
-#include "readings.h"
+static const __fram threeAxis_t trace[SAMPLES_TO_COLLECT] = {
+#include "readings5k.h"
 };
 static unsigned traceIndex = 0;
 #endif // USE_TRACE
@@ -54,11 +54,9 @@ static long int model[MODEL_SIZE_PLUS_WARMUP];
 APPROX static long int meanmag;
 APPROX static long int stddevmag;
 
-static threeAxis_t accelOut;
-
 void getNextSample() {
 #ifdef USE_TRACE
-  threeAxis_t *threeAxis = &trace[traceIndex++];
+  const threeAxis_t *threeAxis = &trace[traceIndex++];
   aWin[currSamp][0] = (long)threeAxis->x;
   aWin[currSamp][1] = (long)threeAxis->y;
   aWin[currSamp][2] = (long)threeAxis->z;
@@ -128,26 +126,28 @@ void featurize() {
 APPROX int classify() {
   APPROX int move_less_error = 0;
   APPROX int stat_less_error = 0;
+  APPROX long int stat_mean_err, stat_sd_err, move_mean_err, move_sd_err;
   int i;
 
   /* classify the current sample (stored in meanmag, stddevmag by featurize())
    * as stationary or moving based on its relative similarity to the first
    * MODEL_COMPARISONS entries of the moving and stationary models. */
   for (i = 0; i < MODEL_COMPARISONS; i += NUM_FEATURES) {
-    APPROX long int stat_mean_err = (stationary[i] > meanmag)
-                                 ? (stationary[i] - meanmag)
-                                 : (meanmag - stationary[i]);
+    stat_mean_err = (stationary[i] > meanmag)
+                      ? (stationary[i] - meanmag)
+                      : (meanmag - stationary[i]);
 
-    APPROX long int stat_sd_err = (stationary[i + 1] > stddevmag)
-                               ? (stationary[i + 1] - stddevmag)
-                               : (stddevmag - stationary[i + 1]);
+    stat_sd_err = (stationary[i + 1] > stddevmag)
+                    ? (stationary[i + 1] - stddevmag)
+                    : (stddevmag - stationary[i + 1]);
 
-    APPROX long int move_mean_err = (moving[i] > meanmag) ? (moving[i] - meanmag)
-                                                    : (meanmag - moving[i]);
+    move_mean_err = (moving[i] > meanmag)
+                      ? (moving[i] - meanmag)
+                      : (meanmag - moving[i]);
 
-    APPROX long int move_sd_err = (moving[i + 1] > stddevmag)
-                               ? (moving[i + 1] - stddevmag)
-                               : (stddevmag - moving[i + 1]);
+    move_sd_err = (moving[i + 1] > stddevmag)
+                     ? (moving[i + 1] - stddevmag)
+                     : (stddevmag - moving[i + 1]);
 
     if (ENDORSE(move_mean_err < stat_mean_err)) {
       move_less_error++;
@@ -225,6 +225,7 @@ void initializeHardware() {
   BITSET(P4SEL1, PIN_ACCEL_EN);
   BITSET(P4SEL0, PIN_ACCEL_EN);
 
+#ifndef USE_TRACE
   accelOut.x = 1;
   accelOut.y = 1;
   accelOut.z = 1;
@@ -238,6 +239,7 @@ void initializeHardware() {
   ACCEL_initialize();
   __delay_cycles(5);
   ACCEL_readID(&accelOut);
+#endif // USE_TRACE
 }
 
 __attribute__((section(".init9"), aligned(2)))
