@@ -21,7 +21,7 @@ float convolve(float w[][3], float k[][3]) {
     r = 0;
     for (j = 0; j < 3; j++)
         for (i = 0; i < 3; i++)
-            r += w[i][j] * k[j][i];
+            r += w[i][j] * k[j][i]; //ACCEPT_PERMIT
 
     return r;
 }
