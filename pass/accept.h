@@ -12,7 +12,9 @@
 #include <set>
 #include <map>
 #include <string>
+#include <iostream>
 #include <cassert>
+#include <cstdlib>
 
 #define ECQ_PRECISE 0
 #define ECQ_APPROX 1
@@ -45,14 +47,97 @@ typedef enum {
   markerForbid
 } LineMarker;
 
+class Description {
+  public:
+    Description() : prefix(""), postfix("") {}
+    Description(
+        std::string myPrefix,
+        std::string myPostfix,
+        std::map< int, std::vector<std::string> > myBlockers) :
+        prefix(myPrefix), postfix(myPostfix), blockers(myBlockers) {}
+    bool operator==(const Description &rhs) {
+      return (this->prefix == rhs.prefix) &&
+             (this->postfix == rhs.postfix) &&
+             (this->blockers == rhs.blockers);
+    }
+    std::string prefix;
+    std::string postfix;
+    std::map< int, std::vector<std::string> > blockers;
+};
+
+class Location {
+  public:
+    Location() : kind(""), hasBlockers(false), fileName(""), lineNumber(0) {}
+    Location(std::string myKind, bool myHasBlockers, std::string myFile, int myNum) :
+        kind(myKind), hasBlockers(myHasBlockers), fileName(myFile), lineNumber(myNum) {}
+    bool operator==(const Location &rhs) {
+      return (this->kind == rhs.kind) &&
+          (this->hasBlockers == rhs.hasBlockers) &&
+          (this->fileName == rhs.fileName) &&
+          (this->lineNumber == rhs.lineNumber);
+    }
+    std::string kind;
+    bool hasBlockers;
+    std::string fileName;
+    int lineNumber;
+};
+
+class cmpLocation {
+  public:
+    bool operator() (const Location a, const Location b) const {
+      if (a.kind != b.kind) {
+        return (a.kind < b.kind);
+      } else if (a.hasBlockers != b.hasBlockers) {
+        return (a.hasBlockers && !b.hasBlockers);
+      } else if (a.fileName != b.fileName) {
+        return (a.fileName < b.fileName);
+      } else {
+        return (a.lineNumber < b.lineNumber);
+      }
+    }
+};  
+
+// This static function splits a description returned by srcPosDesc
+// into two strings: the file name and the line number.
+static void splitPosDesc(
+    const std::string posDesc,
+    std::string &file,
+    std::string &line) {
+  size_t i = posDesc.find(":");
+  size_t length = posDesc.length();
+
+  file = posDesc.substr(0, i);
+  line = posDesc.substr(i + 1, length - i - 1);
+}
+
+// This static function extracts the line number from a description returned
+// by instDesc.
+static int extractBlockerLine(const std::string instDesc) {
+  size_t i = instDesc.find(":");
+  size_t length = instDesc.length();
+  
+  std::string line = instDesc.substr(i + 1, length - i - 1);
+  return atoi(line.c_str());
+}
+
 // This class represents an analysis this determines whether functions and
 // chunks are approximate. It is consumed by our various optimizations.
 class ApproxInfo : public llvm::FunctionPass {
 public:
   static char ID;
+  int definedFunctions;
+  std::string alphaNumLast;
+  std::map<Location, std::vector<Description>, cmpLocation> descTable;
   ApproxInfo();
   virtual ~ApproxInfo();
   virtual const char *getPassName() const;
+  virtual void addFuncDesc(
+      const bool hasBlockers,
+      const std::string fileName,
+      const int lineNumber,
+      const std::string prefix,
+      const std::string postfix,
+      const std::map< int, std::vector<std::string> > blockerEntries);
 
   // Required FunctionPass interface.
   virtual bool doInitialization(llvm::Module &M);

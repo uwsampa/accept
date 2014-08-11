@@ -8,6 +8,9 @@
 #include "llvm/Support/CommandLine.h"
 
 #include <fstream>
+#include <sstream>
+#include <cctype>
+#include <iostream>
 
 #define ACCEPT_LOG ACCEPT_LOG_(this)
 
@@ -33,8 +36,8 @@ std::string llvm::srcPosDesc(const Module &mod, const DebugLoc &dl) {
   ss << ":";
 
   ss << dl.getLine();
-  if (dl.getCol())
-    ss << "," << dl.getCol();
+  //if (dl.getCol())
+    //ss << "," << dl.getCol();
   return out;
 }
 
@@ -61,7 +64,7 @@ std::string llvm::instDesc(const Module &mod, Instruction *inst) {
       if (!name.empty() && name.front() == '_') {
         // C++ name. An extra leading underscore makes the name legible by
         // c++filt.
-        ss << "call to " << name;
+        ss << "call to _" << name;
       } else {
         ss << "call to " << name << "()";
       }
@@ -232,6 +235,11 @@ cl::opt<bool, true> acceptLogEnabledOpt("accept-log",
 
 ApproxInfo::ApproxInfo() : FunctionPass(ID) {
   std::string error;
+  alphaNumLast = "alphaNumLast";
+  for (size_t ch = 0; ch < alphaNumLast.length(); ch++) {
+    alphaNumLast[ch] = 255;
+  }
+  definedFunctions = 0;
   logEnabled = acceptLogEnabled;
   if (logEnabled) {
     logFile = new raw_fd_ostream("accept_log.txt", error);
@@ -240,6 +248,55 @@ ApproxInfo::ApproxInfo() : FunctionPass(ID) {
 
 ApproxInfo::~ApproxInfo() {
   if (logEnabled) {
+    int numKind = 0;
+    std::string prevKind;
+    for (std::map<Location, std::vector<Description>, cmpLocation>::iterator i = descTable.begin();
+        i != descTable.end(); i++) {
+      std::string newKind = i->first.kind;
+      if (newKind != prevKind) {
+        if (numKind != 0) {
+          ACCEPT_LOG << "\n\n";
+        }
+        numKind++;
+
+        if (newKind == "Function") {
+          ACCEPT_LOG << "ANALYZING FUNCTIONS FOR PRECISE-PURITY:\n";
+        } else if (newKind == "Loop") {
+          ACCEPT_LOG << "ANALYZING LOOP BODIES FOR PERFORABILITY:\n";
+        } else if (newKind == "NPU Region") {
+          ACCEPT_LOG << "ANALYZING NPU REGIONS FOR PRECISE-PURITY:\n";
+        } else if (newKind == "Synchronization") {
+          ACCEPT_LOG << "ANALYZING CRITICAL SECTIONS FOR PRECISE-PURITY:\n";
+        } else {
+          for (size_t ch = 0; ch < newKind.length(); ch++) {
+            newKind[ch] = toupper(newKind[ch]);
+          }
+          ACCEPT_LOG << "ANALYZING " << newKind << "S FOR PRECISE-PURITY:\n";
+        }
+      }
+      prevKind = newKind;
+
+      std::vector<Description> descVector = i->second;
+      for (std::vector<Description>::iterator j = descVector.begin();
+          j != descVector.end(); j++) {
+        ACCEPT_LOG << j->prefix;
+
+        std::map< int, std::vector<std::string> > blockers = j->blockers;
+        for (std::map< int, std::vector<std::string> >::iterator k = blockers.begin();
+            k != blockers.end(); k++) {
+          std::vector<std::string> entryVector = k->second;
+          for (std::vector<std::string>::iterator l = entryVector.begin();
+              l != entryVector.end(); l++) {
+            ACCEPT_LOG << *l;
+          }
+        }
+
+        ACCEPT_LOG << j->postfix;
+      }
+    }
+
+    //ACCEPT_LOG << "\n\nANALYZING LOOP BODIES FOR PERFORABILITY:\n";
+
     logFile->close();
     delete logFile;
   }
@@ -251,7 +308,6 @@ bool ApproxInfo::runOnFunction(Function &F) {
 
 bool ApproxInfo::doInitialization(Module &M) {
   // Analyze the purity of each function in the module up-front.
-  ACCEPT_LOG << "ANALYZING FUNCTIONS FOR PRECISE-PURITY:\n\n"; 
   for (Module::iterator i = M.begin(); i != M.end(); ++i) {
     isPrecisePure(&*i);
   }
@@ -620,6 +676,23 @@ bool ApproxInfo::isWhitelistedPure(StringRef s) {
   return funcWhitelist.count(s);
 }
 
+// This function adds a function description to descTable.
+void ApproxInfo::addFuncDesc(
+    const bool hasBlockers,
+    const std::string fileName,
+    const int lineNumber,
+    const std::string prefix,
+    const std::string postfix,
+    const std::map< int, std::vector<std::string> > blockerEntries) {
+  Location loc("Function", hasBlockers, fileName, lineNumber);
+  if (descTable.count(loc) == 0) {
+    descTable[loc] = std::vector<Description>();
+  }
+
+  Description funcDesc(prefix, postfix, blockerEntries);
+  descTable[loc].push_back(funcDesc);
+}
+
 // Determine whether a function can only affect approximate memory (i.e., no
 // precise stores escape).
 bool ApproxInfo::isPrecisePure(Function *func) {
@@ -630,26 +703,40 @@ bool ApproxInfo::isPrecisePure(Function *func) {
     return functionPurity[func];
   }
 
-  ACCEPT_LOG << "checking function " << func->getName() << "\n";
+  std::stringstream prefixStream;
+  std::stringstream postfixStream;
+  std::map< int, std::vector<std::string> > blockerEntries;
+
+  // The filename is set to the end of the alphanumerical order by default.
+  std::string fileName = alphaNumLast;
+  int lineNumber = 0;
+
+  prefixStream << "-----\nchecking function _" << func->getName().str() << "\n";
 
   // LLVM's own nominal purity analysis.
   if (func->onlyReadsMemory()) {
-    ACCEPT_LOG << " - only reads memory\n";
+    prefixStream << " - only reads memory\n";
+    lineNumber = -1;
+    addFuncDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
     functionPurity[func] = true;
     return true;
   }
 
   // Whitelisted pure functions from standard libraries.
   if (func->empty() && isWhitelistedPure(func->getName())) {
-      ACCEPT_LOG << " - whitelisted\n";
-      functionPurity[func] = true;
-      return true;
+    prefixStream << " - whitelisted\n";
+    lineNumber = -2;
+    addFuncDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
+    functionPurity[func] = true;
+    return true;
   }
 
   // Empty functions (those for which we don't have a definition) are
   // conservatively marked non-pure.
   if (func->empty()) {
-    ACCEPT_LOG << " - definition not available\n";
+    prefixStream << " - definition not available\n";
+    lineNumber = -3;
+    addFuncDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
     functionPurity[func] = false;
     return false;
   }
@@ -664,17 +751,40 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   }
   std::set<Instruction*> blockers = preciseEscapeCheck(blocks);
 
-  ACCEPT_LOG << " - blockers: " << blockers.size() << "\n";
+  // Descriptions of functions with zero blockers will be ordered relative to
+  // one another in the same order that the descriptions were generated.
+  definedFunctions++;
+  lineNumber = definedFunctions;
+
+  prefixStream << " - blockers: " << blockers.size() << "\n";
   for (std::set<Instruction*>::iterator i = blockers.begin();
         i != blockers.end(); ++i) {
-    ACCEPT_LOG << "   * " << instDesc(*(func->getParent()), *i) << "\n";
+    std::string blockerEntry = instDesc(*(func->getParent()), *i);
+    int blockerLine = extractBlockerLine(blockerEntry);
+
+    if (i == blockers.begin()) {
+      std::string line;
+      std::string posDesc = srcPosDesc(*(func->getParent()), (*i)->getDebugLoc());
+      splitPosDesc(posDesc, fileName, line);
+      lineNumber = atoi(line.c_str());
+    }
+      
+    if (blockerEntries.count(blockerLine) == 0) {
+      blockerEntries[blockerLine] = std::vector<std::string>();
+    }
+
+    std::stringstream blockerStream;
+    blockerStream << "   * " << blockerEntry << "\n";
+    blockerEntries[blockerLine].push_back(blockerStream.str());
   }
   if (blockers.empty()) {
-    ACCEPT_LOG << " - precise-pure function: " << func->getName() << "\n";
+    postfixStream << " - precise-pure function: _" << func->getName().str() << "\n";
+    addFuncDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
   } else {
-    ACCEPT_LOG << " - precise-impure function: " << func->getName() << "\n";
+    postfixStream << " - precise-impure function: _" << func->getName().str() << "\n";
+    addFuncDesc(true, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
   }
-
+ 
   functionPurity[func] = blockers.empty();
   return blockers.empty();
 }

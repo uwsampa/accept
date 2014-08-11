@@ -5,6 +5,8 @@
 #include "llvm/Module.h"
 
 #include <sstream>
+#include <cstdlib>
+#include <string>
 
 #define ACCEPT_LOG ACCEPT_LOG_(AI)
 
@@ -46,28 +48,54 @@ namespace {
                               layout.getPointerSizeInBits());
     }
 
+    // This function adds a loop description to descTable.
+    void addLoopDesc(
+        const bool hasBlockers,
+        const std::string fileName,
+        const int lineNumber,
+        const std::string prefix,
+        const std::string postfix,
+        const std::map< int, std::vector<std::string> > blockerEntries) {
+      Location loc("Loop", hasBlockers, fileName, lineNumber);
+      if (AI->descTable.count(loc) == 0) {
+        AI->descTable[loc] = std::vector<Description>();
+      }
+
+      Description loopDesc(prefix, postfix, blockerEntries);
+      AI->descTable[loc].push_back(loopDesc);
+    }
+
     // Assess whether a loop can be optimized and, if so, log some messages and
     // update the configuration map. If optimization is turned on, the
     // configuration map will be used to actually transform the loop. Returns a
     // boolean indicating whether the code was changed (i.e., the loop
     // perforated).
     bool tryToOptimizeLoop(Loop *loop) {
+      std::stringstream prefixStream;
+      std::stringstream postfixStream;
+      std::map< int, std::vector<std::string> > blockerEntries;
+
+      std::string posDesc = srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc());
+      std::string fileName, line;
+      splitPosDesc(posDesc, fileName, line);
+      int lineNumber = atoi(line.c_str());
+
+      std::stringstream ss;
+      ss << "-----\nloop at " << posDesc;
+      std::string loopName = ss.str();
+
+      prefixStream << loopName << "\n";
+
       Instruction *inst = loop->getHeader()->begin();
       Function *func = inst->getParent()->getParent();
       std::string funcName = func->getName().str();
 
-      ACCEPT_LOG << "---\nloop within function " << funcName << "\n";
-
-      std::stringstream ss;
-      ss << "loop at "
-         << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc());
-      std::string loopName = ss.str();
-
-      ACCEPT_LOG << loopName << "\n";
+      prefixStream << "within function _" << funcName << "\n";
 
       // Look for ACCEPT_FORBID marker.
       if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {
-        ACCEPT_LOG << "optimization forbidden\n";
+        prefixStream << "optimization forbidden\n";
+        addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
         return false;
       }
 
@@ -75,13 +103,15 @@ namespace {
       // latch (increment, in "for"), and a preheader (initialization).
       if (!loop->getHeader() || !loop->getLoopLatch()
           || !loop->getLoopPreheader()) {
-        ACCEPT_LOG << "loop not in perforatable form\n";
+        prefixStream << "loop not in perforatable form\n";
+        addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
         return false;
       }
 
       // Skip array constructor loops manufactured by Clang.
       if (loop->getHeader()->getName().startswith("arrayctor.loop")) {
-        ACCEPT_LOG << "array constructor\n";
+        prefixStream << "array constructor\n";
+        addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
         return false;
       }
 
@@ -90,7 +120,8 @@ namespace {
           && loop->getHeader() != loop->getLoopLatch()) {
         BasicBlock *latch = loop->getLoopLatch();
         if (&(latch->front()) == &(latch->back())) {
-          ACCEPT_LOG << "empty body\n";
+          prefixStream << "empty body\n";
+          addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
           return false;
         }
       }
@@ -106,21 +137,23 @@ namespace {
       // Determine whether this is a for-like or while-like loop. This informs
       // the heuristic that determines which parts of the loop to perforate.
       bool isForLike = false;
-      if (loop->getHeader()->getName().startswith("for.cond") || loop->getLoopLatch() != NULL) {
-        ACCEPT_LOG << "for-like loop\n";
+      if (loop->getHeader()->getName().startswith("for.cond")) {
+        prefixStream << "for-like loop\n";
         isForLike = true;
       } else {
-        ACCEPT_LOG << "while-like loop\n";
+        prefixStream << "while-like loop\n";
       }
 
       if (transformPass->relax) {
         int param = transformPass->relaxConfig[loopName];
         if (param) {
-          ACCEPT_LOG << "perforating with factor 2^" << param << "\n";
+          prefixStream << "perforating with factor 2^" << param << "\n";
           perforateLoop(loop, param, isForLike);
+          addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
           return true;
         } else {
-          ACCEPT_LOG << "not perforating\n";
+          prefixStream << "not perforating\n";
+          addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
           return false;
         }
       }
@@ -142,7 +175,8 @@ namespace {
         bodyBlocks.insert(*bi);
       }
       if (bodyBlocks.empty()) {
-        ACCEPT_LOG << "empty body\n";
+        prefixStream << "empty body\n";
+        addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
         return false;
       }
 
@@ -151,23 +185,37 @@ namespace {
       for (std::set<BasicBlock*>::iterator i = bodyBlocks.begin();
             i != bodyBlocks.end(); ++i) {
         if (loop->isLoopExiting(*i)) {
-          ACCEPT_LOG << "contains loop exit\n";
-          ACCEPT_LOG << "cannot perforate loop\n";
+          prefixStream << "contains loop exit\n";
+          prefixStream << "cannot perforate loop\n";
+          addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
           return false;
         }
       }
 
       // Check whether the body of this loop is elidable (precise-pure).
       std::set<Instruction*> blockers = AI->preciseEscapeCheck(bodyBlocks);
-      ACCEPT_LOG << "blockers: " << blockers.size() << "\n";
+      prefixStream << "blockers: " << blockers.size() << "\n";
       for (std::set<Instruction*>::iterator i = blockers.begin();
             i != blockers.end(); ++i) {
-        ACCEPT_LOG << " * " << instDesc(*module, *i) << "\n";
+        std::string blockerEntry = instDesc(*module, *i);
+        int blockerLine = extractBlockerLine(blockerEntry);
+
+        if (blockerEntries.count(blockerLine) == 0) {
+          blockerEntries[blockerLine] = std::vector<std::string>();
+        }
+
+        std::stringstream blockerStream;
+        blockerStream << " * " << blockerEntry << "\n";
+        blockerEntries[blockerLine].push_back(blockerStream.str());
       }
 
       if (!blockers.size()) {
-        ACCEPT_LOG << "can perforate loop\n";
+        postfixStream << "can perforate loop\n";
         transformPass->relaxConfig[loopName] = 0;
+        addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
+      } else {
+        postfixStream << "cannot perforate loop\n";
+        addLoopDesc(true, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
       }
 
       return false;
