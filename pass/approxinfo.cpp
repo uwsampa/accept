@@ -693,20 +693,17 @@ void printFunctions(Module &mod) {
   std::cout << "At least this function was called..." << std::endl;
   NamedMDNode *namedMD = mod.getNamedMetadata("llvm.dbg.cu");
   for (unsigned i = 0, e = namedMD->getNumOperands(); i != e; ++i) {
-    MDNode *mdnode = namedMD->getOperand(i);
-    DIDescriptor diDesc(mdnode);
-    if (!diDesc.isSubprogram()) {
-      std::cout << "The description is not a subprogram." << std::endl;
-      continue;
+    DICompileUnit cu(namedMD->getOperand(i));
+    DIArray subps = cu.getSubprograms();
+    for (unsigned j = 0, je = subps.getNumElements(); j != je; ++j) {
+      DISubprogram subProg(subps.getElement(j));
+      unsigned line = subProg.getLineNumber();
+      StringRef dir = subProg.getDirectory();
+      StringRef file = subProg.getFilename();
+      std::cout << "Function name: "  << subProg.getName().str()
+                << " at line "
+                << line << " in " << dir.str() << file.str() << "\n";
     }
-    std::cout << "The description is a subprogram." << std::endl;
-    DISubprogram subProg(mdnode);
-    unsigned line = subProg.getLineNumber();
-    StringRef dir = subProg.getDirectory();
-    StringRef file = subProg.getFilename();
-    std::cout << "Function name: "  << subProg.getName().str()
-              << " at line "
-              << line << " in " << dir.str() << file.str() << "\n";
   }
 }
 
