@@ -78,7 +78,7 @@ std::string llvm::instDesc(const Module &mod, Instruction *inst) {
       ss << "store to intermediate:";
       inst->print(ss);
     } else if (name.front() == '_') {
-      ss << "store to _" << ptr->getName().data();
+      ss << "store to " << ptr->getName().data();
     } else {
       ss << "store to " << ptr->getName().data();
     }
@@ -235,10 +235,6 @@ cl::opt<bool, true> acceptLogEnabledOpt("accept-log",
 
 ApproxInfo::ApproxInfo() : FunctionPass(ID) {
   std::string error;
-  alphaNumLast = "alphaNumLast";
-  for (size_t ch = 0; ch < alphaNumLast.length(); ch++) {
-    alphaNumLast[ch] = 255;
-  }
   definedFunctions = 0;
   logEnabled = acceptLogEnabled;
   if (logEnabled) {
@@ -693,6 +689,27 @@ void ApproxInfo::addFuncDesc(
   descTable[loc].push_back(funcDesc);
 }
 
+void printFunctions(Module &mod) {
+  std::cout << "At least this function was called..." << std::endl;
+  NamedMDNode *namedMD = mod.getNamedMetadata("llvm.dbg.cu");
+  for (unsigned i = 0, e = namedMD->getNumOperands(); i != e; ++i) {
+    MDNode *mdnode = namedMD->getOperand(i);
+    DIDescriptor diDesc(mdnode);
+    if (!diDesc.isSubprogram()) {
+      std::cout << "The description is not a subprogram." << std::endl;
+      continue;
+    }
+    std::cout << "The description is a subprogram." << std::endl;
+    DISubprogram subProg(mdnode);
+    unsigned line = subProg.getLineNumber();
+    StringRef dir = subProg.getDirectory();
+    StringRef file = subProg.getFilename();
+    std::cout << "Function name: "  << subProg.getName().str()
+              << " at line "
+              << line << " in " << dir.str() << file.str() << "\n";
+  }
+}
+
 // Determine whether a function can only affect approximate memory (i.e., no
 // precise stores escape).
 bool ApproxInfo::isPrecisePure(Function *func) {
@@ -707,11 +724,10 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   std::stringstream postfixStream;
   std::map< int, std::vector<std::string> > blockerEntries;
 
-  // The filename is set to the end of the alphanumerical order by default.
-  std::string fileName = alphaNumLast;
+  std::string fileName = "";
   int lineNumber = 0;
 
-  prefixStream << "-----\nchecking function _" << func->getName().str() << "\n";
+  prefixStream << "-----\nchecking function " << func->getName().str() << "\n";
 
   // LLVM's own nominal purity analysis.
   if (func->onlyReadsMemory()) {
@@ -767,6 +783,7 @@ bool ApproxInfo::isPrecisePure(Function *func) {
       std::string posDesc = srcPosDesc(*(func->getParent()), (*i)->getDebugLoc());
       splitPosDesc(posDesc, fileName, line);
       lineNumber = atoi(line.c_str());
+      printFunctions(*(func->getParent()));
     }
       
     if (blockerEntries.count(blockerLine) == 0) {
@@ -778,10 +795,10 @@ bool ApproxInfo::isPrecisePure(Function *func) {
     blockerEntries[blockerLine].push_back(blockerStream.str());
   }
   if (blockers.empty()) {
-    postfixStream << " - precise-pure function: _" << func->getName().str() << "\n";
+    postfixStream << " - precise-pure function: " << func->getName().str() << "\n";
     addFuncDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
   } else {
-    postfixStream << " - precise-impure function: _" << func->getName().str() << "\n";
+    postfixStream << " - precise-impure function: " << func->getName().str() << "\n";
     addFuncDesc(true, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
   }
  

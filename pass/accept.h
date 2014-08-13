@@ -90,7 +90,13 @@ class cmpLocation {
       } else if (a.hasBlockers != b.hasBlockers) {
         return (a.hasBlockers && !b.hasBlockers);
       } else if (a.fileName != b.fileName) {
-        return (a.fileName < b.fileName);
+        if ((a.fileName == "") && (b.fileName != "")) {
+          return false;
+        } else if ((a.fileName != "") && (b.fileName == "")) {
+          return true;
+        } else {
+          return (a.fileName < b.fileName);
+        }
       } else {
         return (a.lineNumber < b.lineNumber);
       }
@@ -126,7 +132,6 @@ class ApproxInfo : public llvm::FunctionPass {
 public:
   static char ID;
   int definedFunctions;
-  std::string alphaNumLast;
   std::map<Location, std::vector<Description>, cmpLocation> descTable;
   ApproxInfo();
   virtual ~ApproxInfo();

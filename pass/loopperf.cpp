@@ -90,7 +90,7 @@ namespace {
       Function *func = inst->getParent()->getParent();
       std::string funcName = func->getName().str();
 
-      prefixStream << "within function _" << funcName << "\n";
+      prefixStream << "within function " << funcName << "\n";
 
       // Look for ACCEPT_FORBID marker.
       if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {
