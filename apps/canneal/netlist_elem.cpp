@@ -77,7 +77,7 @@ APPROX routing_cost_t netlist_elem::swap_cost(location_t* old_loc, location_t* n
 {
 	APPROX routing_cost_t no_swap = 0;
 	APPROX routing_cost_t yes_swap = 0;
-	
+
 	for (int i = 0; i< fanin.size(); ++i){
 		location_t* fanin_loc = fanin[i]->present_loc.Get();
 		no_swap += fabs(old_loc->x - fanin_loc->x);
@@ -86,7 +86,7 @@ APPROX routing_cost_t netlist_elem::swap_cost(location_t* old_loc, location_t* n
 		yes_swap += fabs(new_loc->x - fanin_loc->x);
 		yes_swap += fabs(new_loc->y - fanin_loc->y);
 	}
-	
+
 	for (int i = 0; i< fanout.size(); ++i){
 		location_t* fanout_loc = fanout[i]->present_loc.Get();
 		no_swap += fabs(old_loc->x - fanout_loc->x);
@@ -95,7 +95,7 @@ APPROX routing_cost_t netlist_elem::swap_cost(location_t* old_loc, location_t* n
 		yes_swap += fabs(new_loc->x - fanout_loc->x);
 		yes_swap += fabs(new_loc->y - fanout_loc->y);
 	}
-	
+
 	return yes_swap - no_swap;
 }
 

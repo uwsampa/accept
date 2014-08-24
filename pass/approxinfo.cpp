@@ -10,7 +10,7 @@
 #include <fstream>
 #include <sstream>
 #include <cctype>
-#include <iostream>
+#include <utility>
 
 #define ACCEPT_LOG ACCEPT_LOG_(this)
 
@@ -64,7 +64,7 @@ std::string llvm::instDesc(const Module &mod, Instruction *inst) {
       if (!name.empty() && name.front() == '_') {
         // C++ name. An extra leading underscore makes the name legible by
         // c++filt.
-        ss << "call to _" << name;
+        ss << "call to " << name;
       } else {
         ss << "call to " << name << "()";
       }
@@ -235,7 +235,6 @@ cl::opt<bool, true> acceptLogEnabledOpt("accept-log",
 
 ApproxInfo::ApproxInfo() : FunctionPass(ID) {
   std::string error;
-  definedFunctions = 0;
   logEnabled = acceptLogEnabled;
   if (logEnabled) {
     logFile = new raw_fd_ostream("accept_log.txt", error);
@@ -246,6 +245,7 @@ ApproxInfo::~ApproxInfo() {
   if (logEnabled) {
     int numKind = 0;
     std::string prevKind;
+    bool prevHasBlockers;
     for (std::map<Location, std::vector<Description>, cmpLocation>::iterator i = descTable.begin();
         i != descTable.end(); i++) {
       std::string newKind = i->first.kind;
@@ -270,12 +270,18 @@ ApproxInfo::~ApproxInfo() {
           ACCEPT_LOG << "ANALYZING " << newKind << "S FOR PRECISE-PURITY:\n";
         }
       }
+
+      bool newHasBlockers = i->first.hasBlockers;
+      if ((newKind == prevKind) && (newHasBlockers != prevHasBlockers)) {
+        ACCEPT_LOG << "-----";
+      }      
+      prevHasBlockers = newHasBlockers;
       prevKind = newKind;
 
       std::vector<Description> descVector = i->second;
       for (std::vector<Description>::iterator j = descVector.begin();
           j != descVector.end(); j++) {
-        ACCEPT_LOG << j->prefix;
+        ACCEPT_LOG << "-----\n" << j->prefix;
 
         std::map< int, std::vector<std::string> > blockers = j->blockers;
         for (std::map< int, std::vector<std::string> >::iterator k = blockers.begin();
@@ -291,8 +297,6 @@ ApproxInfo::~ApproxInfo() {
       }
     }
 
-    //ACCEPT_LOG << "\n\nANALYZING LOOP BODIES FOR PERFORABILITY:\n";
-
     logFile->close();
     delete logFile;
   }
@@ -303,6 +307,7 @@ bool ApproxInfo::runOnFunction(Function &F) {
 }
 
 bool ApproxInfo::doInitialization(Module &M) {
+  findFunctionLocs(M);
   // Analyze the purity of each function in the module up-front.
   for (Module::iterator i = M.begin(); i != M.end(); ++i) {
     isPrecisePure(&*i);
@@ -689,24 +694,19 @@ void ApproxInfo::addFuncDesc(
   descTable[loc].push_back(funcDesc);
 }
 
-void printFunctions(Module &mod) {
-  std::cout << "At least this function was called..." << std::endl;
+// This function finds the file name and line number of each function.
+void ApproxInfo::findFunctionLocs(Module &mod) {
   NamedMDNode *namedMD = mod.getNamedMetadata("llvm.dbg.cu");
   for (unsigned i = 0, e = namedMD->getNumOperands(); i != e; ++i) {
-    MDNode *mdnode = namedMD->getOperand(i);
-    DIDescriptor diDesc(mdnode);
-    if (!diDesc.isSubprogram()) {
-      std::cout << "The description is not a subprogram." << std::endl;
-      continue;
+    DICompileUnit cu(namedMD->getOperand(i));
+    DIArray subps = cu.getSubprograms();
+    for (unsigned j = 0, je = subps.getNumElements(); j != je; ++j) {
+      DISubprogram subProg(subps.getElement(j));
+      std::string fileName = subProg.getFilename().str();
+      int lineNumber = (int) subProg.getLineNumber();
+      std::pair<std::string, int> functionLoc(fileName, lineNumber);
+      functionLocs[subProg.getFunction()] = functionLoc;
     }
-    std::cout << "The description is a subprogram." << std::endl;
-    DISubprogram subProg(mdnode);
-    unsigned line = subProg.getLineNumber();
-    StringRef dir = subProg.getDirectory();
-    StringRef file = subProg.getFilename();
-    std::cout << "Function name: "  << subProg.getName().str()
-              << " at line "
-              << line << " in " << dir.str() << file.str() << "\n";
   }
 }
 
@@ -727,7 +727,16 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   std::string fileName = "";
   int lineNumber = 0;
 
-  prefixStream << "-----\nchecking function " << func->getName().str() << "\n";
+  if (functionLocs.count(func)) {
+    fileName = functionLocs[func].first;
+    lineNumber = functionLocs[func].second;
+  }
+
+  prefixStream << "checking function " << func->getName().str();
+  if (functionLocs.count(func)) {
+    prefixStream << " at " << fileName << ":" << lineNumber;
+  }
+  prefixStream << "\n";
 
   // LLVM's own nominal purity analysis.
   if (func->onlyReadsMemory()) {
@@ -767,24 +776,11 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   }
   std::set<Instruction*> blockers = preciseEscapeCheck(blocks);
 
-  // Descriptions of functions with zero blockers will be ordered relative to
-  // one another in the same order that the descriptions were generated.
-  definedFunctions++;
-  lineNumber = definedFunctions;
-
   prefixStream << " - blockers: " << blockers.size() << "\n";
   for (std::set<Instruction*>::iterator i = blockers.begin();
         i != blockers.end(); ++i) {
     std::string blockerEntry = instDesc(*(func->getParent()), *i);
     int blockerLine = extractBlockerLine(blockerEntry);
-
-    if (i == blockers.begin()) {
-      std::string line;
-      std::string posDesc = srcPosDesc(*(func->getParent()), (*i)->getDebugLoc());
-      splitPosDesc(posDesc, fileName, line);
-      lineNumber = atoi(line.c_str());
-      printFunctions(*(func->getParent()));
-    }
       
     if (blockerEntries.count(blockerLine) == 0) {
       blockerEntries[blockerLine] = std::vector<std::string>();

@@ -7,6 +7,7 @@
 #include <sstream>
 #include <cstdlib>
 #include <string>
+#include <algorithm>
 
 #define ACCEPT_LOG ACCEPT_LOG_(AI)
 
@@ -64,7 +65,7 @@ namespace {
       Description loopDesc(prefix, postfix, blockerEntries);
       AI->descTable[loc].push_back(loopDesc);
     }
-
+      
     // Assess whether a loop can be optimized and, if so, log some messages and
     // update the configuration map. If optimization is turned on, the
     // configuration map will be used to actually transform the loop. Returns a
@@ -81,7 +82,7 @@ namespace {
       int lineNumber = atoi(line.c_str());
 
       std::stringstream ss;
-      ss << "-----\nloop at " << posDesc;
+      ss << "loop at " << posDesc;
       std::string loopName = ss.str();
 
       prefixStream << loopName << "\n";
@@ -221,6 +222,58 @@ namespace {
       return false;
     }
 
+    // This function slices the pointer operand of an instruction to determine
+    // which other instructions need to be preserved.
+    void slicePointerOperand(StoreInst *SI, Loop *loop, std::set<Instruction *> &insts, std::set<Instruction *> &preserved) {        
+      if (Instruction *inst = dyn_cast<Instruction>(SI->getPointerOperand())) {
+        preserved.insert(inst);
+        for (Instruction::op_iterator i = inst->op_begin(); i != inst->op_end(); i++) {
+          Instruction *tmp = dyn_cast<Instruction>(*i);
+          if (tmp && insts.count(tmp)) {
+            preserved.insert(tmp);
+            slicePointerOperandHelper(tmp, loop, insts, preserved);
+          }
+        }
+      }
+    }
+
+    // This function is a helper function for the slicePointerOperand function.
+    void slicePointerOperandHelper(Instruction *inst, Loop *loop, std::set<Instruction *> &insts, std::set<Instruction *> &preserved) {        
+      BasicBlock *bodyBlock = inst->getParent();
+
+      if (LoadInst *LI = dyn_cast<LoadInst>(inst)) {
+        BasicBlock::reverse_iterator revInstItr = std::find(bodyBlock->rbegin(), bodyBlock->rend(), *inst);
+        for (BasicBlock::reverse_iterator i = revInstItr; i != bodyBlock->rend(); i++) {
+          StoreInst *SI = dyn_cast<StoreInst>(i);
+          if (SI && (SI->getPointerOperand() == LI->getPointerOperand())) {
+            preserved.insert(SI);
+            slicePointerOperandHelper(SI, loop, insts, preserved);
+            return;
+          }
+        }
+        typedef typename std::vector<BlockT *>::const_reverse_iterator reverse_block_iterator;
+        reverse_block_iterator revBlkItr = std::find(loop->getBlocks().rbegin(), loop->getBlocks().rend(), *bodyBlock);
+        for (reverse_block_iterator i = revBlkItr; i != loop->getBlocks().rend(); i++) {
+          for (BasicBlock::reverse_iterator j = i->rbegin(); j != i->rend(); j++) {
+            StoreInst *SI = dyn_cast<StoreInst>(j);
+            if (SI && (SI->getPointerOperand() == LI->getPointerOperand())) {
+              preserved.insert(SI);
+              slicePointerOperandHelper(SI, loop, insts, preserved);
+              return;
+            }
+          }
+        }
+      } else {
+        for (Instruction::op_iterator i = inst->op_begin(); i != inst->op_end(); i++) {
+          Instruction *tmp = dyn_cast<Instruction>(*i);
+          if (tmp && insts.count(tmp)) {
+            preserved.insert(tmp);
+            slicePointerOperandHelper(tmp, loop, insts, preserved);
+          }
+        }
+      }
+    }
+
     // Transform a loop to skip iterations.
     // The loop should already be validated as perforatable, but checks will be
     // performed nonetheless to ensure safety.
@@ -232,6 +285,7 @@ namespace {
         errs() << "malformed loop\n";
         return;
       }
+
       // Next, make sure the header (condition block) ends with a body/exit
       // conditional branch.
       BranchInst *condBranch = dyn_cast<BranchInst>(
@@ -247,8 +301,34 @@ namespace {
       } else if (condBranch->getSuccessor(1) == loop->getExitBlock()) {
         bodyBlock = condBranch->getSuccessor(0);
       } else {
-        errs() << "loop condition does not exit\n";
+        errs() << "loop condition does no exit\n";
         return;
+      }
+
+      // Accumulate the set of instructions in the loop body.
+      std::set<Instruction *> insts;
+      Loop::block_iterator bodyBlockItr = std::find(loop->block_begin(), loop->block_end(), *bodyBlock);
+      for (Loop::block_iterator bi = bodyBlockItr; bi != loop->block_end(); bi++) {
+        for (BasicBlock::iterator i = bi->begin(); i != bi->end(); i++) {
+          insts.insert(i);
+        }
+      }
+
+      // Accumulate the set of store instructions to preserve in the loop body.
+      std::set<StoreInst *> preservedStores;
+      for (std::set<Instruction *>::iterator i = insts.begin(); i != insts.end(); i++) {
+        if (StoreInst *SI = dyn_cast<StoreInst>(*i)) {
+          if (AI->storeEscapes(SI, insts)) {
+            preservedStores.insert(SI);
+          }
+        }
+      }
+
+      // Slice the pointer operand of each of the store instructions.
+      std::set<Instruction *> preserved;
+      for (std::set<StoreInst *>::iterator i = preservedStores.begin(); i != preservedStores.end(); i++) {
+        preserved.insert(*i);
+        slicePointerOperand(*i, loop, insts, preserved);
       }
 
       // Get the shortcut for the destination. In for-like loop perforation, we

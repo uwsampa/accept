@@ -69,12 +69,30 @@ void instructionsBetween(Instruction *start, Instruction *end,
   }
 }
 
+// This function adds a synchronization description to descTable.
+void ACCEPTPass::addSyncDesc(
+    const bool hasBlockers,
+    const std::string fileName,
+    const int lineNumber,
+    const std::string prefix,
+    const std::string postfix,
+    const std::map< int, std::vector<std::string> > blockerEntries) {
+  Location loc("Synchronization", hasBlockers, fileName, lineNumber);
+  if (AI->descTable.count(loc) == 0) {
+    AI->descTable[loc] = std::vector<Description>();
+  }
+  
+  Description syncDesc(prefix, postfix, blockerEntries);
+  AI->descTable[loc].push_back(syncDesc);
+}
+
 // Given an acquire call or a barrier call, find all the instructions between
 // it and a corresponding release call or the next barrier. The instructions
 // in the critical section are collected into the set supplied. Returns the
 // release/next barrier instruction if one is found or NULL otherwise.
 Instruction *ACCEPTPass::findCritSec(Instruction *acq,
-                                     std::set<Instruction*> &cs) {
+                                     std::set<Instruction*> &cs,
+                                     std::string &outputString) {
   bool acquired = false;
   BasicBlock *bb = acq->getParent();
 
@@ -128,7 +146,7 @@ Instruction *ACCEPTPass::findCritSec(Instruction *acq,
   }
 
   if (rel == NULL) {
-    ACCEPT_LOG << "no matching sync found\n";
+    outputString = "no matching sync found\n";
     return NULL;
   }
 
@@ -136,10 +154,11 @@ Instruction *ACCEPTPass::findCritSec(Instruction *acq,
 }
 
 
-std::string ACCEPTPass::siteName(std::string kind, Instruction *at) {
+std::string ACCEPTPass::siteName(std::string kind, Instruction *at, std::string &fileName, std::string &line) {
   std::stringstream ss;
-  ss << kind << " at "
-     << srcPosDesc(*module, at->getDebugLoc());
+  std::string posDesc = srcPosDesc(*module, at->getDebugLoc());
+  splitPosDesc(posDesc, fileName, line);
+  ss << kind << " at " << posDesc;
   return ss.str();
 }
 
@@ -147,11 +166,22 @@ std::string ACCEPTPass::siteName(std::string kind, Instruction *at) {
 // Find the critical section beginning with an acquire (or barrier), check for
 // approximateness, and return the release (or next barrier). If the critical
 // section cannot be identified or is not approximate, return null.
-Instruction *ACCEPTPass::findApproxCritSec(Instruction *acq) {
+Instruction *ACCEPTPass::findApproxCritSec(
+    Instruction *acq,
+    std::string &prefix,
+    std::map< int, std::vector<std::string> > &blockerEntries,
+    bool &hasBlockers) {
+  std::stringstream prefixStream;
+  std::string critSecText;
+  prefixStream << prefix;
+
   // Find all the instructions between this acquire and the next release.
   std::set<Instruction*> critSec;
-  Instruction *rel = findCritSec(acq, critSec);
+  Instruction *rel = findCritSec(acq, critSec, critSecText);
+  prefixStream << critSecText;
   if (!rel) {
+    hasBlockers = false;
+    prefix = prefixStream.str();
     return NULL;
   }
 
@@ -160,35 +190,61 @@ Instruction *ACCEPTPass::findApproxCritSec(Instruction *acq) {
   blessed.insert(rel);
   critSec.insert(rel);
   std::set<Instruction*> blockers = AI->preciseEscapeCheck(critSec, &blessed);
-  ACCEPT_LOG << "blockers: " << blockers.size() << "\n";
+  prefixStream << "blockers: " << blockers.size() << "\n";
+  prefix = prefixStream.str();
   for (std::set<Instruction*>::iterator i = blockers.begin();
         i != blockers.end(); ++i) {
-    ACCEPT_LOG << " * " << instDesc(*module, *i) << "\n";
+    std::string blockerEntry = instDesc(*module, *i);
+    int blockerLine = extractBlockerLine(blockerEntry);
+
+    if (blockerEntries.count(blockerLine) == 0) {
+      blockerEntries[blockerLine] = std::vector<std::string>();
+    }
+
+    std::stringstream blockerStream;
+    blockerStream << " * " << blockerEntry << "\n";
+    blockerEntries[blockerLine].push_back(blockerStream.str());
   }
   if (blockers.size()) {
+    hasBlockers = true;
     return NULL;
   }
 
+  hasBlockers = false;
   return rel;
 }
 
 
 bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
-  // Generate a name for this opportunity site.
-  std::string optName = siteName("lock acquire", acq);
-  ACCEPT_LOG << "---\n" << optName << "\n";
+  bool hasBlockers = false;
+  std::stringstream prefixStream, postfixStream;
+  std::string prefix, postfix;
+  std::map< int, std::vector<std::string> > blockerEntries;
 
-  Instruction *rel = findApproxCritSec(acq);
-  if (!rel)
+  std::string fileName, line;
+  std::string optName = siteName("lock acquire", acq, fileName, line);
+  int lineNumber = atoi(line.c_str());
+
+  // Generate a name for this opportunity site.
+  
+  prefixStream << optName << "\n";
+  prefix = prefixStream.str();
+
+  Instruction *rel = findApproxCritSec(acq, prefix, blockerEntries, hasBlockers);
+  if (!rel) {
+    addSyncDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
     return false;
+  }
 
   // Success.
-  ACCEPT_LOG << "can elide lock\n";
+  postfixStream << "can elide lock\n";
   if (relax) {
     int param = relaxConfig[optName];
     if (param) {
       // Remove the acquire and release calls.
-      ACCEPT_LOG << "eliding lock\n";
+      postfixStream << "eliding lock\n";
+      postfix = postfixStream.str();
+      addSyncDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
       acq->eraseFromParent();
       rel->eraseFromParent();
       return true;
@@ -196,31 +252,47 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
   } else {
     relaxConfig[optName] = 0;
   }
+  postfix = postfixStream.str();
+  addSyncDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
   return false;
 }
 
-
-
 bool ACCEPTPass::optimizeBarrier(Instruction *bar1) {
-  std::string optName = siteName("barrier", bar1);
-  ACCEPT_LOG << "---\n" << optName << "\n";
+  bool hasBlockers = false;
+  std::stringstream prefixStream, postfixStream;
+  std::string prefix, postfix;
+  std::map< int, std::vector<std::string> > blockerEntries;
 
-  if (!findApproxCritSec(bar1))
+  std::string fileName, line;
+  std::string optName = siteName("barrier", bar1, fileName, line);
+  int lineNumber = atoi(line.c_str());
+
+  prefixStream << optName << "\n";
+  prefix = prefixStream.str();
+
+  Instruction *rel = findApproxCritSec(bar1, prefix, blockerEntries, hasBlockers);
+  if (!rel) {
+    addSyncDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
     return false;
+  }
 
   // Success.
-  ACCEPT_LOG << "can elide barrier\n";
+  postfixStream << "can elide barrier\n";
   if (relax) {
     int param = relaxConfig[optName];
     if (param) {
       // Remove the first barrier.
-      ACCEPT_LOG << "eliding barrier wait\n";
+      postfixStream << "eliding barrier wait\n";
+      postfix = postfixStream.str();
       bar1->eraseFromParent();
+      addSyncDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
       return true;
     }
   } else {
     relaxConfig[optName] = 0;
   }
+  postfix = postfixStream.str();
+  addSyncDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
   return false;
 }
 

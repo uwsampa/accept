@@ -90,13 +90,7 @@ class cmpLocation {
       } else if (a.hasBlockers != b.hasBlockers) {
         return (a.hasBlockers && !b.hasBlockers);
       } else if (a.fileName != b.fileName) {
-        if ((a.fileName == "") && (b.fileName != "")) {
-          return false;
-        } else if ((a.fileName != "") && (b.fileName == "")) {
-          return true;
-        } else {
-          return (a.fileName < b.fileName);
-        }
+        return (a.fileName < b.fileName);
       } else {
         return (a.lineNumber < b.lineNumber);
       }
@@ -131,7 +125,7 @@ static int extractBlockerLine(const std::string instDesc) {
 class ApproxInfo : public llvm::FunctionPass {
 public:
   static char ID;
-  int definedFunctions;
+  std::map< llvm::Function*, std::pair<std::string, int> > functionLocs;
   std::map<Location, std::vector<Description>, cmpLocation> descTable;
   ApproxInfo();
   virtual ~ApproxInfo();
@@ -145,6 +139,7 @@ public:
       const std::map< int, std::vector<std::string> > blockerEntries);
 
   // Required FunctionPass interface.
+  virtual void findFunctionLocs(llvm::Module &mod);
   virtual bool doInitialization(llvm::Module &M);
   virtual bool runOnFunction(llvm::Function &F);
   virtual bool doFinalization(llvm::Module &M);
@@ -202,7 +197,7 @@ struct ACCEPTPass : public llvm::FunctionPass {
   virtual bool doFinalization(llvm::Module &M);
 
   bool shouldSkipFunc(llvm::Function &F);
-  std::string siteName(std::string kind, llvm::Instruction *at);
+  std::string siteName(std::string kind, llvm::Instruction *at, std::string &fileName, std::string &line);
 
   void collectFuncDebug(llvm::Module &M);
   void collectSubprogram(llvm::DISubprogram sp);
@@ -211,12 +206,22 @@ struct ACCEPTPass : public llvm::FunctionPass {
   void dumpRelaxConfig();
   void loadRelaxConfig();
 
+  void addSyncDesc(
+    const bool hasBlockers,
+    const std::string fileName,
+    const int lineNumber,
+    const std::string prefix,
+    const std::string postfix,
+    const std::map< int, std::vector<std::string> > blockerEntries);
   bool optimizeSync(llvm::Function &F);
   bool optimizeAcquire(llvm::Instruction *inst);
   bool optimizeBarrier(llvm::Instruction *bar1);
-  llvm::Instruction *findCritSec(llvm::Instruction *acq, std::set<llvm::Instruction*> &cs);
-  llvm::Instruction *findApproxCritSec(llvm::Instruction *acq);
-
+  llvm::Instruction *findCritSec(llvm::Instruction *acq, std::set<llvm::Instruction*> &cs, std::string &outputString);
+  llvm::Instruction *findApproxCritSec(
+      llvm::Instruction *acq,
+      std::string &prefix,
+      std::map< int, std::vector<std::string> > &blockerEntries,
+      bool &hasBlockers);
   bool nullifyApprox(llvm::Function &F);
 };
 

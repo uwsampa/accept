@@ -17,8 +17,9 @@ int main(void) {
 
     accept_roi_begin();
 
-    for (i = 0; i < ITERS; ++i)
+    for (i = 0; i < ITERS; ++i) {
         x++;
+    }
 
     accept_roi_end();
 
