@@ -29,7 +29,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <enerc.h>
+#include "../../../include/enerc.h"
 
 #define  half 0.5
 #define  increment 0.0000005

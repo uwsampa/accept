@@ -238,7 +238,7 @@ namespace {
 
       // Look for ACCEPT_FORBID marker.
       if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {
-        prefixStream << "optimization forbidden\n";
+        prefixStream << " - optimization forbidden\n";
         prefix = prefixStream.str();
         addNPUDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
         return false;
@@ -246,7 +246,7 @@ namespace {
 
       // Skip array constructor loops manufactured by Clang.
       if (loop->getHeader()->getName().startswith("arrayctor.loop")) {
-        prefixStream << "array constructor\n";
+        prefixStream << " - array constructor\n";
         prefix = prefixStream.str();
         addNPUDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
         return false;
@@ -270,7 +270,7 @@ namespace {
           Function *callee = c_inst->getCalledFunction();
 
           if (c_inst->isInlineAsm()) {
-            prefixStream << "has inline assembly\n";
+            prefixStream << " - has inline assembly\n";
             prefix = prefixStream.str();
             addNPUDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
             return false;
@@ -279,27 +279,27 @@ namespace {
           bool hasInlineAsm = false;
           //testSubFunctions(callee, loop, hasInlineAsm);
           if (hasInlineAsm) {
-            prefixStream << "function has inline assembly\n";
+            prefixStream << " - function has inline assembly\n";
             prefix = prefixStream.str();
             addNPUDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
             return false;
           }
 
           if (!isa<IntrinsicInst>(inst) && !AI->isWhitelistedPure(callee->getName()) && AI->isPrecisePure(callee)) {
-            prefixStream << callee->getName().str() << " is precise-pure\n";
+            prefixStream << " - " << callee->getName().str() << " is precise-pure\n";
             if (!find_inst(inst)) {
               loops_to_npu.push_back(loop);
               calls_to_npu.push_back(inst);
             }
           } else {
-            prefixStream << callee->getName().str() << " is not precise-pure\n";
+            prefixStream << " - " << callee->getName().str() << " is not precise-pure\n";
           }
 
         } // for instructions
 
       } // for basic blocks
 
-      prefixStream << "calls: " << calls_to_npu.size() << "\n";
+      prefixStream << " - calls: " << calls_to_npu.size() << "\n";
       prefix = prefixStream.str();
       for (int i = 0; i < calls_to_npu.size(); ++i) {
         // std::cerr << "Calls to npu size: " << calls_to_npu.size() << std::endl;
@@ -591,7 +591,7 @@ namespace {
     // We need a loop latch to jump to after reading oBuff
     // and executing the instructions after the function call.
     if (!loop->getLoopLatch() || !loop->getLoopPreheader() || !loop->getHeader()) {
-      prefixStream << "malformed loop\n";
+      prefixStream << " - malformed loop\n";
       prefix = prefixStream.str();
       return false;
     }
@@ -599,7 +599,7 @@ namespace {
     if (!inst->getType()->isIntegerTy() &&
         !inst->getType()->isVoidTy() &&
         !inst->getType()->isFloatTy()) {
-      prefixStream << "call's return type is not int, void, or FP\n";
+      prefixStream << " - call's return type is not int, void, or FP\n";
       prefix = prefixStream.str();
       return false;
     }
@@ -610,7 +610,7 @@ namespace {
     std::vector<StoreInst*> st_inst;
     if (pre_pos_call_dependency_check(inst, loop, before_insts_tobuff, st_value, st_addr, st_inst)) {
       // std::cerr << "BOSTA" << std::endl;
-      prefixStream << "dependency check failed\n";
+      prefixStream << " - dependency check failed\n";
       prefix = prefixStream.str();
       return false;
     }
@@ -631,7 +631,7 @@ namespace {
       // be executed and whether it would write to the same address
       // or not in order to know how much buffer space we need.
       if (in_loop) {
-        prefixStream << "escaping store in loop";
+        prefixStream << " - escaping store in loop";
         prefix = prefixStream.str();
         return false;
       }
@@ -854,14 +854,14 @@ namespace {
     if (transformPass->relax) {
       int param = transformPass->relaxConfig[optName];
       if (param) {
-        prefixStream << "NPUifying region\n";
+        prefixStream << " - NPUifying region\n";
       } else {
-        prefixStream << "could NPUify region\n";
+        prefixStream << " - could NPUify region\n";
         prefix = prefixStream.str();
         return false;
       }
     } else {
-      prefixStream << "can NPUify region\n";
+      prefixStream << " - can NPUify region\n";
       prefix = prefixStream.str();
       transformPass->relaxConfig[optName] = 0;
       return false;
@@ -869,7 +869,7 @@ namespace {
 
     // Assume a constant buffer size for now.
     int buffer_size = optNPUBufferSize;
-    prefixStream << "with buffer size: " << optNPUBufferSize << "\n";
+    prefixStream << " - with buffer size: " << optNPUBufferSize << "\n";
     unsigned int ibuff_addr = 0xFFFF0000;
     unsigned int obuff_addr = 0xFFFF8000;
     IntegerType *nativeInt = getNativeIntegerType();

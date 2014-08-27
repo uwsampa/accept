@@ -702,19 +702,19 @@ void ApproxInfo::findFunctionLocs(Module &mod) {
     DIArray subps = cu.getSubprograms();
     for (unsigned j = 0, je = subps.getNumElements(); j != je; ++j) {
       DISubprogram subProg(subps.getElement(j));
-<<<<<<< HEAD
+//<<<<<<< HEAD
       std::string fileName = subProg.getFilename().str();
       int lineNumber = (int) subProg.getLineNumber();
       std::pair<std::string, int> functionLoc(fileName, lineNumber);
       functionLocs[subProg.getFunction()] = functionLoc;
-=======
+//=======
       unsigned line = subProg.getLineNumber();
       StringRef dir = subProg.getDirectory();
       StringRef file = subProg.getFilename();
-      std::cout << "Function name: "  << subProg.getName().str()
-                << " at line "
-                << line << " in " << dir.str() << file.str() << "\n";
->>>>>>> a31fbf1133f620158da4c592f384259958d75126
+      //std::cout << "Function name: "  << subProg.getName().str()
+                //<< " at line "
+                //<< line << " in " << dir.str() << file.str() << "\n";
+//>>>>>>> a31fbf1133f620158da4c592f384259958d75126
     }
   }
 }

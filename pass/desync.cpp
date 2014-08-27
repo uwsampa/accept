@@ -146,7 +146,7 @@ Instruction *ACCEPTPass::findCritSec(Instruction *acq,
   }
 
   if (rel == NULL) {
-    outputString = "no matching sync found\n";
+    outputString = " - no matching sync found\n";
     return NULL;
   }
 
@@ -190,7 +190,7 @@ Instruction *ACCEPTPass::findApproxCritSec(
   blessed.insert(rel);
   critSec.insert(rel);
   std::set<Instruction*> blockers = AI->preciseEscapeCheck(critSec, &blessed);
-  prefixStream << "blockers: " << blockers.size() << "\n";
+  prefixStream << " - blockers: " << blockers.size() << "\n";
   prefix = prefixStream.str();
   for (std::set<Instruction*>::iterator i = blockers.begin();
         i != blockers.end(); ++i) {
@@ -202,7 +202,7 @@ Instruction *ACCEPTPass::findApproxCritSec(
     }
 
     std::stringstream blockerStream;
-    blockerStream << " * " << blockerEntry << "\n";
+    blockerStream << "    * " << blockerEntry << "\n";
     blockerEntries[blockerLine].push_back(blockerStream.str());
   }
   if (blockers.size()) {
@@ -237,12 +237,12 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
   }
 
   // Success.
-  postfixStream << "can elide lock\n";
+  postfixStream << " - can elide lock\n";
   if (relax) {
     int param = relaxConfig[optName];
     if (param) {
       // Remove the acquire and release calls.
-      postfixStream << "eliding lock\n";
+      postfixStream << " - eliding lock\n";
       postfix = postfixStream.str();
       addSyncDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
       acq->eraseFromParent();
@@ -277,12 +277,12 @@ bool ACCEPTPass::optimizeBarrier(Instruction *bar1) {
   }
 
   // Success.
-  postfixStream << "can elide barrier\n";
+  postfixStream << " - can elide barrier\n";
   if (relax) {
     int param = relaxConfig[optName];
     if (param) {
       // Remove the first barrier.
-      postfixStream << "eliding barrier wait\n";
+      postfixStream << " - eliding barrier wait\n";
       postfix = postfixStream.str();
       bar1->eraseFromParent();
       addSyncDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
