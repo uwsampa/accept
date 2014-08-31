@@ -226,26 +226,19 @@ namespace {
       return false;
     }
 
-    // This function slices the pointer operand of an instruction to determine
+    // This function slices the pointer operand of a store instruction to determine
     // which other instructions need to be preserved.
     void slicePointerOperand(StoreInst *SI, Loop *loop, std::set<Instruction *> &insts, std::set<Instruction *> &preserved) {        
       if (Instruction *inst = dyn_cast<Instruction>(SI->getPointerOperand())) {
         if (insts.count(inst)) {
           preserved.insert(inst);
-          for (Instruction::op_iterator i = inst->op_begin(); i != inst->op_end(); i++) {
-            if (Instruction *tmp = dyn_cast<Instruction>(*i)) {
-              if (insts.count(tmp)) {
-                preserved.insert(tmp);
-                slicePointerOperandHelper(tmp, loop, insts, preserved);
-              }
-            }
-          }
+          sliceOperandHelper(inst, loop, insts, preserved);
         }
       }
     }
 
-    // This function is a helper function for the slicePointerOperand function.
-    void slicePointerOperandHelper(Instruction *inst, Loop *loop, std::set<Instruction *> &insts, std::set<Instruction *> &preserved) {        
+    // This function is a helper function for slicing operands.
+    void sliceOperandHelper(Instruction *inst, Loop *loop, std::set<Instruction *> &insts, std::set<Instruction *> &preserved) {        
       BasicBlock *bodyBlock = inst->getParent();
 
       if (LoadInst *LI = dyn_cast<LoadInst>(inst)) {
@@ -260,7 +253,7 @@ namespace {
           if (StoreInst *SI = dyn_cast<StoreInst>(&*i)) {
             if (SI->getPointerOperand() == LI->getPointerOperand()) {
               preserved.insert(SI);
-              slicePointerOperandHelper(SI, loop, insts, preserved);
+              sliceOperandHelper(SI, loop, insts, preserved);
               return;
             }
           }
@@ -279,7 +272,7 @@ namespace {
             if (StoreInst *SI = dyn_cast<StoreInst>(&*j)) {
               if (SI->getPointerOperand() == LI->getPointerOperand()) {
                 preserved.insert(SI);
-                slicePointerOperandHelper(SI, loop, insts, preserved);
+                sliceOperandHelper(SI, loop, insts, preserved);
                 return;
               }
             }
@@ -290,7 +283,7 @@ namespace {
           if (Instruction *tmp = dyn_cast<Instruction>(*i)) {
             if (insts.count(tmp)) {
               preserved.insert(tmp);
-              slicePointerOperandHelper(tmp, loop, insts, preserved);
+              sliceOperandHelper(tmp, loop, insts, preserved);
             }
           }
         }
@@ -343,12 +336,6 @@ namespace {
         }
       }
 
-      for (std::set<Instruction *>::iterator i = insts.begin(); i != insts.end(); i++) {
-        (*i)->dump();
-      }
-
-      std::cout << std::endl;
-
       // Accumulate the set of store instructions to preserve in the loop body.
       std::set<StoreInst *> preservedStores;
       for (std::set<Instruction *>::iterator i = insts.begin(); i != insts.end(); i++) {
@@ -359,12 +346,6 @@ namespace {
         }
       }
 
-      for (std::set<StoreInst *>::iterator i = preservedStores.begin(); i != preservedStores.end(); i++) {
-        (*i)->dump();
-      }
-
-      std::cout << std::endl;
-
       // Slice the pointer operand of each of the store instructions.
       std::set<Instruction *> preserved;
       for (std::set<StoreInst *>::iterator i = preservedStores.begin(); i != preservedStores.end(); i++) {
@@ -372,76 +353,114 @@ namespace {
         slicePointerOperand(*i, loop, insts, preserved);
       }
 
-      // Print the preserved instructions.
-      for (std::set<Instruction *>::iterator i = preserved.begin(); i != preserved.end(); i++) {
-        (*i)->dump();
+      // Slice the condition of each of the branch instructions.
+      for (std::set<Instruction *>::iterator i = insts.begin(); i != insts.end(); i++) {
+        if (BranchInst *BI = dyn_cast<BranchInst>(*i)) {
+          preserved.insert(BI);
+          sliceOperandHelper(BI, loop, insts, preserved);
+        }
       }
 
-      std::cout << std::endl;
+      BasicBlock *preheaderBlock = loop->getLoopPreheader();
+      BasicBlock *latchBlock = loop->getLoopLatch();
 
       std::vector<BasicBlock *> blockClones;
       LoopBlocksDFS LoopBlocks(loop);
       LoopBlocks.perform(LI);
       ValueToValueMapTy VMap, LVMap;
 
-      CloneLoopBlocks(loop, true, loop->getLoopPreheader(), loop->getHeader(),
+      //bodyBlock->getParent()->dump();
+
+      CloneLoopBlocks(loop, true, loop->getLoopPreheader(), loop->getLoopLatch(),
           blockClones, LoopBlocks, VMap, LVMap, LI);
 
-      std::cout << "CloneLoopBlocks was called." << std::endl << std::endl;
-
-      /*
-      for (std::vector<BasicBlock *>::iterator i = blockClones.begin(); i != blockClones.end(); i++) {
-        for (BasicBlock::iterator j = (*i)->begin(); j != (*i)->end(); j++) {
-          j->dump();
-        }
-      }
-
-      std::cout << std::endl;
+      //bodyBlock->getParent()->dump();
 
       for (ValueToValueMapTy::iterator i = VMap.begin(); i != VMap.end(); i++) {
         if (Instruction *origInst = (Instruction *) dyn_cast<Instruction>(i->first)) {
           if (Instruction *clonedInst = dyn_cast<Instruction>(i->second)) {
             for (unsigned j = 0; j != clonedInst->getNumOperands(); j++) {
-              if (Instruction *inst = dyn_cast<Instruction>(clonedInst->getOperand(j))) {
-                if (VMap.count(origInst->getOperand(j))) {
-                  clonedInst->setOperand(j, VMap[origInst->getOperand(j)]);
-                }
+              if (VMap.count(origInst->getOperand(j))) {
+                clonedInst->setOperand(j, VMap[origInst->getOperand(j)]);
               }
             }
           }
         }
       }
 
-      for (std::vector<BasicBlock *>::iterator i = blockClones.begin(); i != blockClones.end(); i++) {
-        for (BasicBlock::iterator j = (*i)->begin(); j != (*i)->end(); j++) {
-          j->dump();
-        }
-      }
-
-      std::cout << std::endl;
+      //bodyBlock->getParent()->dump();
 
       std::set<Instruction *> removed;
+      BasicBlock *clonedHeader = NULL;
+      BasicBlock *clonedLatch = NULL;
 
       for (ValueToValueMapTy::iterator i = VMap.begin(); i != VMap.end(); i++) {
         if (Instruction *origInst = (Instruction *) dyn_cast<Instruction>(i->first)) {
           if (!preserved.count(origInst)) {
             if (Instruction *clonedInst = dyn_cast<Instruction>(i->second)) {
-              removed.insert(clonedInst);
+              if (origInst->getParent() == loop->getHeader()) {
+                if (!clonedHeader) {
+                  clonedHeader = clonedInst->getParent();
+                }
+              } else if (origInst->getParent() == loop->getLoopLatch()) {
+                if (!clonedLatch) {
+                  clonedLatch = clonedInst->getParent();
+                }
+              } else {
+                removed.insert(clonedInst);
+              }
             }
           }
         }
       }
 
-      for (std::set<Instruction *>::iterator i = removed.begin(); i != removed.end(); i++) {
-        (*i)->eraseFromParent();
+      BranchInst *clonedCondBranch = dyn_cast<BranchInst>(
+          clonedHeader->getTerminator()
+      );
+      BasicBlock *clonedBodyBlock;
+      if (clonedCondBranch->getSuccessor(0) == loop->getExitBlock()) {
+        clonedBodyBlock = clonedCondBranch->getSuccessor(1);
+      } else if (clonedCondBranch->getSuccessor(1) == loop->getExitBlock()) {
+        clonedBodyBlock = clonedCondBranch->getSuccessor(0);
       }
 
-      for (std::vector<BasicBlock *>::iterator i = blockClones.begin(); i != blockClones.end(); i++) {
-        for (BasicBlock::iterator j = (*i)->begin(); j != (*i)->end(); j++) {
-          j->dump();
+      BasicBlock *lastClonedBodyBlock = clonedLatch->getSinglePredecessor();
+      std::vector<BasicBlock *>::iterator findItr;
+
+      for (findItr = blockClones.begin(); findItr != blockClones.end(); findItr++) {
+        if (*findItr == clonedHeader) {
+          break;
         }
       }
-      */
+      blockClones.erase(findItr);
+      for (BasicBlock::iterator i = clonedHeader->begin(); i != clonedHeader->end(); i++) {
+        i->dropAllReferences();
+      }
+      clonedHeader->removeFromParent();
+
+      for (findItr = blockClones.begin(); findItr != blockClones.end(); findItr++) {
+        if (*findItr == clonedLatch) {
+          break;
+        }
+      }
+      blockClones.erase(findItr);
+      for (BasicBlock::iterator i = clonedLatch->begin(); i != clonedLatch->end(); i++) {
+        i->dropAllReferences();
+      }
+      clonedLatch->removeFromParent();
+
+      for (std::set<StoreInst *>::iterator i = preservedStores.begin(); i != preservedStores.end(); i++) {
+        if (StoreInst *clonedStore = dyn_cast<StoreInst>(VMap[*i])) {
+          clonedStore->setOperand(0, Constant::getNullValue((*i)->getValueOperand()->getType()));
+        }
+      }
+
+      for (std::set<Instruction *>::iterator i = removed.begin(); i != removed.end(); i++) {
+        (*i)->dropAllReferences();
+      }
+      for (std::set<Instruction *>::iterator i = removed.begin(); i != removed.end(); i++) {
+        (*i)->removeFromParent();
+      }
 
       // Get the shortcut for the destination. In for-like loop perforation, we
       // shortcut to the latch (increment block). In while-like perforation, we
@@ -452,6 +471,9 @@ namespace {
       } else {
         shortcutDest = loop->getHeader();
       }
+
+      // Change the preheader block to point to the condition block again.
+      preheaderBlock->getTerminator()->setSuccessor(0, condBranch->getParent());
 
       IRBuilder<> builder(module->getContext());
       Value *result;
@@ -471,8 +493,6 @@ namespace {
           0,
           "accept_counter"
       );
-
-      std::cout << "The AllocaInst was inserted." << std::endl << std::endl;
 
       // Initialize the counter in the preheader.
       builder.SetInsertPoint(loop->getLoopPreheader()->getTerminator());
@@ -496,8 +516,6 @@ namespace {
           result,
           counterAlloca
       );
-
-      std::cout << "The counter is incremented in the latch." << std::endl << std::endl;
 
       // Get the first body block.
 
@@ -526,28 +544,46 @@ namespace {
       result = builder.CreateCondBr(
           result,
           bodyBlock,
-          loop->getLoopLatch()
+          clonedBodyBlock
       );
-
-      std::cout << "All the instructions have now been added." << std::endl << std::endl;
 
       // Change the condition block to point to our new condition
       // instead of the body.
       condBranch->setSuccessor(0, checkBlock);
 
-      std::cout << "The successor has been set." << std::endl << std::endl;
-
-      // Add block to the loop structure.
+      // Add condition block to the loop structure.
       loop->addBasicBlockToLoop(checkBlock, LI->getBase());
 
-      std::cout << "The basic block has been added to the loop." << std::endl << std::endl;
+      // Change the last cloned body block to point to the increment block.
+      lastClonedBodyBlock->getTerminator()->setSuccessor(0, latchBlock);
 
-      /*
+      //bodyBlock->getParent()->dump();
+
+      //for (Loop::block_iterator j = loop->block_begin(); j != loop->block_end(); j++) {
+      //  (*j)->dump();
+      //}
+
+      // Add all cloned body blocks to the loop structure.
+      for (std::vector<BasicBlock *>::iterator i = blockClones.begin(); i != blockClones.end(); i++) {
+        if ((LI->getBase())[*i]) {
+          (LI->getBase()).changeLoopFor(*i, NULL);
+        }
+        std::cout << loop << " " << (LI->getBase())[*i] << std::endl;
+        loop->addBasicBlockToLoop(*i, LI->getBase());
+        std::cout << loop << " " << (LI->getBase())[*i] << std::endl;
+      }
+
+      for (Loop::block_iterator j = loop->block_begin(); j != loop->block_end(); j++) {
+        (*j)->dump();
+      }
+
+      bodyBlock->getParent()->dump();
+
       // Insert instructions to store and load values saved from evaluated iterations.
       int itrNum = 0;
       for (std::set<StoreInst *>::iterator i = preservedStores.begin(); i != preservedStores.end(); i++) {
         StoreInst *SI = *i;
-        Type *storeType = SI->getType();
+        Type *storeType = SI->getValueOperand()->getType();
 
         // Insert an AllocaInst for the saved value.
         builder.SetInsertPoint(
@@ -563,12 +599,13 @@ namespace {
         concat.str("");
 
         // Insert a StoreInst to store the saved value.
-        builder.SetInsertPoint(SI + 1);
+        builder.SetInsertPoint(SI);
+        result = SI->getValueOperand();
         builder.CreateStore(
-            SI->getValueOperand(),
+            result,
             valueAlloca
         );
-
+        
         // Insert a LoadInst to load the saved value.
         Instruction *clonedStore = (Instruction *) &*VMap[SI];
         builder.SetInsertPoint(clonedStore);
@@ -581,10 +618,10 @@ namespace {
 
         // Store the saved value to the output variable.
         clonedStore->setOperand(0, result);
-        
         itrNum++;
       }
-      */
+
+      //bodyBlock->getParent()->dump();
     }
   };
 }
