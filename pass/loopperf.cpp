@@ -557,10 +557,6 @@ namespace {
       // Change the last cloned body block to point to the increment block.
       lastClonedBodyBlock->getTerminator()->setSuccessor(0, latchBlock);
 
-      errs() << "*******\n";
-      bodyBlock->getParent()->dump();
-      errs() << "*******\n";
-
       //for (Loop::block_iterator j = loop->block_begin(); j != loop->block_end(); j++) {
       //  (*j)->dump();
       //}
