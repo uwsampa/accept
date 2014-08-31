@@ -557,7 +557,9 @@ namespace {
       // Change the last cloned body block to point to the increment block.
       lastClonedBodyBlock->getTerminator()->setSuccessor(0, latchBlock);
 
-      //bodyBlock->getParent()->dump();
+      errs() << "*******\n";
+      bodyBlock->getParent()->dump();
+      errs() << "*******\n";
 
       //for (Loop::block_iterator j = loop->block_begin(); j != loop->block_end(); j++) {
       //  (*j)->dump();
@@ -565,12 +567,12 @@ namespace {
 
       // Add all cloned body blocks to the loop structure.
       for (std::vector<BasicBlock *>::iterator i = blockClones.begin(); i != blockClones.end(); i++) {
-        if ((LI->getBase())[*i]) {
-          (LI->getBase()).changeLoopFor(*i, NULL);
+        if (const Loop *curLoop = (*LI)[*i]) {
+          errs() << "Block " << (*i)->getName() << " is already in a loop:\n"
+            << *curLoop << "...but we want it to be in:\n" << *loop;
+          LI->removeBlock(*i);
         }
-        std::cout << loop << " " << (LI->getBase())[*i] << std::endl;
         loop->addBasicBlockToLoop(*i, LI->getBase());
-        std::cout << loop << " " << (LI->getBase())[*i] << std::endl;
       }
 
       for (Loop::block_iterator j = loop->block_begin(); j != loop->block_end(); j++) {
