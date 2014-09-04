@@ -226,22 +226,11 @@ namespace {
       return false;
     }
 
-    // This function slices the pointer operand of a store instruction to determine
-    // which other instructions need to be preserved.
-    void slicePointerOperand(StoreInst *SI, Loop *loop, std::set<Instruction *> &insts, std::set<Instruction *> &preserved) {        
-      if (Instruction *inst = dyn_cast<Instruction>(SI->getPointerOperand())) {
-        if (insts.count(inst)) {
-          preserved.insert(inst);
-          sliceOperandHelper(inst, loop, insts, preserved);
-        }
-      }
-    }
-
-    // This function is a helper function for slicing operands.
-    void sliceOperandHelper(Instruction *inst, Loop *loop, std::set<Instruction *> &insts, std::set<Instruction *> &preserved) {        
-      BasicBlock *bodyBlock = inst->getParent();
-
+    // Find the most recent StoreInst in the loop that precedes the LoadInst and has the same pointer operand.
+    StoreInst *findMostRecentStoreInst(Instruction *inst, Loop *loop) {
       if (LoadInst *LI = dyn_cast<LoadInst>(inst)) {
+        BasicBlock *bodyBlock = inst->getParent();
+
         BasicBlock::InstListType::reverse_iterator revInstItr;
         for (BasicBlock::InstListType::reverse_iterator i = bodyBlock->getInstList().rbegin(); i != bodyBlock->getInstList().rend(); i++) {
           if (&*i == inst) {
@@ -252,9 +241,7 @@ namespace {
         for (BasicBlock::InstListType::reverse_iterator i = revInstItr; i != bodyBlock->getInstList().rend(); i++) {
           if (StoreInst *SI = dyn_cast<StoreInst>(&*i)) {
             if (SI->getPointerOperand() == LI->getPointerOperand()) {
-              preserved.insert(SI);
-              sliceOperandHelper(SI, loop, insts, preserved);
-              return;
+              return SI;
             }
           }
         }
@@ -271,12 +258,35 @@ namespace {
           for (BasicBlock::InstListType::reverse_iterator j = (*i)->getInstList().rbegin(); j != (*i)->getInstList().rend(); j++) {
             if (StoreInst *SI = dyn_cast<StoreInst>(&*j)) {
               if (SI->getPointerOperand() == LI->getPointerOperand()) {
-                preserved.insert(SI);
-                sliceOperandHelper(SI, loop, insts, preserved);
-                return;
+                return SI;
               }
             }
           }
+        }
+      }
+
+      return NULL;
+    }
+
+    // This function slices the pointer operand of a store instruction to determine
+    // which other instructions need to be preserved.
+    void slicePointerOperand(StoreInst *SI, Loop *loop, std::set<Instruction *> &insts, std::set<Instruction *> &preserved) {        
+      if (Instruction *inst = dyn_cast<Instruction>(SI->getPointerOperand())) {
+        if (insts.count(inst)) {
+          preserved.insert(inst);
+          sliceOperandHelper(inst, loop, insts, preserved);
+        }
+      }
+    }
+
+    // This function is a helper function for slicing operands.
+    void sliceOperandHelper(Instruction *inst, Loop *loop, std::set<Instruction *> &insts, std::set<Instruction *> &preserved) {        
+      BasicBlock *bodyBlock = inst->getParent();
+
+      if (LoadInst *LI = dyn_cast<LoadInst>(inst)) {
+        if (StoreInst *SI = findMostRecentStoreInst(inst, loop)) {
+          preserved.insert(SI);
+          sliceOperandHelper(SI, loop, insts, preserved);
         }
       } else {
         for (Instruction::op_iterator i = inst->op_begin(); i != inst->op_end(); i++) {
@@ -289,6 +299,56 @@ namespace {
         }
       }
     }
+
+    // Find the most recent add/fadd instruction.
+    BinaryOperator *findAddInst(Instruction *inst, Loop *loop, Value *pointerOperand, std::set<Instruction *> insts, int &incOperand) {
+      if (insts.count(inst)) {
+        if (StoreInst *storeInst = dyn_cast<StoreInst>(inst)) {
+          if (LoadInst *loadInst = dyn_cast<LoadInst>(storeInst->getValueOperand())) {
+            return findAddInst(loadInst, loop, pointerOperand, insts, incOperand);
+          } else if (BinaryOperator *opInst = dyn_cast<BinaryOperator>(storeInst->getValueOperand())) {
+            if ((opInst->getOpcode() == Instruction::Add) || (opInst->getOpcode() == Instruction::FAdd)) {
+              Value *op1 = opInst->getOperand(0);
+              Value *op2 = opInst->getOperand(1);
+              if (loadsAccumVariable(op1, loop, pointerOperand, insts)) {
+                incOperand = 1;
+                return opInst;
+              } else if (loadsAccumVariable(op2, loop, pointerOperand, insts)) {
+                incOperand = 0;
+                return opInst;
+              }
+            }
+          }
+        } else if (LoadInst *loadInst = dyn_cast<LoadInst>(inst)) {
+          if (StoreInst *storeInst = findMostRecentStoreInst(loadInst, loop)) {
+            return findAddInst(storeInst, loop, pointerOperand, insts, incOperand);
+          }
+        }
+      }
+
+      return NULL;
+    }
+
+    // Determine whether an addend is the accumulation variable.
+    bool loadsAccumVariable(Value *operand, Loop *loop, Value *pointerOperand, std::set<Instruction *> insts) {
+      if (Instruction *inst = dyn_cast<Instruction>(operand)) {
+        if (insts.count(inst)) {
+          if (LoadInst *loadInst = dyn_cast<LoadInst>(inst)) {
+            if (loadInst->getPointerOperand() == pointerOperand) {
+              return true;
+            } else if (StoreInst *storeInst = findMostRecentStoreInst(loadInst, loop)) {
+              return loadsAccumVariable(storeInst, loop, pointerOperand, insts);
+            }
+          } else if (StoreInst *storeInst = dyn_cast<StoreInst>(inst)) {
+            if (LoadInst *loadInst = dyn_cast<LoadInst>(storeInst->getValueOperand())) {
+              return loadsAccumVariable(loadInst, loop, pointerOperand, insts);
+            }
+          }
+        }
+      }
+
+      return false;
+    }        
 
     // Transform a loop to skip iterations.
     // The loop should already be validated as perforatable, but checks will be
@@ -321,8 +381,11 @@ namespace {
         return;
       }
 
-      // Accumulate the set of instructions in the loop body.
+      // Collect the set of instructions in the loop body.
       std::set<Instruction *> insts;
+      std::set<StoreInst *> storeInsts;
+      std::set<Instruction *> preserved;
+
       Loop::block_iterator bodyBlockItr;
       for (Loop::block_iterator bi = loop->block_begin(); *bi != loop->getLoopLatch(); bi++) {
         if (*bi == bodyBlock) {
@@ -333,21 +396,42 @@ namespace {
       for (Loop::block_iterator bi = bodyBlockItr; *bi != loop->getLoopLatch(); bi++) {
         for (BasicBlock::iterator i = (*bi)->begin(); i != (*bi)->end(); i++) {
           insts.insert(i);
-        }
-      }
-
-      // Accumulate the set of store instructions to preserve in the loop body.
-      std::set<StoreInst *> preservedStores;
-      for (std::set<Instruction *>::iterator i = insts.begin(); i != insts.end(); i++) {
-        if (StoreInst *SI = dyn_cast<StoreInst>(*i)) {
-          if (AI->storeEscapes(SI, insts)) {
-            preservedStores.insert(SI);
+          // Collect the set of store instructions.
+          if (StoreInst *SI = dyn_cast<StoreInst>(i)) {
+            storeInsts.insert(SI);
           }
         }
       }
 
+      // Collect the set of store instructions to preserve in the loop body.
+      std::set<StoreInst *> preservedStores;
+      for (std::set<StoreInst *>::iterator i = storeInsts.begin(); i != storeInsts.end(); i++) {
+        if (AI->storeEscapes(*i, insts)) {
+          preservedStores.insert(*i);
+        }
+      }
+
+      // Map the set of store instructions that correspond to accumulations in the loop body.
+      std::map< StoreInst *, std::pair< BinaryOperator *, int > > accumStores;
+      for (std::set<StoreInst *>::iterator i = storeInsts.begin(); i != storeInsts.end(); i++) {
+        int incOperand;
+        if (BinaryOperator *addInst = findAddInst(*i, loop, (*i)->getPointerOperand(), insts, incOperand)) {
+          preserved.insert(*i);
+          preserved.insert(addInst);
+          accumStores[*i] = std::make_pair(addInst, incOperand);
+        }
+      }
+
+      // Remove all elements of accumStores from preservedStores, so that a StoreInst is not assessed for
+      // optimization twice.
+      for (std::map< StoreInst *, std::pair< BinaryOperator *, int> >::iterator i = accumStores.begin(); i != accumStores.end(); i++) {
+        StoreInst *accumStore = i->first;
+        if (preservedStores.count(accumStore)) {
+          preservedStores.erase(accumStore);
+        }
+      }
+
       // Slice the pointer operand of each of the store instructions.
-      std::set<Instruction *> preserved;
       for (std::set<StoreInst *>::iterator i = preservedStores.begin(); i != preservedStores.end(); i++) {
         preserved.insert(*i);
         slicePointerOperand(*i, loop, insts, preserved);
@@ -369,12 +453,8 @@ namespace {
       LoopBlocks.perform(LI);
       ValueToValueMapTy VMap, LVMap;
 
-      //bodyBlock->getParent()->dump();
-
       CloneLoopBlocks(loop, true, loop->getLoopPreheader(), loop->getLoopLatch(),
           blockClones, LoopBlocks, VMap, LVMap, LI);
-
-      //bodyBlock->getParent()->dump();
 
       for (ValueToValueMapTy::iterator i = VMap.begin(); i != VMap.end(); i++) {
         if (Instruction *origInst = (Instruction *) dyn_cast<Instruction>(i->first)) {
@@ -387,8 +467,6 @@ namespace {
           }
         }
       }
-
-      //bodyBlock->getParent()->dump();
 
       std::set<Instruction *> removed;
       BasicBlock *clonedHeader = NULL;
@@ -437,6 +515,7 @@ namespace {
         i->dropAllReferences();
       }
       clonedHeader->removeFromParent();
+      LI->removeBlock(clonedHeader);
 
       for (findItr = blockClones.begin(); findItr != blockClones.end(); findItr++) {
         if (*findItr == clonedLatch) {
@@ -448,10 +527,24 @@ namespace {
         i->dropAllReferences();
       }
       clonedLatch->removeFromParent();
+      LI->removeBlock(clonedLatch);
 
       for (std::set<StoreInst *>::iterator i = preservedStores.begin(); i != preservedStores.end(); i++) {
         if (StoreInst *clonedStore = dyn_cast<StoreInst>(VMap[*i])) {
           clonedStore->setOperand(0, Constant::getNullValue((*i)->getValueOperand()->getType()));
+        }
+      }
+
+      for (std::map< StoreInst *, std::pair< BinaryOperator *, int> >::iterator i = accumStores.begin(); i != accumStores.end(); i++) {
+        StoreInst *origStore = i->first;
+        if (StoreInst *clonedStore = dyn_cast<StoreInst>(VMap[origStore])) {
+          clonedStore->setOperand(0, Constant::getNullValue(origStore->getValueOperand()->getType()));
+        }
+
+        BinaryOperator *origAdd = (i->second).first;
+        if (BinaryOperator *clonedAdd = dyn_cast<BinaryOperator>(VMap[origAdd])) {
+          clonedAdd->setOperand(0, Constant::getNullValue(origAdd->getOperand(0)->getType()));
+          clonedAdd->setOperand(1, Constant::getNullValue(origAdd->getOperand(1)->getType()));
         }
       }
 
@@ -557,10 +650,6 @@ namespace {
       // Change the last cloned body block to point to the increment block.
       lastClonedBodyBlock->getTerminator()->setSuccessor(0, latchBlock);
 
-      //for (Loop::block_iterator j = loop->block_begin(); j != loop->block_end(); j++) {
-      //  (*j)->dump();
-      //}
-
       // Add all cloned body blocks to the loop structure.
       for (std::vector<BasicBlock *>::iterator i = blockClones.begin(); i != blockClones.end(); i++) {
         if (const Loop *curLoop = (*LI)[*i]) {
@@ -571,55 +660,91 @@ namespace {
         loop->addBasicBlockToLoop(*i, LI->getBase());
       }
 
-      for (Loop::block_iterator j = loop->block_begin(); j != loop->block_end(); j++) {
-        (*j)->dump();
-      }
-
-      bodyBlock->getParent()->dump();
-
       // Insert instructions to store and load values saved from evaluated iterations.
-      int itrNum = 0;
       for (std::set<StoreInst *>::iterator i = preservedStores.begin(); i != preservedStores.end(); i++) {
         StoreInst *SI = *i;
-        Type *storeType = SI->getValueOperand()->getType();
 
         // Insert an AllocaInst for the saved value.
         builder.SetInsertPoint(
             loop->getLoopPreheader()->getParent()->getEntryBlock().begin()
         );
-        std::stringstream concat;
-        concat << "accept_value_" << itrNum; 
+
         AllocaInst *valueAlloca = builder.CreateAlloca(
-            storeType,
+            SI->getValueOperand()->getType(),
             0,
-            concat.str()
+            "accept_value"
         );
-        concat.str("");
 
         // Insert a StoreInst to store the saved value.
         builder.SetInsertPoint(SI);
-        result = SI->getValueOperand();
         builder.CreateStore(
-            result,
+            SI->getValueOperand(),
             valueAlloca
         );
         
         // Insert a LoadInst to load the saved value.
         Instruction *clonedStore = (Instruction *) &*VMap[SI];
         builder.SetInsertPoint(clonedStore);
-        concat << "accept_value_load_" << itrNum;
         result = builder.CreateLoad(
             valueAlloca,
-            concat.str()
+            "accept_load"
         );
-        concat.str("");
 
         // Store the saved value to the output variable.
         clonedStore->setOperand(0, result);
-        itrNum++;
       }
 
-      //bodyBlock->getParent()->dump();
+      bodyBlock->getParent()->dump();
+
+      // Insert instructions for the accumulation optimization.
+      for (std::map< StoreInst *, std::pair<BinaryOperator *, int> >::iterator i = accumStores.begin(); i != accumStores.end(); i++) {
+        StoreInst *storeInst = i->first;
+        BinaryOperator *addInst = (i->second).first;
+        int incOperand = (i->second).second;
+
+        // Insert an AllocaInst for the accumulation increment value.
+        builder.SetInsertPoint(
+            loop->getLoopPreheader()->getParent()->getEntryBlock().begin()
+        );
+
+        AllocaInst *accumAlloca = builder.CreateAlloca(
+            addInst->getOperand(incOperand)->getType(),
+            0,
+            "accept_accum"
+        );
+
+        // Insert a StoreInst to store the accumulation increment value.
+        builder.SetInsertPoint(addInst);
+        builder.CreateStore(
+            addInst->getOperand(incOperand),
+            accumAlloca
+        );
+
+        // Insert a LoadInst to load the accumulation increment value.
+        Instruction *clonedAdd = (Instruction *) &*VMap[addInst];
+        builder.SetInsertPoint(clonedAdd);
+        result = builder.CreateLoad(
+            accumAlloca,
+            "accept_accumInc"
+        );
+
+        // Insert a LoadInst to load the accumulation variable.
+        Value *result2 = builder.CreateLoad(
+            storeInst->getPointerOperand(),
+            "accept_accumVar"
+        );
+
+        // Change the operands of the BinaryOperator to be the two LoadInsts.
+        clonedAdd->setOperand(0, result);
+        clonedAdd->setOperand(1, result2);
+
+        // Change the value operand of the cloned accumulation StoreInst to be
+        // the cloned BinaryOperator.
+        Instruction *clonedStore = (Instruction *) &*VMap[storeInst];
+        clonedStore->setOperand(0, clonedAdd);
+      }
+
+      bodyBlock->getParent()->dump();
     }
   };
 }
