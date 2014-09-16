@@ -1,0 +1,230 @@
+ANALYZING FUNCTIONS FOR PRECISE-PURITY:
+-----
+checking function accept_roi_begin at acceptrt.default.c:8
+ - blockers: 2
+   * acceptrt.default.c:10: call to gettimeofday()
+   * acceptrt.default.c:11: store to time_begin
+ - precise-impure function: accept_roi_begin
+-----
+checking function accept_roi_end at acceptrt.default.c:14
+ - blockers: 4
+   * acceptrt.default.c:16: call to gettimeofday()
+   * acceptrt.default.c:20: call to fopen()
+   * acceptrt.default.c:21: call to fprintf()
+   * acceptrt.default.c:22: call to fclose()
+ - precise-impure function: accept_roi_end
+-----
+checking function print_xmm(float, char*) at blackscholes.m4.cpp:220
+ - blockers: 1
+   * blackscholes.m4.cpp:221: call to printf()
+ - precise-impure function: print_xmm(float, char*)
+-----
+checking function main at blackscholes.m4.cpp:337
+ - blockers: 70
+   * blackscholes.m4.cpp:352: call to printf()
+   * blackscholes.m4.cpp:353: call to fflush()
+   * blackscholes.m4.cpp:361: call to printf()
+   * blackscholes.m4.cpp:362: call to exit()
+   * blackscholes.m4.cpp:364: store to nThreads
+   * blackscholes.m4.cpp:369: call to fopen()
+   * blackscholes.m4.cpp:371: call to printf()
+   * blackscholes.m4.cpp:372: call to exit()
+   * blackscholes.m4.cpp:374: call to fscanf()
+   * blackscholes.m4.cpp:376: call to printf()
+   * blackscholes.m4.cpp:377: call to fclose()
+   * blackscholes.m4.cpp:378: call to exit()
+   * blackscholes.m4.cpp:381: call to printf()
+   * blackscholes.m4.cpp:382: store to nThreads
+   * blackscholes.m4.cpp:393: call to malloc()
+   * blackscholes.m4.cpp:393: store to data
+   * blackscholes.m4.cpp:394: call to malloc()
+   * blackscholes.m4.cpp:394: store to prices
+   * blackscholes.m4.cpp:397: call to fscanf()
+   * blackscholes.m4.cpp:399: call to printf()
+   * blackscholes.m4.cpp:400: call to fclose()
+   * blackscholes.m4.cpp:401: call to exit()
+   * blackscholes.m4.cpp:404: call to fclose()
+   * blackscholes.m4.cpp:406: call to printf()
+   * blackscholes.m4.cpp:407: call to exit()
+   * blackscholes.m4.cpp:412: call to pthread_mutexattr_init()
+   * blackscholes.m4.cpp:414: store to _M4_numThreads
+   * blackscholes.m4.cpp:418: store to arrayidx60
+   * blackscholes.m4.cpp:423: call to printf()
+   * blackscholes.m4.cpp:424: call to printf()
+   * blackscholes.m4.cpp:429: call to malloc()
+   * blackscholes.m4.cpp:430: store to sptprice
+   * blackscholes.m4.cpp:431: store to strike
+   * blackscholes.m4.cpp:432: store to rate
+   * blackscholes.m4.cpp:433: store to volatility
+   * blackscholes.m4.cpp:434: store to otime
+   * blackscholes.m4.cpp:436: call to malloc()
+   * blackscholes.m4.cpp:437: store to otype
+   * blackscholes.m4.cpp:439: store to i
+   * blackscholes.m4.cpp:439: store to i
+   * blackscholes.m4.cpp:440: store to arrayidx92
+   * blackscholes.m4.cpp:448: call to printf()
+   * blackscholes.m4.cpp:453: call to accept_roi_begin()
+   * blackscholes.m4.cpp:455: call to llvm.stacksave()
+   * blackscholes.m4.cpp:456: store to i
+   * blackscholes.m4.cpp:456: store to i
+   * blackscholes.m4.cpp:457: store to arrayidx128
+   * blackscholes.m4.cpp:464: call to pthread_create()
+   * blackscholes.m4.cpp:465: store to arrayidx147
+   * blackscholes.m4.cpp:475: call to pthread_join()
+   * blackscholes.m4.cpp:508: call to accept_roi_end()
+   * blackscholes.m4.cpp:511: call to fopen()
+   * blackscholes.m4.cpp:513: call to printf()
+   * blackscholes.m4.cpp:514: call to exit()
+   * blackscholes.m4.cpp:516: call to fprintf()
+   * blackscholes.m4.cpp:518: call to printf()
+   * blackscholes.m4.cpp:519: call to fclose()
+   * blackscholes.m4.cpp:520: call to exit()
+   * blackscholes.m4.cpp:522: store to i
+   * blackscholes.m4.cpp:522: store to i
+   * blackscholes.m4.cpp:523: call to fprintf()
+   * blackscholes.m4.cpp:525: call to printf()
+   * blackscholes.m4.cpp:526: call to fclose()
+   * blackscholes.m4.cpp:527: call to exit()
+   * blackscholes.m4.cpp:530: call to fclose()
+   * blackscholes.m4.cpp:532: call to printf()
+   * blackscholes.m4.cpp:533: call to exit()
+   * blackscholes.m4.cpp:539: call to free()
+   * blackscholes.m4.cpp:540: call to free()
+   * blackscholes.m4.cpp:547: call to llvm.stackrestore()
+ - precise-impure function: main
+----------
+checking function printf
+ - definition not available
+-----
+checking function fflush
+ - definition not available
+-----
+checking function exit
+ - definition not available
+-----
+checking function fopen
+ - definition not available
+-----
+checking function fscanf
+ - definition not available
+-----
+checking function fclose
+ - definition not available
+-----
+checking function malloc
+ - definition not available
+-----
+checking function free
+ - definition not available
+-----
+checking function llvm.stackrestore
+ - definition not available
+-----
+checking function pthread_mutexattr_init
+ - definition not available
+-----
+checking function gettimeofday
+ - definition not available
+-----
+checking function llvm.stacksave
+ - definition not available
+-----
+checking function pthread_create
+ - definition not available
+-----
+checking function pthread_join
+ - definition not available
+-----
+checking function fprintf
+ - definition not available
+-----
+checking function exp
+ - whitelisted
+-----
+checking function sqrt
+ - whitelisted
+-----
+checking function log
+ - whitelisted
+-----
+checking function llvm.dbg.declare
+ - only reads memory
+-----
+checking function atoi
+ - only reads memory
+-----
+checking function CNDF(float) at blackscholes.m4.cpp:161
+ - blockers: 0
+ - precise-pure function: CNDF(float)
+-----
+checking function BlkSchlsEqEuroNoDiv(float, float, float, float, float, int, float) at blackscholes.m4.cpp:228
+ - blockers: 0
+ - precise-pure function: BlkSchlsEqEuroNoDiv(float, float, float, float, float, int, float)
+-----
+checking function bs_thread(void*) at blackscholes.m4.cpp:295
+ - blockers: 0
+ - precise-pure function: bs_thread(void*)
+
+
+ANALYZING LOOP BODIES FOR PERFORABILITY:
+-----
+loop at blackscholes.m4.cpp:306
+within function bs_thread(void*)
+for-like loop
+blockers: 1
+ * blackscholes.m4.cpp:307: store to _dummy
+cannot perforate loop
+-----
+loop at blackscholes.m4.cpp:417
+within function main
+for-like loop
+blockers: 1
+ * blackscholes.m4.cpp:418: store to arrayidx60
+cannot perforate loop
+-----
+loop at blackscholes.m4.cpp:439
+within function main
+for-like loop
+blockers: 1
+ * blackscholes.m4.cpp:440: store to arrayidx92
+cannot perforate loop
+-----
+loop at blackscholes.m4.cpp:456
+within function main
+for-like loop
+blockers: 3
+ * blackscholes.m4.cpp:457: store to arrayidx128
+ * blackscholes.m4.cpp:464: call to pthread_create()
+ * blackscholes.m4.cpp:465: store to arrayidx147
+cannot perforate loop
+----------
+loop at blackscholes.m4.cpp:312
+within function bs_thread(void*)
+for-like loop
+blockers: 0
+can perforate loop
+-----
+loop at blackscholes.m4.cpp:395
+within function main
+for-like loop
+contains loop exit
+cannot perforate loop
+-----
+loop at blackscholes.m4.cpp:461
+within function main
+for-like loop
+contains loop exit
+cannot perforate loop
+-----
+loop at blackscholes.m4.cpp:473
+within function main
+for-like loop
+contains loop exit
+cannot perforate loop
+-----
+loop at blackscholes.m4.cpp:522
+within function main
+for-like loop
+contains loop exit
+cannot perforate loop
+

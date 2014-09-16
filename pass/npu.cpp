@@ -204,12 +204,8 @@ namespace {
     }
 
     // This function adds an NPU description to descTable.
-    void addNPUDesc(
-        const bool hasBlockers,
-        const std::string fileName,
-        const int lineNumber,
-        const std::string prefix,
-        const std::string postfix,
+    void addNPUDesc(const bool hasBlockers, const std::string fileName,
+        const int lineNumber, const std::string prefix, const std::string postfix,
         const std::map< int, std::vector<std::string> > blockerEntries) {
       Location loc("NPU Region", hasBlockers, fileName, lineNumber);
       if (AI->descTable.count(loc) == 0) {

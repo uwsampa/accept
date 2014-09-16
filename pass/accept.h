@@ -47,28 +47,29 @@ typedef enum {
   markerForbid
 } LineMarker;
 
+// This class manages a description in the log.
 class Description {
   public:
     Description() : prefix(""), postfix("") {}
-    Description(
-        std::string myPrefix,
-        std::string myPostfix,
-        std::map< int, std::vector<std::string> > myBlockers) :
+    Description(const std::string myPrefix, const std::string myPostfix,
+        const std::map< int, std::vector<std::string> > myBlockers) :
         prefix(myPrefix), postfix(myPostfix), blockers(myBlockers) {}
     bool operator==(const Description &rhs) {
       return (this->prefix == rhs.prefix) &&
-             (this->postfix == rhs.postfix) &&
-             (this->blockers == rhs.blockers);
+          (this->postfix == rhs.postfix) &&
+          (this->blockers == rhs.blockers);
     }
     std::string prefix;
     std::string postfix;
     std::map< int, std::vector<std::string> > blockers;
 };
 
+// This class manages the location of a description in the log.
 class Location {
   public:
     Location() : kind(""), hasBlockers(false), fileName(""), lineNumber(0) {}
-    Location(std::string myKind, bool myHasBlockers, std::string myFile, int myNum) :
+    Location(const std::string myKind, const bool myHasBlockers,
+        const std::string myFile, const int myNum) :
         kind(myKind), hasBlockers(myHasBlockers), fileName(myFile), lineNumber(myNum) {}
     bool operator==(const Location &rhs) {
       return (this->kind == rhs.kind) &&
@@ -82,6 +83,7 @@ class Location {
     int lineNumber;
 };
 
+// This class is a comparator for two instances of the Location class.
 class cmpLocation {
   public:
     bool operator() (const Location a, const Location b) const {
@@ -130,12 +132,8 @@ public:
   ApproxInfo();
   virtual ~ApproxInfo();
   virtual const char *getPassName() const;
-  virtual void addFuncDesc(
-      const bool hasBlockers,
-      const std::string fileName,
-      const int lineNumber,
-      const std::string prefix,
-      const std::string postfix,
+  virtual void addFuncDesc(const bool hasBlockers, const std::string fileName,
+      const int lineNumber, const std::string prefix, const std::string postfix,
       const std::map< int, std::vector<std::string> > blockerEntries);
 
   // Required FunctionPass interface.
@@ -197,7 +195,8 @@ struct ACCEPTPass : public llvm::FunctionPass {
   virtual bool doFinalization(llvm::Module &M);
 
   bool shouldSkipFunc(llvm::Function &F);
-  std::string siteName(std::string kind, llvm::Instruction *at, std::string &fileName, std::string &line);
+  std::string siteName(std::string kind, llvm::Instruction *at,
+      std::string &fileName, std::string &line);
 
   void collectFuncDebug(llvm::Module &M);
   void collectSubprogram(llvm::DISubprogram sp);
@@ -206,17 +205,14 @@ struct ACCEPTPass : public llvm::FunctionPass {
   void dumpRelaxConfig();
   void loadRelaxConfig();
 
-  void addSyncDesc(
-    const bool hasBlockers,
-    const std::string fileName,
-    const int lineNumber,
-    const std::string prefix,
-    const std::string postfix,
-    const std::map< int, std::vector<std::string> > blockerEntries);
+  void addSyncDesc(const bool hasBlockers, const std::string fileName,
+      const int lineNumber, const std::string prefix, const std::string postfix,
+      const std::map< int, std::vector<std::string> > blockerEntries);
   bool optimizeSync(llvm::Function &F);
   bool optimizeAcquire(llvm::Instruction *inst);
   bool optimizeBarrier(llvm::Instruction *bar1);
-  llvm::Instruction *findCritSec(llvm::Instruction *acq, std::set<llvm::Instruction*> &cs, std::string &outputString);
+  llvm::Instruction *findCritSec(llvm::Instruction *acq, std::set<llvm::Instruction*> &cs,
+      std::string &outputString);
   llvm::Instruction *findApproxCritSec(
       llvm::Instruction *acq,
       std::string &prefix,

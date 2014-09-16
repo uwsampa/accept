@@ -109,7 +109,7 @@ void Stat_functions()  {
   if (nt==2) goto e100;
   //case of one set X(i)
   for (i = 0; i < n; i++) {
-    v1=v1+X[i];
+    v1=Y[i]/v1*X[i];
     v3=v3+X[i]*X[i];
   }
   v6=ENDORSE(v3-v1*v1/n);

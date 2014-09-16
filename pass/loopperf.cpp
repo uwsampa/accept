@@ -54,12 +54,8 @@ namespace {
     }
 
     // This function adds a loop description to descTable.
-    void addLoopDesc(
-        const bool hasBlockers,
-        const std::string fileName,
-        const int lineNumber,
-        const std::string prefix,
-        const std::string postfix,
+    void addLoopDesc(const bool hasBlockers, const std::string fileName,
+        const int lineNumber, const std::string prefix, const std::string postfix,
         const std::map< int, std::vector<std::string> > blockerEntries) {
       Location loc("Loop", hasBlockers, fileName, lineNumber);
       if (AI->descTable.count(loc) == 0) {
@@ -80,6 +76,7 @@ namespace {
       std::stringstream postfixStream;
       std::map< int, std::vector<std::string> > blockerEntries;
 
+      // Generate the first line of the loop description.
       std::string posDesc = srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc());
       std::string fileName, line;
       splitPosDesc(posDesc, fileName, line);
@@ -100,7 +97,8 @@ namespace {
       // Look for ACCEPT_FORBID marker.
       if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {
         prefixStream << " - optimization forbidden\n";
-        addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
+        addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
+            postfixStream.str(), blockerEntries);
         return false;
       }
 
@@ -109,14 +107,16 @@ namespace {
       if (!loop->getHeader() || !loop->getLoopLatch()
           || !loop->getLoopPreheader()) {
         prefixStream << " - loop not in perforatable form\n";
-        addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
+        addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
+            postfixStream.str(), blockerEntries);
         return false;
       }
 
       // Skip array constructor loops manufactured by Clang.
       if (loop->getHeader()->getName().startswith("arrayctor.loop")) {
         prefixStream << " - array constructor\n";
-        addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
+        addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
+            postfixStream.str(), blockerEntries);
         return false;
       }
 
@@ -126,18 +126,11 @@ namespace {
         BasicBlock *latch = loop->getLoopLatch();
         if (&(latch->front()) == &(latch->back())) {
           prefixStream << " - empty body\n";
-          addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
+          addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
+              postfixStream.str(), blockerEntries);
           return false;
         }
       }
-
-      /*
-      if (acceptUseProfile) {
-        ProfileInfo &PI = getAnalysis<ProfileInfo>();
-        double trips = PI.getExecutionCount(loop->getHeader());
-        ACCEPT_LOG << "trips: " << trips << "\n";
-      }
-      */
 
       // Determine whether this is a for-like or while-like loop. This informs
       // the heuristic that determines which parts of the loop to perforate.
@@ -154,17 +147,19 @@ namespace {
         if (param) {
           prefixStream << " - perforating with factor 2^" << param << "\n";
           perforateLoop(loop, param, isForLike);
-          addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
+          addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
+              postfixStream.str(), blockerEntries);
           return true;
         } else {
           prefixStream << " - not perforating\n";
-          addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
+          addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
+              postfixStream.str(), blockerEntries);
           return false;
         }
       }
 
-      // Get the body blocks of the loop: those that will not be executed during
-      // some iterations of a perforated loop.
+      // Get the body blocks of the loop: those that will not be fully executed
+      // during some iterations of a perforated loop.
       std::set<BasicBlock*> bodyBlocks;
       for (Loop::block_iterator bi = loop->block_begin();
             bi != loop->block_end(); ++bi) {
@@ -181,7 +176,8 @@ namespace {
       }
       if (bodyBlocks.empty()) {
         prefixStream << " - empty body\n";
-        addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
+        addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
+            postfixStream.str(), blockerEntries);
         return false;
       }
 
@@ -192,13 +188,16 @@ namespace {
         if (loop->isLoopExiting(*i)) {
           prefixStream << " - contains loop exit\n";
           prefixStream << " - cannot perforate loop\n";
-          addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
+          addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
+              postfixStream.str(), blockerEntries);
           return false;
         }
       }
 
       // Check whether the body of this loop is elidable (precise-pure).
       std::set<Instruction*> blockers = AI->preciseEscapeCheck(bodyBlocks);
+
+      // Print the blockers to the log.
       prefixStream << " - blockers: " << blockers.size() << "\n";
       for (std::set<Instruction*>::iterator i = blockers.begin();
             i != blockers.end(); ++i) {
@@ -217,46 +216,65 @@ namespace {
       if (!blockers.size()) {
         postfixStream << " - can perforate loop\n";
         transformPass->relaxConfig[loopName] = 0;
-        addLoopDesc(false, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
+        addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
+            postfixStream.str(), blockerEntries);
       } else {
         postfixStream << " - cannot perforate loop\n";
-        addLoopDesc(true, fileName, lineNumber, prefixStream.str(), postfixStream.str(), blockerEntries);
+        addLoopDesc(true, fileName, lineNumber, prefixStream.str(),
+            postfixStream.str(), blockerEntries);
       }
 
       return false;
     }
 
-    // Find the most recent StoreInst in the loop that precedes the LoadInst and has the same pointer operand.
+    // This class keeps track of some important instructions for a store
+    // corresponding to a compound assignment.
+    class CmpdAssignInfo {
+      public:
+        CmpdAssignInfo() : opInst(NULL), varLoad(NULL) {}
+        CmpdAssignInfo(BinaryOperator *myOp, LoadInst *myLoad,
+            std::vector<Value *> &myIncOperands, std::vector<Value *> &myDecOperands) :
+          opInst(myOp), varLoad(myLoad), incOperands(myIncOperands),
+              decOperands(myDecOperands) {}
+        BinaryOperator *opInst;
+        LoadInst *varLoad;
+        std::vector<Value *> incOperands;
+        std::vector<Value *> decOperands;
+    };
+
+    // Search the loop for the most recent StoreInst that precedes the LoadInst
+    // and has the same pointer operand.
     StoreInst *findMostRecentStoreInst(Instruction *inst, Loop *loop) {
-      if (LoadInst *LI = dyn_cast<LoadInst>(inst)) {
+      if (LoadInst *LI = dyn_cast_or_null<LoadInst>(inst)) {
         BasicBlock *bodyBlock = inst->getParent();
 
-        BasicBlock::InstListType::reverse_iterator revInstItr;
-        for (BasicBlock::InstListType::reverse_iterator i = bodyBlock->getInstList().rbegin(); i != bodyBlock->getInstList().rend(); i++) {
+        BasicBlock::InstListType::reverse_iterator revInstItr =
+            bodyBlock->getInstList().rend();
+        for (BasicBlock::InstListType::reverse_iterator
+            i = bodyBlock->getInstList().rbegin();
+            i != bodyBlock->getInstList().rend(); i++) {
           if (&*i == inst) {
             revInstItr = ++i;
             break;
           }
         }
-        for (BasicBlock::InstListType::reverse_iterator i = revInstItr; i != bodyBlock->getInstList().rend(); i++) {
-          if (StoreInst *SI = dyn_cast<StoreInst>(&*i)) {
+        for (BasicBlock::InstListType::reverse_iterator
+            i = revInstItr; i != bodyBlock->getInstList().rend(); i++) {
+          if (StoreInst *SI = dyn_cast_or_null<StoreInst>(&*i)) {
             if (SI->getPointerOperand() == LI->getPointerOperand()) {
               return SI;
             }
           }
         }
         typedef typename std::vector<BasicBlock *>::reverse_iterator reverse_block_iterator;
-        std::vector<BasicBlock *> blkList = loop->getBlocks();
-        reverse_block_iterator revBlkItr;
-        for (reverse_block_iterator i = blkList.rbegin(); i != blkList.rend(); i++) {
-          if (*i == bodyBlock) {
-            revBlkItr = ++i;
-            break;
-          }
-        }
-        for (reverse_block_iterator i = revBlkItr; i != blkList.rend(); i++) {
-          for (BasicBlock::InstListType::reverse_iterator j = (*i)->getInstList().rbegin(); j != (*i)->getInstList().rend(); j++) {
-            if (StoreInst *SI = dyn_cast<StoreInst>(&*j)) {
+        std::vector<BasicBlock *> loopBlocks = loop->getBlocks();
+        reverse_block_iterator revBlkItr =
+            ++std::find(loopBlocks.rbegin(), loopBlocks.rend(), bodyBlock);
+        for (reverse_block_iterator i = revBlkItr; i != loopBlocks.rend(); i++) {
+          for (BasicBlock::InstListType::reverse_iterator
+              j = (*i)->getInstList().rbegin();
+              j != (*i)->getInstList().rend(); j++) {
+            if (StoreInst *SI = dyn_cast_or_null<StoreInst>(&*j)) {
               if (SI->getPointerOperand() == LI->getPointerOperand()) {
                 return SI;
               }
@@ -268,10 +286,12 @@ namespace {
       return NULL;
     }
 
-    // This function slices the pointer operand of a store instruction to determine
-    // which other instructions need to be preserved.
-    void slicePointerOperand(StoreInst *SI, Loop *loop, std::set<Instruction *> &insts, std::set<Instruction *> &preserved) {        
-      if (Instruction *inst = dyn_cast<Instruction>(SI->getPointerOperand())) {
+    // This function slices the pointer operand of a store instruction to
+    // determine which other instructions need to be preserved.
+    void slicePointerOperand(StoreInst *SI, Loop *loop,
+        std::set<Instruction *> &insts,
+        std::set<Instruction *> &preserved) {
+      if (Instruction *inst = dyn_cast_or_null<Instruction>(SI->getPointerOperand())) {
         if (insts.count(inst)) {
           preserved.insert(inst);
           sliceOperandHelper(inst, loop, insts, preserved);
@@ -280,17 +300,25 @@ namespace {
     }
 
     // This function is a helper function for slicing operands.
-    void sliceOperandHelper(Instruction *inst, Loop *loop, std::set<Instruction *> &insts, std::set<Instruction *> &preserved) {        
+    void sliceOperandHelper(Instruction *inst, Loop *loop,
+        std::set<Instruction *> &insts,
+        std::set<Instruction *> &preserved) {        
       BasicBlock *bodyBlock = inst->getParent();
 
-      if (LoadInst *LI = dyn_cast<LoadInst>(inst)) {
-        if (StoreInst *SI = findMostRecentStoreInst(inst, loop)) {
+      if (LoadInst *LI = dyn_cast_or_null<LoadInst>(inst)) {
+        if (!dyn_cast<AllocaInst>(LI->getPointerOperand())) {
+          if (Instruction *pointerOperand =
+              dyn_cast_or_null<Instruction>(LI->getPointerOperand())) {
+            preserved.insert(pointerOperand);
+            sliceOperandHelper(pointerOperand, loop, insts, preserved);
+          }
+        } else if (StoreInst *SI = findMostRecentStoreInst(inst, loop)) {
           preserved.insert(SI);
           sliceOperandHelper(SI, loop, insts, preserved);
         }
       } else {
         for (Instruction::op_iterator i = inst->op_begin(); i != inst->op_end(); i++) {
-          if (Instruction *tmp = dyn_cast<Instruction>(*i)) {
+          if (Instruction *tmp = dyn_cast_or_null<Instruction>(&*i)) {
             if (insts.count(tmp)) {
               preserved.insert(tmp);
               sliceOperandHelper(tmp, loop, insts, preserved);
@@ -300,28 +328,45 @@ namespace {
       }
     }
 
-    // Find the most recent add/fadd instruction.
-    BinaryOperator *findAddInst(Instruction *inst, Loop *loop, Value *pointerOperand, std::set<Instruction *> insts, int &incOperand) {
+    // Find the most recent add/fadd/sub/fsub instruction.
+    BinaryOperator *findAddInst(Instruction *inst, Loop *loop, Value *pointerOperand,
+        std::set<Instruction *> insts, LoadInst **varLoad,
+        std::vector<Value *> &addends, std::vector<Value *> &subtrahends) {
       if (insts.count(inst)) {
-        if (StoreInst *storeInst = dyn_cast<StoreInst>(inst)) {
-          if (LoadInst *loadInst = dyn_cast<LoadInst>(storeInst->getValueOperand())) {
-            return findAddInst(loadInst, loop, pointerOperand, insts, incOperand);
-          } else if (BinaryOperator *opInst = dyn_cast<BinaryOperator>(storeInst->getValueOperand())) {
-            if ((opInst->getOpcode() == Instruction::Add) || (opInst->getOpcode() == Instruction::FAdd)) {
+        if (StoreInst *storeInst = dyn_cast_or_null<StoreInst>(inst)) {
+          if (LoadInst *loadInst = dyn_cast_or_null<LoadInst>(storeInst->getValueOperand())) {
+            return findAddInst(loadInst, loop, pointerOperand, insts, varLoad,
+                addends, subtrahends);
+          } else if (BinaryOperator *opInst =
+              dyn_cast_or_null<BinaryOperator>(storeInst->getValueOperand())) {
+            if ((opInst->getOpcode() == Instruction::Add) ||
+                (opInst->getOpcode() == Instruction::FAdd)) {
               Value *op1 = opInst->getOperand(0);
               Value *op2 = opInst->getOperand(1);
-              if (loadsAccumVariable(op1, loop, pointerOperand, insts)) {
-                incOperand = 1;
+              if (loadsAccumVariable(op1, loop, pointerOperand, insts,
+                  varLoad, addends, subtrahends)) {
+                addends.push_back(op2);
                 return opInst;
-              } else if (loadsAccumVariable(op2, loop, pointerOperand, insts)) {
-                incOperand = 0;
+              } else if (loadsAccumVariable(op2, loop, pointerOperand, insts,
+                  varLoad, addends, subtrahends)) {
+                addends.push_back(op1);
+                return opInst;
+              }
+            } else if ((opInst->getOpcode() == Instruction::Sub) ||
+                (opInst->getOpcode() == Instruction::FSub)) {
+              Value *op1 = opInst->getOperand(0);
+              Value *op2 = opInst->getOperand(1);
+              if (loadsAccumVariable(op1, loop, pointerOperand, insts, varLoad,
+                  addends, subtrahends)) {
+                subtrahends.push_back(op2);
                 return opInst;
               }
             }
           }
-        } else if (LoadInst *loadInst = dyn_cast<LoadInst>(inst)) {
+        } else if (LoadInst *loadInst = dyn_cast_or_null<LoadInst>(inst)) {
           if (StoreInst *storeInst = findMostRecentStoreInst(loadInst, loop)) {
-            return findAddInst(storeInst, loop, pointerOperand, insts, incOperand);
+            return findAddInst(storeInst, loop, pointerOperand, insts, varLoad,
+                addends, subtrahends);
           }
         }
       }
@@ -329,19 +374,48 @@ namespace {
       return NULL;
     }
 
-    // Determine whether an addend is the accumulation variable.
-    bool loadsAccumVariable(Value *operand, Loop *loop, Value *pointerOperand, std::set<Instruction *> insts) {
-      if (Instruction *inst = dyn_cast<Instruction>(operand)) {
+    // Determine whether an operand involves the accumulation variable.
+    bool loadsAccumVariable(Value *operand, Loop *loop, Value *pointerOperand,
+        std::set<Instruction *> insts, LoadInst **varLoad,
+        std::vector<Value *> &addends, std::vector<Value *> &subtrahends) {
+      if (Instruction *inst = dyn_cast_or_null<Instruction>(operand)) {
         if (insts.count(inst)) {
-          if (LoadInst *loadInst = dyn_cast<LoadInst>(inst)) {
+          if (LoadInst *loadInst = dyn_cast_or_null<LoadInst>(inst)) {
             if (loadInst->getPointerOperand() == pointerOperand) {
+              *varLoad = loadInst;
               return true;
             } else if (StoreInst *storeInst = findMostRecentStoreInst(loadInst, loop)) {
-              return loadsAccumVariable(storeInst, loop, pointerOperand, insts);
+              return loadsAccumVariable(storeInst, loop, pointerOperand, insts,
+                  varLoad, addends, subtrahends);
             }
-          } else if (StoreInst *storeInst = dyn_cast<StoreInst>(inst)) {
-            if (LoadInst *loadInst = dyn_cast<LoadInst>(storeInst->getValueOperand())) {
-              return loadsAccumVariable(loadInst, loop, pointerOperand, insts);
+          } else if (StoreInst *storeInst = dyn_cast_or_null<StoreInst>(inst)) {
+            if (LoadInst *loadInst = dyn_cast_or_null<LoadInst>(storeInst->getValueOperand())) {
+              return loadsAccumVariable(loadInst, loop, pointerOperand, insts,
+                  varLoad, addends, subtrahends);
+            }
+          } else if (BinaryOperator *opInst = dyn_cast_or_null<BinaryOperator>(operand)) {
+            if ((opInst->getOpcode() == Instruction::Add) ||
+                (opInst->getOpcode() == Instruction::FAdd)) {
+              Value *op1 = opInst->getOperand(0);
+              Value *op2 = opInst->getOperand(1);
+              if (loadsAccumVariable(op1, loop, pointerOperand, insts, varLoad,
+                  addends, subtrahends)) {
+                addends.push_back(op2);
+                return true;
+              } else if (loadsAccumVariable(op2, loop, pointerOperand, insts,
+                  varLoad, addends, subtrahends)) {
+                addends.push_back(op1);
+                return true;
+              }
+            } else if ((opInst->getOpcode() == Instruction::Sub) ||
+                (opInst->getOpcode() == Instruction::FSub)) {
+              Value *op1 = opInst->getOperand(0);
+              Value *op2 = opInst->getOperand(1);
+              if (loadsAccumVariable(op1, loop, pointerOperand, insts, varLoad,
+                  addends, subtrahends)) {
+                subtrahends.push_back(op2);
+                return true;
+              }
             }
           }
         }
@@ -349,6 +423,104 @@ namespace {
 
       return false;
     }        
+
+    // Find the most recent mul/fmul/udiv/sdiv/fdiv instruction.
+    BinaryOperator *findMulInst(Instruction *inst, Loop *loop, Value *pointerOperand,
+        std::set<Instruction *> insts, LoadInst **varLoad,
+        std::vector<Value *> &factors, std::vector<Value *> &divisors) {
+      if (insts.count(inst)) {
+        if (StoreInst *storeInst = dyn_cast_or_null<StoreInst>(inst)) {
+          if (LoadInst *loadInst = dyn_cast_or_null<LoadInst>(storeInst->getValueOperand())) {
+            return findMulInst(loadInst, loop, pointerOperand, insts, varLoad,
+                factors, divisors);
+          } else if (BinaryOperator *opInst =
+                dyn_cast_or_null<BinaryOperator>(storeInst->getValueOperand())) {
+            if ((opInst->getOpcode() == Instruction::Mul) ||
+                (opInst->getOpcode() == Instruction::FMul)) {
+              Value *op1 = opInst->getOperand(0);
+              Value *op2 = opInst->getOperand(1);
+              if (loadsScaledVariable(op1, loop, pointerOperand, insts,
+                  varLoad, factors, divisors)) {
+                factors.push_back(op2);
+                return opInst;
+              } else if (loadsScaledVariable(op2, loop, pointerOperand, insts,
+                  varLoad, factors, divisors)) {
+                factors.push_back(op1);
+                return opInst;
+              }
+            } else if ((opInst->getOpcode() == Instruction::UDiv) ||
+                (opInst->getOpcode() == Instruction::SDiv) ||
+                (opInst->getOpcode() == Instruction::FDiv)) {
+              Value *op1 = opInst->getOperand(0);
+              Value *op2 = opInst->getOperand(1);
+              if (loadsScaledVariable(op1, loop, pointerOperand, insts, varLoad,
+                  factors, divisors)) {
+                divisors.push_back(op2);
+                return opInst;
+              }
+            }
+          }
+        } else if (LoadInst *loadInst = dyn_cast_or_null<LoadInst>(inst)) {
+          if (StoreInst *storeInst = findMostRecentStoreInst(loadInst, loop)) {
+            return findMulInst(storeInst, loop, pointerOperand, insts, varLoad,
+                factors, divisors);
+          }
+        }
+      }
+
+      return NULL;
+    }
+
+    // Determine whether an operand involves the scaled variable.
+    bool loadsScaledVariable(Value *operand, Loop *loop, Value *pointerOperand,
+        std::set<Instruction *> insts, LoadInst **varLoad,
+        std::vector<Value *> &factors, std::vector<Value *> &divisors) {
+      if (Instruction *inst = dyn_cast_or_null<Instruction>(operand)) {
+        if (insts.count(inst)) {
+          if (LoadInst *loadInst = dyn_cast_or_null<LoadInst>(inst)) {
+            if (loadInst->getPointerOperand() == pointerOperand) {
+              *varLoad = loadInst;
+              return true;
+            } else if (StoreInst *storeInst = findMostRecentStoreInst(loadInst, loop)) {
+              return loadsScaledVariable(storeInst, loop, pointerOperand, insts,
+                  varLoad, factors, divisors);
+            }
+          } else if (StoreInst *storeInst = dyn_cast_or_null<StoreInst>(inst)) {
+            if (LoadInst *loadInst = dyn_cast_or_null<LoadInst>(storeInst->getValueOperand())) {
+              return loadsScaledVariable(loadInst, loop, pointerOperand, insts,
+                  varLoad, factors, divisors);
+            }
+          } else if (BinaryOperator *opInst = dyn_cast_or_null<BinaryOperator>(operand)) {
+            if ((opInst->getOpcode() == Instruction::Mul) ||
+                (opInst->getOpcode() == Instruction::FMul)) {
+              Value *op1 = opInst->getOperand(0);
+              Value *op2 = opInst->getOperand(1);
+              if (loadsScaledVariable(op1, loop, pointerOperand, insts, varLoad,
+                  factors, divisors)) {
+                factors.push_back(op2);
+                return true;
+              } else if (loadsScaledVariable(op2, loop, pointerOperand, insts,
+                  varLoad, factors, divisors)) {
+                factors.push_back(op1);
+                return true;
+              }
+            } else if ((opInst->getOpcode() == Instruction::UDiv) ||
+                (opInst->getOpcode() == Instruction::SDiv) ||
+                (opInst->getOpcode() == Instruction::FDiv)) {
+              Value *op1 = opInst->getOperand(0);
+              Value *op2 = opInst->getOperand(1);
+              if (loadsScaledVariable(op1, loop, pointerOperand, insts, varLoad,
+                  factors, divisors)) {
+                divisors.push_back(op2);
+                return true;
+              }
+            }
+          }
+        }
+      }
+
+      return false;
+    }
 
     // Transform a loop to skip iterations.
     // The loop should already be validated as perforatable, but checks will be
@@ -364,7 +536,7 @@ namespace {
 
       // Next, make sure the header (condition block) ends with a body/exit
       // conditional branch.
-      BranchInst *condBranch = dyn_cast<BranchInst>(
+      BranchInst *condBranch = dyn_cast_or_null<BranchInst>(
           loop->getHeader()->getTerminator()
       );
       if (!condBranch || condBranch->getNumSuccessors() != 2) {
@@ -381,70 +553,104 @@ namespace {
         return;
       }
 
+      // Get the shortcut for the destination. In for-like loop perforation, we
+      // shortcut to the latch (increment block). In while-like perforation, we
+      // jump to the header (condition block).
+      BasicBlock *shortcutDest;
+      if (isForLike) {
+        shortcutDest = loop->getLoopLatch();
+      } else {
+        shortcutDest = loop->getHeader();
+      }
+
       // Collect the set of instructions in the loop body.
       std::set<Instruction *> insts;
       std::set<StoreInst *> storeInsts;
       std::set<Instruction *> preserved;
+      std::set<BasicBlock *> withPreservedInsts;
 
-      Loop::block_iterator bodyBlockItr;
-      for (Loop::block_iterator bi = loop->block_begin(); *bi != loop->getLoopLatch(); bi++) {
-        if (*bi == bodyBlock) {
-          bodyBlockItr = bi;
-          break;
+      Loop::block_iterator bodyBlockItr =
+          std::find(loop->block_begin(), loop->block_end(), bodyBlock);
+      for (Loop::block_iterator bi = bodyBlockItr; bi != loop->block_end(); bi++) {
+        if (isForLike && (*bi == loop->getLoopLatch())) {
+          continue;
         }
-      }
-      for (Loop::block_iterator bi = bodyBlockItr; *bi != loop->getLoopLatch(); bi++) {
+
         for (BasicBlock::iterator i = (*bi)->begin(); i != (*bi)->end(); i++) {
           insts.insert(i);
           // Collect the set of store instructions.
-          if (StoreInst *SI = dyn_cast<StoreInst>(i)) {
+          if (StoreInst *SI = dyn_cast_or_null<StoreInst>(&*i)) {
             storeInsts.insert(SI);
           }
         }
       }
 
-      // Collect the set of store instructions to preserve in the loop body.
+      // Map the set of store instructions that correspond to accumulations
+      // or scalings in the loop body.
+      std::map<StoreInst *, CmpdAssignInfo> cmpdAssignStores, accumStores, scaleStores;
+      for (std::set<StoreInst *>::iterator
+          i = storeInsts.begin(); i != storeInsts.end(); i++) {
+        LoadInst *varLoad;
+        std::vector<Value *> incOperands, decOperands;
+        if (BinaryOperator *opInst =
+            findAddInst(*i, loop, (*i)->getPointerOperand(), insts, &varLoad,
+            incOperands, decOperands)) {
+          preserved.insert(*i);
+          preserved.insert(opInst);
+          accumStores[*i] = CmpdAssignInfo(opInst, varLoad, incOperands, decOperands);
+          cmpdAssignStores[*i] = CmpdAssignInfo(opInst, varLoad, incOperands, decOperands);
+        } else if (BinaryOperator *opInst =
+            findMulInst(*i, loop, (*i)->getPointerOperand(), insts, &varLoad,
+            incOperands, decOperands)) {
+          preserved.insert(*i);
+          preserved.insert(opInst);
+          scaleStores[*i] = CmpdAssignInfo(opInst, varLoad, incOperands, decOperands);
+          cmpdAssignStores[*i] = CmpdAssignInfo(opInst, varLoad, incOperands, decOperands);
+        }
+      }
+
+      // Collect the set of store instructions to preserve that do not
+      // correspond to accumulations or scalings.
       std::set<StoreInst *> preservedStores;
       for (std::set<StoreInst *>::iterator i = storeInsts.begin(); i != storeInsts.end(); i++) {
-        if (AI->storeEscapes(*i, insts)) {
+        if (AI->storeEscapes(*i, insts) && !cmpdAssignStores.count(*i)) {
           preservedStores.insert(*i);
         }
       }
 
-      // Map the set of store instructions that correspond to accumulations in the loop body.
-      std::map< StoreInst *, std::pair< BinaryOperator *, int > > accumStores;
-      for (std::set<StoreInst *>::iterator i = storeInsts.begin(); i != storeInsts.end(); i++) {
-        int incOperand;
-        if (BinaryOperator *addInst = findAddInst(*i, loop, (*i)->getPointerOperand(), insts, incOperand)) {
-          preserved.insert(*i);
-          preserved.insert(addInst);
-          accumStores[*i] = std::make_pair(addInst, incOperand);
-        }
+      // Slice the pointer operand of each of the store instructions corresponding to
+      // a compound assignment (accumulation or scaling).
+      for (std::map<StoreInst *, CmpdAssignInfo>::iterator
+          i = cmpdAssignStores.begin(); i != cmpdAssignStores.end(); i++) {
+        StoreInst *SI = i->first;
+        preserved.insert(SI);
+        slicePointerOperand(SI, loop, insts, preserved);
       }
 
-      // Remove all elements of accumStores from preservedStores, so that a StoreInst is not assessed for
-      // optimization twice.
-      for (std::map< StoreInst *, std::pair< BinaryOperator *, int> >::iterator i = accumStores.begin(); i != accumStores.end(); i++) {
-        StoreInst *accumStore = i->first;
-        if (preservedStores.count(accumStore)) {
-          preservedStores.erase(accumStore);
-        }
-      }
-
-      // Slice the pointer operand of each of the store instructions.
-      for (std::set<StoreInst *>::iterator i = preservedStores.begin(); i != preservedStores.end(); i++) {
+      // Slice the pointer operand of each of the preserved store instructions
+      // that do not correspond to accumulations.
+      for (std::set<StoreInst *>::iterator i = preservedStores.begin();
+          i != preservedStores.end(); i++) {
         preserved.insert(*i);
         slicePointerOperand(*i, loop, insts, preserved);
       }
 
       // Slice the condition of each of the branch instructions.
       for (std::set<Instruction *>::iterator i = insts.begin(); i != insts.end(); i++) {
-        if (BranchInst *BI = dyn_cast<BranchInst>(*i)) {
+        if (BranchInst *BI = dyn_cast_or_null<BranchInst>(*i)) {
           preserved.insert(BI);
           sliceOperandHelper(BI, loop, insts, preserved);
         }
       }
 
+      // Keep track of the body blocks that contain instructions
+      // that have been marked for preservation.
+      for (std::set<Instruction *>::iterator i = preserved.begin();
+          i != preserved.end(); i++) {
+        withPreservedInsts.insert((*i)->getParent());
+      }
+
+      // Keep track of the preheader block and latch block of the original loop.
       BasicBlock *preheaderBlock = loop->getLoopPreheader();
       BasicBlock *latchBlock = loop->getLoopLatch();
 
@@ -453,29 +659,45 @@ namespace {
       LoopBlocks.perform(LI);
       ValueToValueMapTy VMap, LVMap;
 
-      CloneLoopBlocks(loop, true, loop->getLoopPreheader(), loop->getLoopLatch(),
-          blockClones, LoopBlocks, VMap, LVMap, LI);
+      // Clone the blocks of the loop. The block clones will be inserted
+      // between the preheader block and latch block of the original loop.
+      CloneLoopBlocks(loop, true, preheaderBlock, latchBlock, blockClones,
+          LoopBlocks, VMap, LVMap, LI);
 
+      // Replace the operands of all cloned instructions, as well as the
+      // incoming blocks of all PHI nodes, with their cloned counterparts.
       for (ValueToValueMapTy::iterator i = VMap.begin(); i != VMap.end(); i++) {
-        if (Instruction *origInst = (Instruction *) dyn_cast<Instruction>(i->first)) {
-          if (Instruction *clonedInst = dyn_cast<Instruction>(i->second)) {
+        if (Instruction *origInst = (Instruction *) dyn_cast_or_null<Instruction>(i->first)) {
+          if (Instruction *clonedInst = dyn_cast_or_null<Instruction>(&*(i->second))) {
             for (unsigned j = 0; j != clonedInst->getNumOperands(); j++) {
               if (VMap.count(origInst->getOperand(j))) {
                 clonedInst->setOperand(j, VMap[origInst->getOperand(j)]);
+              }
+            }
+            if (PHINode *origPN = dyn_cast_or_null<PHINode>(origInst)) {
+              if (PHINode *clonedPN = dyn_cast_or_null<PHINode>(clonedInst)) {
+                for (unsigned j = 0; j != clonedPN->getNumOperands(); j++) {
+                  if (VMap.count(origPN->getIncomingBlock(j))) {
+                    clonedPN->setIncomingBlock(j,
+                        (BasicBlock *) &*(VMap[origPN->getIncomingBlock(j)]));
+                  }
+                }
               }
             }
           }
         }
       }
 
+      // Identify the clones of the header block and latch block of the
+      // original loop. Also mark the instruction clones that will be removed.
       std::set<Instruction *> removed;
       BasicBlock *clonedHeader = NULL;
       BasicBlock *clonedLatch = NULL;
 
       for (ValueToValueMapTy::iterator i = VMap.begin(); i != VMap.end(); i++) {
-        if (Instruction *origInst = (Instruction *) dyn_cast<Instruction>(i->first)) {
-          if (!preserved.count(origInst)) {
-            if (Instruction *clonedInst = dyn_cast<Instruction>(i->second)) {
+        if (Instruction *origInst = (Instruction *) dyn_cast_or_null<Instruction>(i->first)) {
+          if (Instruction *clonedInst = dyn_cast_or_null<Instruction>(&*(i->second))) {
+            if (!preserved.count(origInst)) {
               if (origInst->getParent() == loop->getHeader()) {
                 if (!clonedHeader) {
                   clonedHeader = clonedInst->getParent();
@@ -484,7 +706,7 @@ namespace {
                 if (!clonedLatch) {
                   clonedLatch = clonedInst->getParent();
                 }
-              } else {
+              } else if (withPreservedInsts.count(origInst->getParent())) {
                 removed.insert(clonedInst);
               }
             }
@@ -492,7 +714,8 @@ namespace {
         }
       }
 
-      BranchInst *clonedCondBranch = dyn_cast<BranchInst>(
+      // Identify the clone of the first body block.
+      BranchInst *clonedCondBranch = dyn_cast_or_null<BranchInst>(
           clonedHeader->getTerminator()
       );
       BasicBlock *clonedBodyBlock;
@@ -502,14 +725,26 @@ namespace {
         clonedBodyBlock = clonedCondBranch->getSuccessor(0);
       }
 
-      BasicBlock *lastClonedBodyBlock = clonedLatch->getSinglePredecessor();
-      std::vector<BasicBlock *>::iterator findItr;
-
-      for (findItr = blockClones.begin(); findItr != blockClones.end(); findItr++) {
-        if (*findItr == clonedHeader) {
-          break;
+      // Identify the clones of the predecessors of the shortcut
+      // destination block.
+      std::set<BasicBlock *> clonedShortcutPreds;
+      for (std::vector<BasicBlock *>::iterator i = blockClones.begin();
+          i != blockClones.end(); i++) {
+        BasicBlock *curBlock = *i;
+        if (isForLike) {
+          if (curBlock->getTerminator()->getSuccessor(0) == clonedLatch) {
+            clonedShortcutPreds.insert(curBlock);
+          }
+        } else {
+          if (curBlock->getTerminator()->getSuccessor(0) == latchBlock) {
+            clonedShortcutPreds.insert(curBlock);
+          }
         }
       }
+
+      // Delete the header block clone.
+      std::vector<BasicBlock *>::iterator findItr =
+          std::find(blockClones.begin(), blockClones.end(), clonedHeader);
       blockClones.erase(findItr);
       for (BasicBlock::iterator i = clonedHeader->begin(); i != clonedHeader->end(); i++) {
         i->dropAllReferences();
@@ -517,52 +752,47 @@ namespace {
       clonedHeader->removeFromParent();
       LI->removeBlock(clonedHeader);
 
-      for (findItr = blockClones.begin(); findItr != blockClones.end(); findItr++) {
-        if (*findItr == clonedLatch) {
-          break;
+      // Delete the latch block clone only if the loop is for-like.
+      if (isForLike) {
+        findItr = std::find(blockClones.begin(), blockClones.end(), clonedLatch);
+        blockClones.erase(findItr);
+        for (BasicBlock::iterator i = clonedLatch->begin(); i != clonedLatch->end(); i++) {
+          i->dropAllReferences();
         }
+        clonedLatch->removeFromParent();
+        LI->removeBlock(clonedLatch);
       }
-      blockClones.erase(findItr);
-      for (BasicBlock::iterator i = clonedLatch->begin(); i != clonedLatch->end(); i++) {
-        i->dropAllReferences();
-      }
-      clonedLatch->removeFromParent();
-      LI->removeBlock(clonedLatch);
 
-      for (std::set<StoreInst *>::iterator i = preservedStores.begin(); i != preservedStores.end(); i++) {
-        if (StoreInst *clonedStore = dyn_cast<StoreInst>(VMap[*i])) {
+      // Set the operands of some crucial preserved instructions to null values,
+      // in order to eliminate references to instructions that will be removed.
+      for (std::set<StoreInst *>::iterator i = preservedStores.begin();
+          i != preservedStores.end(); i++) {
+        if (StoreInst *clonedStore = dyn_cast_or_null<StoreInst>(&*(VMap[*i]))) {
           clonedStore->setOperand(0, Constant::getNullValue((*i)->getValueOperand()->getType()));
         }
       }
 
-      for (std::map< StoreInst *, std::pair< BinaryOperator *, int> >::iterator i = accumStores.begin(); i != accumStores.end(); i++) {
+      for (std::map<StoreInst *, CmpdAssignInfo>::iterator
+          i = cmpdAssignStores.begin(); i != cmpdAssignStores.end(); i++) {
         StoreInst *origStore = i->first;
-        if (StoreInst *clonedStore = dyn_cast<StoreInst>(VMap[origStore])) {
+        if (StoreInst *clonedStore = dyn_cast_or_null<StoreInst>(&*(VMap[origStore]))) {
           clonedStore->setOperand(0, Constant::getNullValue(origStore->getValueOperand()->getType()));
         }
 
-        BinaryOperator *origAdd = (i->second).first;
-        if (BinaryOperator *clonedAdd = dyn_cast<BinaryOperator>(VMap[origAdd])) {
-          clonedAdd->setOperand(0, Constant::getNullValue(origAdd->getOperand(0)->getType()));
-          clonedAdd->setOperand(1, Constant::getNullValue(origAdd->getOperand(1)->getType()));
+        BinaryOperator *origOp = (i->second).opInst;
+        if (BinaryOperator *clonedOp = dyn_cast_or_null<BinaryOperator>(&*(VMap[origOp]))) {
+          clonedOp->setOperand(0, Constant::getNullValue(origOp->getOperand(0)->getType()));
+          clonedOp->setOperand(1, Constant::getNullValue(origOp->getOperand(1)->getType()));
         }
       }
 
+      // Drop all the references of each of the instructions that will be removed,
+      // then remove the instructions one by one. 
       for (std::set<Instruction *>::iterator i = removed.begin(); i != removed.end(); i++) {
         (*i)->dropAllReferences();
       }
       for (std::set<Instruction *>::iterator i = removed.begin(); i != removed.end(); i++) {
         (*i)->removeFromParent();
-      }
-
-      // Get the shortcut for the destination. In for-like loop perforation, we
-      // shortcut to the latch (increment block). In while-like perforation, we
-      // jump to the header (condition block).
-      BasicBlock *shortcutDest;
-      if (isForLike) {
-        shortcutDest = loop->getLoopLatch();
-      } else {
-        shortcutDest = loop->getHeader();
       }
 
       // Change the preheader block to point to the condition block again.
@@ -610,8 +840,6 @@ namespace {
           counterAlloca
       );
 
-      // Get the first body block.
-
       // Check the counter before the loop's body.
       BasicBlock *checkBlock = BasicBlock::Create(
           module->getContext(),
@@ -647,11 +875,18 @@ namespace {
       // Add condition block to the loop structure.
       loop->addBasicBlockToLoop(checkBlock, LI->getBase());
 
-      // Change the last cloned body block to point to the increment block.
-      lastClonedBodyBlock->getTerminator()->setSuccessor(0, latchBlock);
+      // Change the clone of each predecessor of the shortcut for the destination
+      // to point to the shortcut. In for-like loop perforation, we shortcut to
+      // the latch (increment block). In while-like perforation, we jump to the
+      // header (condition block).
+      for (std::set<BasicBlock *>::iterator i = clonedShortcutPreds.begin();
+          i != clonedShortcutPreds.end(); i++) {
+        (*i)->getTerminator()->setSuccessor(0, shortcutDest);
+      }
 
       // Add all cloned body blocks to the loop structure.
-      for (std::vector<BasicBlock *>::iterator i = blockClones.begin(); i != blockClones.end(); i++) {
+      for (std::vector<BasicBlock *>::iterator
+          i = blockClones.begin(); i != blockClones.end(); i++) {
         if (const Loop *curLoop = (*LI)[*i]) {
           errs() << "Block " << (*i)->getName() << " is already in a loop:\n"
             << *curLoop << "...but we want it to be in:\n" << *loop;
@@ -661,7 +896,8 @@ namespace {
       }
 
       // Insert instructions to store and load values saved from evaluated iterations.
-      for (std::set<StoreInst *>::iterator i = preservedStores.begin(); i != preservedStores.end(); i++) {
+      for (std::set<StoreInst *>::iterator i = preservedStores.begin();
+          i != preservedStores.end(); i++) {
         StoreInst *SI = *i;
 
         // Insert an AllocaInst for the saved value.
@@ -694,57 +930,196 @@ namespace {
         clonedStore->setOperand(0, result);
       }
 
-      bodyBlock->getParent()->dump();
-
       // Insert instructions for the accumulation optimization.
-      for (std::map< StoreInst *, std::pair<BinaryOperator *, int> >::iterator i = accumStores.begin(); i != accumStores.end(); i++) {
+      for (std::map<StoreInst *, CmpdAssignInfo>::iterator i = accumStores.begin();
+          i != accumStores.end(); i++) {
         StoreInst *storeInst = i->first;
-        BinaryOperator *addInst = (i->second).first;
-        int incOperand = (i->second).second;
+        BinaryOperator *opInst = (i->second).opInst;
+        LoadInst *varLoad = (i->second).varLoad;
+        std::vector<Value *> addends = (i->second).incOperands;
+        std::vector<Value *> subtrahends = (i->second).decOperands;
 
-        // Insert an AllocaInst for the accumulation increment value.
+        // Insert an AllocaInst for the accumulation increment/decrement value.
         builder.SetInsertPoint(
             loop->getLoopPreheader()->getParent()->getEntryBlock().begin()
         );
 
         AllocaInst *accumAlloca = builder.CreateAlloca(
-            addInst->getOperand(incOperand)->getType(),
+            storeInst->getValueOperand()->getType(),
             0,
             "accept_accum"
         );
 
-        // Insert a StoreInst to store the accumulation increment value.
-        builder.SetInsertPoint(addInst);
+        // If there is only one operand, simply insert a StoreInst to store the
+        // accumulation increment/decrement value. Otherwise, insert a sub/fsub
+        // instruction to find the net increment/decrement to be stored.
+        builder.SetInsertPoint(storeInst);
+        Value *incValue;
+
+        if (addends.size() == 1 && !subtrahends.size()) {
+          incValue = *(addends.begin());
+        } else if (!addends.size() && subtrahends.size() == 1) {
+          incValue = *(subtrahends.begin());
+        } else {
+          Value *operand1, *operand2;
+          if ((opInst->getOpcode() == Instruction::Add) ||
+              (opInst->getOpcode() == Instruction::FAdd)) {
+            operand1 = storeInst->getValueOperand();
+            operand2 = varLoad;
+          } else if ((opInst->getOpcode() == Instruction::Sub) ||
+              (opInst->getOpcode() == Instruction::FSub)) {
+            operand1 = varLoad;
+            operand2 = storeInst->getValueOperand();
+          }
+
+          if (storeInst->getValueOperand()->getType()->isIntOrIntVectorTy()) {
+            result = builder.CreateSub(
+                operand1,
+                operand2,
+                "accept_accumDiff"
+            );
+          } else {
+            result = builder.CreateFSub(
+                operand1,
+                operand2,
+                "accept_accumFDiff"
+            );
+          }
+          
+          incValue = result;
+        }
+
         builder.CreateStore(
-            addInst->getOperand(incOperand),
+            incValue,
             accumAlloca
         );
 
-        // Insert a LoadInst to load the accumulation increment value.
-        Instruction *clonedAdd = (Instruction *) &*VMap[addInst];
-        builder.SetInsertPoint(clonedAdd);
+        // Insert a LoadInst to load the accumulation variable.
+        Instruction *clonedOp = (Instruction *) &*VMap[opInst];
+        builder.SetInsertPoint(clonedOp);
+
+        Value *accumVar;
+        if (VMap.count(storeInst->getPointerOperand())) {
+          accumVar = VMap[storeInst->getPointerOperand()];
+        } else {
+          accumVar = storeInst->getPointerOperand();
+        }
         result = builder.CreateLoad(
+            accumVar,
+            "accept_accumVar"
+        );
+
+        // Insert a LoadInst to load the accumulation increment/decrement value.
+        Value *result2 = builder.CreateLoad(
             accumAlloca,
             "accept_accumInc"
         );
 
-        // Insert a LoadInst to load the accumulation variable.
-        Value *result2 = builder.CreateLoad(
-            storeInst->getPointerOperand(),
-            "accept_accumVar"
-        );
-
-        // Change the operands of the BinaryOperator to be the two LoadInsts.
-        clonedAdd->setOperand(0, result);
-        clonedAdd->setOperand(1, result2);
+        // Change the operands of the cloned BinaryOperator to be the two LoadInsts.
+        clonedOp->setOperand(0, result);
+        clonedOp->setOperand(1, result2);
 
         // Change the value operand of the cloned accumulation StoreInst to be
         // the cloned BinaryOperator.
         Instruction *clonedStore = (Instruction *) &*VMap[storeInst];
-        clonedStore->setOperand(0, clonedAdd);
+        clonedStore->setOperand(0, clonedOp);
       }
 
-      bodyBlock->getParent()->dump();
+      // Insert instructions for the scaling optimization.
+      for (std::map<StoreInst *, CmpdAssignInfo>::iterator i = scaleStores.begin();
+          i != scaleStores.end(); i++) {
+        StoreInst *storeInst = i->first;
+        BinaryOperator *opInst = (i->second).opInst;
+        LoadInst *varLoad = (i->second).varLoad;
+        std::vector<Value *> factors = (i->second).incOperands;
+        std::vector<Value *> divisors = (i->second).decOperands;
+
+        // Insert an AllocaInst for the scale factor value.
+        builder.SetInsertPoint(
+            loop->getLoopPreheader()->getParent()->getEntryBlock().begin()
+        );
+
+        AllocaInst *accumAlloca = builder.CreateAlloca(
+            storeInst->getValueOperand()->getType(),
+            0,
+            "accept_scale"
+        );
+
+        // If there is only one operand, simply insert a StoreInst to store the
+        // scale factor value. Otherwise, insert a sdiv/fdiv instruction
+        // to find the net scale factor to be stored.
+        builder.SetInsertPoint(storeInst);
+        Value *factorValue;
+
+        if (factors.size() == 1 && !divisors.size()) {
+          factorValue = *(factors.begin());
+        } else if (!factors.size() && divisors.size() == 1) {
+          factorValue = *(divisors.begin());
+        } else {
+          Value *operand1, *operand2;
+          if ((opInst->getOpcode() == Instruction::Mul) ||
+              (opInst->getOpcode() == Instruction::FMul)) {
+            operand1 = storeInst->getValueOperand();
+            operand2 = varLoad;
+          } else if ((opInst->getOpcode() == Instruction::UDiv) ||
+              (opInst->getOpcode() == Instruction::SDiv) ||
+              (opInst->getOpcode() == Instruction::FDiv)) {
+            operand1 = varLoad;
+            operand2 = storeInst->getValueOperand();
+          }
+
+          if (storeInst->getValueOperand()->getType()->isIntOrIntVectorTy()) {
+            result = builder.CreateSDiv(
+                operand1,
+                operand2,
+                "accept_scaleQuo"
+            );
+          } else {
+            result = builder.CreateFDiv(
+                operand1,
+                operand2,
+                "accept_scaleFQuo"
+            );
+          }
+          
+          factorValue = result;
+        }
+
+        builder.CreateStore(
+            factorValue,
+            accumAlloca
+        );
+
+        // Insert a LoadInst to load the scaled variable.
+        Instruction *clonedOp = (Instruction *) &*VMap[opInst];
+        builder.SetInsertPoint(clonedOp);
+
+        Value *scaleVar;
+        if (VMap.count(storeInst->getPointerOperand())) {
+          scaleVar = VMap[storeInst->getPointerOperand()];
+        } else {
+          scaleVar = storeInst->getPointerOperand();
+        }
+        result = builder.CreateLoad(
+            scaleVar,
+            "accept_scaleVar"
+        );
+
+        // Insert a LoadInst to load the accumulation increment/decrement value.
+        Value *result2 = builder.CreateLoad(
+            accumAlloca,
+            "accept_scaleFactor"
+        );
+
+        // Change the operands of the cloned BinaryOperator to be the two LoadInsts.
+        clonedOp->setOperand(0, result);
+        clonedOp->setOperand(1, result2);
+
+        // Change the value operand of the cloned scaling StoreInst to be
+        // the cloned BinaryOperator.
+        Instruction *clonedStore = (Instruction *) &*VMap[storeInst];
+        clonedStore->setOperand(0, clonedOp);
+      }
     }
   };
 }

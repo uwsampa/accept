@@ -70,12 +70,8 @@ void instructionsBetween(Instruction *start, Instruction *end,
 }
 
 // This function adds a synchronization description to descTable.
-void ACCEPTPass::addSyncDesc(
-    const bool hasBlockers,
-    const std::string fileName,
-    const int lineNumber,
-    const std::string prefix,
-    const std::string postfix,
+void ACCEPTPass::addSyncDesc(const bool hasBlockers, const std::string fileName,
+    const int lineNumber, const std::string prefix, const std::string postfix,
     const std::map< int, std::vector<std::string> > blockerEntries) {
   Location loc("Synchronization", hasBlockers, fileName, lineNumber);
   if (AI->descTable.count(loc) == 0) {
@@ -153,15 +149,14 @@ Instruction *ACCEPTPass::findCritSec(Instruction *acq,
   return rel;
 }
 
-
-std::string ACCEPTPass::siteName(std::string kind, Instruction *at, std::string &fileName, std::string &line) {
+std::string ACCEPTPass::siteName(std::string kind, Instruction *at,
+    std::string &fileName, std::string &line) {
   std::stringstream ss;
   std::string posDesc = srcPosDesc(*module, at->getDebugLoc());
   splitPosDesc(posDesc, fileName, line);
   ss << kind << " at " << posDesc;
   return ss.str();
 }
-
 
 // Find the critical section beginning with an acquire (or barrier), check for
 // approximateness, and return the release (or next barrier). If the critical
@@ -190,6 +185,8 @@ Instruction *ACCEPTPass::findApproxCritSec(
   blessed.insert(rel);
   critSec.insert(rel);
   std::set<Instruction*> blockers = AI->preciseEscapeCheck(critSec, &blessed);
+
+  // Print the blockers to the log.
   prefixStream << " - blockers: " << blockers.size() << "\n";
   prefix = prefixStream.str();
   for (std::set<Instruction*>::iterator i = blockers.begin();
@@ -214,7 +211,6 @@ Instruction *ACCEPTPass::findApproxCritSec(
   return rel;
 }
 
-
 bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
   bool hasBlockers = false;
   std::stringstream prefixStream, postfixStream;
@@ -230,9 +226,11 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
   prefixStream << optName << "\n";
   prefix = prefixStream.str();
 
-  Instruction *rel = findApproxCritSec(acq, prefix, blockerEntries, hasBlockers);
+  Instruction *rel = findApproxCritSec(acq, prefix,
+      blockerEntries, hasBlockers);
   if (!rel) {
-    addSyncDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
+    addSyncDesc(hasBlockers, fileName, lineNumber, prefix,
+        postfix, blockerEntries);
     return false;
   }
 
@@ -244,7 +242,8 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
       // Remove the acquire and release calls.
       postfixStream << " - eliding lock\n";
       postfix = postfixStream.str();
-      addSyncDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
+      addSyncDesc(hasBlockers, fileName, lineNumber, prefix,
+          postfix, blockerEntries);
       acq->eraseFromParent();
       rel->eraseFromParent();
       return true;
@@ -253,7 +252,8 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
     relaxConfig[optName] = 0;
   }
   postfix = postfixStream.str();
-  addSyncDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
+  addSyncDesc(hasBlockers, fileName, lineNumber, prefix,
+      postfix, blockerEntries);
   return false;
 }
 
@@ -270,9 +270,11 @@ bool ACCEPTPass::optimizeBarrier(Instruction *bar1) {
   prefixStream << optName << "\n";
   prefix = prefixStream.str();
 
-  Instruction *rel = findApproxCritSec(bar1, prefix, blockerEntries, hasBlockers);
+  Instruction *rel = findApproxCritSec(bar1, prefix,
+      blockerEntries, hasBlockers);
   if (!rel) {
-    addSyncDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
+    addSyncDesc(hasBlockers, fileName, lineNumber, prefix,
+        postfix, blockerEntries);
     return false;
   }
 
@@ -285,17 +287,18 @@ bool ACCEPTPass::optimizeBarrier(Instruction *bar1) {
       postfixStream << " - eliding barrier wait\n";
       postfix = postfixStream.str();
       bar1->eraseFromParent();
-      addSyncDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
+      addSyncDesc(hasBlockers, fileName, lineNumber, prefix,
+          postfix, blockerEntries);
       return true;
     }
   } else {
     relaxConfig[optName] = 0;
   }
   postfix = postfixStream.str();
-  addSyncDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
+  addSyncDesc(hasBlockers, fileName, lineNumber, prefix,
+      postfix, blockerEntries);
   return false;
 }
-
 
 bool ACCEPTPass::optimizeSync(Function &F) {
   bool changed = false;
