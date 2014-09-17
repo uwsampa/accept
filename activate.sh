@@ -1,14 +1,15 @@
-#!/bin/bash
+sourced=$_
 
-called=$_
+# Source this script (don't execute it).
+if [ -z "$sourced" -o "$sourced" == "/bin/sh" ] ; then
+    echo "please source this script"
+fi
 
-[[ $called == $0 ]] && echo "You probably want to source this script: '. ${0}"
+base=`dirname $sourced`
+base=`cd "$base" ; pwd`
 
-ACTIVATE_DIR=`dirname ${BASH_SOURCE}`
-ACTIVATE_DIR_NORM="`cd "${ACTIVATE_DIR}";pwd`"
+# Extend $PATH.
+export PATH=$base/bin:$base/build/built/bin:$PATH
 
-export PATH=${ACTIVATE_DIR_NORM}/bin:${ACTIVATE_DIR_NORM}/build/built/bin:$PATH
-
-unset called
-unset ACTIVATE_DIR
-unset ACTIVATE_DIR_NORM
+unset base
+unset sourced
