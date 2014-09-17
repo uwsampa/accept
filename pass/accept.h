@@ -47,7 +47,7 @@ typedef enum {
   markerForbid
 } LineMarker;
 
-// This class manages a description in the log.
+// Logging: a section of the ACCEPT log.
 class Description {
   public:
     Description() : prefix(""), postfix("") {}
@@ -64,13 +64,14 @@ class Description {
     std::map< int, std::vector<std::string> > blockers;
 };
 
-// This class manages the location of a description in the log.
+// Logging: the location of a Description for positioning in the log.
 class Location {
   public:
     Location() : kind(""), hasBlockers(false), fileName(""), lineNumber(0) {}
     Location(const std::string myKind, const bool myHasBlockers,
         const std::string myFile, const int myNum) :
-        kind(myKind), hasBlockers(myHasBlockers), fileName(myFile), lineNumber(myNum) {}
+        kind(myKind), hasBlockers(myHasBlockers), fileName(myFile),
+        lineNumber(myNum) {}
     bool operator==(const Location &rhs) {
       return (this->kind == rhs.kind) &&
           (this->hasBlockers == rhs.hasBlockers) &&
@@ -83,7 +84,7 @@ class Location {
     int lineNumber;
 };
 
-// This class is a comparator for two instances of the Location class.
+// Logging: comparator for Location sorting.
 class cmpLocation {
   public:
     bool operator() (const Location a, const Location b) const {
@@ -97,7 +98,7 @@ class cmpLocation {
         return (a.lineNumber < b.lineNumber);
       }
     }
-};  
+};
 
 // This static function splits a description returned by srcPosDesc
 // into two strings: the file name and the line number.
@@ -117,7 +118,7 @@ static void splitPosDesc(
 static int extractBlockerLine(const std::string instDesc) {
   size_t i = instDesc.find(":");
   size_t length = instDesc.length();
-  
+
   std::string line = instDesc.substr(i + 1, length - i - 1);
   return atoi(line.c_str());
 }
