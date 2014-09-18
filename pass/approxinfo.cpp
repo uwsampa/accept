@@ -9,20 +9,17 @@
 
 #include <fstream>
 
-#define ACCEPT_LOG ACCEPT_LOG_(this)
-
 using namespace llvm;
 
 
 /**** DESCRIBE SOURCE INFORMATION ****/
 
-// Format a source position.
-std::string llvm::srcPosDesc(const Module &mod, const DebugLoc &dl) {
+// Try to get filename from debug location.
+std::string llvm::getFilename(const Module &mod, const DebugLoc &dl) {
   LLVMContext &ctx = mod.getContext();
   std::string out;
   raw_string_ostream ss(out);
 
-  // Try to get filename from debug location.
   DIScope scope(dl.getScope(ctx));
   if (scope.Verify()) {
     ss << scope.getFilename().data();
@@ -30,16 +27,23 @@ std::string llvm::srcPosDesc(const Module &mod, const DebugLoc &dl) {
     // Fall back to the compilation unit name.
     ss << "(" << mod.getModuleIdentifier() << ")";
   }
-  ss << ":";
 
-  ss << dl.getLine();
-  if (dl.getCol())
-    ss << "," << dl.getCol();
+  return ss.str();
+}
+
+// Format a source position.
+std::string llvm::srcPosDesc(const Module &mod, const DebugLoc &dl) {
+  LLVMContext &ctx = mod.getContext();
+  std::string out;
+  raw_string_ostream ss(out);
+  ss << getFilename(mod, dl)
+     << ":"
+     << dl.getLine();
   return out;
 }
 
 // Describe an instruction.
-std::string llvm::instDesc(const Module &mod, Instruction *inst) {
+std::string llvm::instDesc(const Module &mod, const Instruction *inst) {
   std::string out;
   raw_string_ostream ss(out);
   ss << srcPosDesc(mod, inst->getDebugLoc()) << ": ";
@@ -47,10 +51,10 @@ std::string llvm::instDesc(const Module &mod, Instruction *inst) {
   // call and invoke instructions
   Function *calledFunc = NULL;
   bool isCall = false;
-  if (CallInst *call = dyn_cast<CallInst>(inst)) {
+  if (const CallInst *call = dyn_cast<CallInst>(inst)) {
     calledFunc = call->getCalledFunction();
     isCall = true;
-  } else if (InvokeInst *invoke = dyn_cast<InvokeInst>(inst)) {
+  } else if (const InvokeInst *invoke = dyn_cast<InvokeInst>(inst)) {
     calledFunc = invoke->getCalledFunction();
     isCall = true;
   }
@@ -59,23 +63,19 @@ std::string llvm::instDesc(const Module &mod, Instruction *inst) {
     if (calledFunc) {
       StringRef name = calledFunc->getName();
       if (!name.empty() && name.front() == '_') {
-        // C++ name. An extra leading underscore makes the name legible by
-        // c++filt.
-        ss << "call to _" << name;
+        ss << "call to " << name;
       } else {
         ss << "call to " << name << "()";
       }
     }
     else
       ss << "indirect function call";
-  } else if (StoreInst *store = dyn_cast<StoreInst>(inst)) {
-    Value *ptr = store->getPointerOperand();
+  } else if (const StoreInst *store = dyn_cast<StoreInst>(inst)) {
+    const Value *ptr = store->getPointerOperand();
     StringRef name = ptr->getName();
     if (name.empty()) {
       ss << "store to intermediate:";
       inst->print(ss);
-    } else if (name.front() == '_') {
-      ss << "store to _" << ptr->getName().data();
     } else {
       ss << "store to " << ptr->getName().data();
     }
@@ -240,6 +240,7 @@ ApproxInfo::ApproxInfo() : FunctionPass(ID) {
 
 ApproxInfo::~ApproxInfo() {
   if (logEnabled) {
+    dumpLog();
     logFile->close();
     delete logFile;
   }
@@ -250,8 +251,8 @@ bool ApproxInfo::runOnFunction(Function &F) {
 }
 
 bool ApproxInfo::doInitialization(Module &M) {
+  findFunctionLocs(M);
   // Analyze the purity of each function in the module up-front.
-  ACCEPT_LOG << "ANALYZING FUNCTIONS FOR PRECISE-PURITY:\n\n"; 
   for (Module::iterator i = M.begin(); i != M.end(); ++i) {
     isPrecisePure(&*i);
   }
@@ -620,6 +621,22 @@ bool ApproxInfo::isWhitelistedPure(StringRef s) {
   return funcWhitelist.count(s);
 }
 
+// This function finds the file name and line number of each function.
+void ApproxInfo::findFunctionLocs(Module &mod) {
+  NamedMDNode *namedMD = mod.getNamedMetadata("llvm.dbg.cu");
+  for (unsigned i = 0, e = namedMD->getNumOperands(); i != e; ++i) {
+    DICompileUnit cu(namedMD->getOperand(i));
+    DIArray subps = cu.getSubprograms();
+    for (unsigned j = 0, je = subps.getNumElements(); j != je; ++j) {
+      DISubprogram subProg(subps.getElement(j));
+      std::string fileName = subProg.getFilename().str();
+      int lineNumber = (int) subProg.getLineNumber();
+      std::pair<std::string, int> functionLoc(fileName, lineNumber);
+      functionLocs[subProg.getFunction()] = functionLoc;
+    }
+  }
+}
+
 // Determine whether a function can only affect approximate memory (i.e., no
 // precise stores escape).
 bool ApproxInfo::isPrecisePure(Function *func) {
@@ -630,26 +647,39 @@ bool ApproxInfo::isPrecisePure(Function *func) {
     return functionPurity[func];
   }
 
-  ACCEPT_LOG << "checking function _" << func->getName() << "\n";
+  std::string fileName = "";
+  int lineNumber = 0;
+
+  if (functionLocs.count(func)) {
+    fileName = functionLocs[func].first;
+    lineNumber = functionLocs[func].second;
+  }
+  LogDescription *desc = logAdd("Function", fileName, lineNumber);
+
+  ACCEPT_LOG << "checking function " << func->getName().str();
+  if (functionLocs.count(func)) {
+    ACCEPT_LOG << " at " << fileName << ":" << lineNumber;
+  }
+  ACCEPT_LOG << "\n";
 
   // LLVM's own nominal purity analysis.
   if (func->onlyReadsMemory()) {
-    ACCEPT_LOG << " - only reads memory\n";
+    ACCEPT_LOG << "only reads memory\n";
     functionPurity[func] = true;
     return true;
   }
 
   // Whitelisted pure functions from standard libraries.
   if (func->empty() && isWhitelistedPure(func->getName())) {
-      ACCEPT_LOG << " - whitelisted\n";
-      functionPurity[func] = true;
-      return true;
+    ACCEPT_LOG << "whitelisted\n";
+    functionPurity[func] = true;
+    return true;
   }
 
   // Empty functions (those for which we don't have a definition) are
   // conservatively marked non-pure.
   if (func->empty()) {
-    ACCEPT_LOG << " - definition not available\n";
+    ACCEPT_LOG << "definition not available\n";
     functionPurity[func] = false;
     return false;
   }
@@ -664,13 +694,17 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   }
   std::set<Instruction*> blockers = preciseEscapeCheck(blocks);
 
-  ACCEPT_LOG << " - blockers: " << blockers.size() << "\n";
+  // Add blocker entries to the description.
   for (std::set<Instruction*>::iterator i = blockers.begin();
-        i != blockers.end(); ++i) {
-    ACCEPT_LOG << "   * " << instDesc(*(func->getParent()), *i) << "\n";
+      i != blockers.end(); ++i) {
+    ACCEPT_LOG << *i;
   }
   if (blockers.empty()) {
-    ACCEPT_LOG << " - precise-pure function: _" << func->getName() << "\n";
+    ACCEPT_LOG << "precise-pure function: " <<
+        func->getName().str() << "\n";
+  } else {
+    ACCEPT_LOG << "precise-impure function: " <<
+        func->getName().str() << "\n";
   }
 
   functionPurity[func] = blockers.empty();

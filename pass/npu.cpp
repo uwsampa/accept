@@ -25,8 +25,6 @@
 #define ALIAS_DUMP 0
 #define BB_INTERSECTION 1
 
-#define ACCEPT_LOG ACCEPT_LOG_(AI)
-
 using namespace llvm;
 
 namespace {
@@ -86,7 +84,7 @@ namespace {
       for (std::set<std::set<BasicBlock*> >::iterator ri = regions.begin(); ri != regions.end(); ++ri) {
         rso << "------ region:\n";
         for (std::set<BasicBlock*>::iterator bi = ri->begin(); bi != ri->end(); ++bi) {
-          for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii) 
+          for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii)
             rso << *ii << "\n";
           rso << "\n";
         }
@@ -110,22 +108,6 @@ namespace {
 #endif
     }
 
-    /*
-    void dumpFuncInsts(Function *f) {
-    	std::cerr << "\nDumping function " << f->getName().str() << std::endl;
-    	std::string type_str;
-    	llvm::raw_string_ostream rso(type_str);
-        for (Function::iterator bi = f->begin(); bi != f->end(); ++bi) {
-          BasicBlock *bb = bi;
-          for (BasicBlock::iterator ii = bb->begin();
-              ii != bb->end(); ++ii) {
-            Instruction *inst = ii;
-            rso << *inst << "\n";
-          }
-        }
-        std::cerr << rso.str() << std::endl;
-    }
-    */
     std::vector<Loop *> loops_to_npu;
     std::vector<Instruction *> calls_to_npu;
     bool find_inst(Instruction *inst) {
@@ -204,11 +186,12 @@ namespace {
     }
 
     bool tryToOptimizeLoop(Loop *loop) {
+      Instruction *loopStart = loop->getHeader()->begin();
       std::stringstream ss;
-      ss << "npu_region at "
-         << srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc());
+      ss << "npu_region at " << srcPosDesc(*module, loopStart->getDebugLoc());
       std::string optName = ss.str();
-      ACCEPT_LOG << "---\n" << optName << "\n";
+
+      LogDescription *desc = AI->logAdd("NPU Region", loopStart);
 
       // Look for ACCEPT_FORBID marker.
       if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {
@@ -271,7 +254,7 @@ namespace {
         // std::cerr << "++++ begin" << std::endl;
         CallInst *c = dyn_cast<CallInst>(calls_to_npu[i]);
         // std::cerr << "Function npu: " << (c->getCalledFunction()->getName()).str() << std::endl;
-        modified = tryToNPU(loops_to_npu[i], calls_to_npu[i], optName);
+        modified = tryToNPU(loops_to_npu[i], calls_to_npu[i], optName, desc);
         // std::cerr << "++++ middle" << std::endl;
         /*
         for (Loop::block_iterator bi = loop->block_begin(); bi != loop->block_end(); ++bi) {
@@ -548,7 +531,7 @@ namespace {
     return false;
   } // pre_pos_call_dependency_check
 
-  bool tryToNPU(Loop *loop, Instruction *inst, StringRef optName) {
+  bool tryToNPU(Loop *loop, Instruction *inst, StringRef optName, LogDescription *desc) {
     // We need a loop latch to jump to after reading oBuff
     // and executing the instructions after the function call.
     if (!loop->getLoopLatch() || !loop->getLoopPreheader() || !loop->getHeader()) {
@@ -718,7 +701,7 @@ namespace {
       */
 
       //====================================
-      
+
 
       if (!GEP || !GEP->hasAllZeroIndices()) {
         op_size[i] = 0;
@@ -1541,7 +1524,7 @@ namespace {
     // So, starting by the current BB, we find all the BB's that
     // jump to the latch by using BFS.
     std::set<BasicBlock *> jump_to_latch;
-    
+
     std::queue<BasicBlock *> bfs_q;
     std::set<BasicBlock *> seen;
 

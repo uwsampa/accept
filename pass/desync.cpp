@@ -4,8 +4,6 @@
 
 #include <sstream>
 
-#define ACCEPT_LOG ACCEPT_LOG_(AI)
-
 using namespace llvm;
 
 const char *FUNC_BARRIER = "pthread_barrier_wait";
@@ -74,7 +72,8 @@ void instructionsBetween(Instruction *start, Instruction *end,
 // in the critical section are collected into the set supplied. Returns the
 // release/next barrier instruction if one is found or NULL otherwise.
 Instruction *ACCEPTPass::findCritSec(Instruction *acq,
-                                     std::set<Instruction*> &cs) {
+                                     std::set<Instruction*> &cs,
+                                     LogDescription *desc) {
   bool acquired = false;
   BasicBlock *bb = acq->getParent();
 
@@ -135,22 +134,22 @@ Instruction *ACCEPTPass::findCritSec(Instruction *acq,
   return rel;
 }
 
-
 std::string ACCEPTPass::siteName(std::string kind, Instruction *at) {
   std::stringstream ss;
-  ss << kind << " at "
-     << srcPosDesc(*module, at->getDebugLoc());
+  std::string posDesc = srcPosDesc(*module, at->getDebugLoc());
+  ss << kind << " at " << posDesc;
   return ss.str();
 }
-
 
 // Find the critical section beginning with an acquire (or barrier), check for
 // approximateness, and return the release (or next barrier). If the critical
 // section cannot be identified or is not approximate, return null.
-Instruction *ACCEPTPass::findApproxCritSec(Instruction *acq) {
+Instruction *ACCEPTPass::findApproxCritSec(
+    Instruction *acq,
+    LogDescription *desc) {
   // Find all the instructions between this acquire and the next release.
   std::set<Instruction*> critSec;
-  Instruction *rel = findCritSec(acq, critSec);
+  Instruction *rel = findCritSec(acq, critSec, desc);
   if (!rel) {
     return NULL;
   }
@@ -160,10 +159,11 @@ Instruction *ACCEPTPass::findApproxCritSec(Instruction *acq) {
   blessed.insert(rel);
   critSec.insert(rel);
   std::set<Instruction*> blockers = AI->preciseEscapeCheck(critSec, &blessed);
-  ACCEPT_LOG << "blockers: " << blockers.size() << "\n";
+
+  // Print the blockers to the log.
   for (std::set<Instruction*>::iterator i = blockers.begin();
         i != blockers.end(); ++i) {
-    ACCEPT_LOG << " * " << instDesc(*module, *i) << "\n";
+    ACCEPT_LOG << *i;
   }
   if (blockers.size()) {
     return NULL;
@@ -172,15 +172,17 @@ Instruction *ACCEPTPass::findApproxCritSec(Instruction *acq) {
   return rel;
 }
 
-
 bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
   // Generate a name for this opportunity site.
   std::string optName = siteName("lock acquire", acq);
-  ACCEPT_LOG << "---\n" << optName << "\n";
 
-  Instruction *rel = findApproxCritSec(acq);
-  if (!rel)
+  LogDescription *desc = AI->logAdd("Loop", acq);
+  ACCEPT_LOG << optName << "\n";
+
+  Instruction *rel = findApproxCritSec(acq, desc);
+  if (!rel) {
     return false;
+  }
 
   // Success.
   ACCEPT_LOG << "can elide lock\n";
@@ -199,14 +201,15 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
   return false;
 }
 
-
-
 bool ACCEPTPass::optimizeBarrier(Instruction *bar1) {
   std::string optName = siteName("barrier", bar1);
-  ACCEPT_LOG << "---\n" << optName << "\n";
+  LogDescription *desc = AI->logAdd("Loop", bar1);
+  ACCEPT_LOG << optName << "\n";
 
-  if (!findApproxCritSec(bar1))
+  Instruction *rel = findApproxCritSec(bar1, desc);
+  if (!rel) {
     return false;
+  }
 
   // Success.
   ACCEPT_LOG << "can elide barrier\n";
@@ -223,7 +226,6 @@ bool ACCEPTPass::optimizeBarrier(Instruction *bar1) {
   }
   return false;
 }
-
 
 bool ACCEPTPass::optimizeSync(Function &F) {
   bool changed = false;

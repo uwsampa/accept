@@ -16,5 +16,5 @@ def score(orig, relaxed):
     elif (math.isnan(a) or math.isnan(b)):
       total += 1.0
     else:
-      total += min(abs(a - b) / a, 1.0)
+      total += min(abs((a - b) / a), 1.0)
   return total / len(orig)

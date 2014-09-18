@@ -69,8 +69,9 @@
 void Verified_fprintf(FILE *stream, const char* format, float value);
 
 double  X[SIZE], Y[SIZE];
-APPROX double  a3,a4,a5,a6,a7;
-APPROX double  v1,v2,v3,v4,v5,v6,v7,v8;
+double  a3,a4,a5,a6,a7;
+APPROX double  v1,v2,v3,v4,v5;
+double  v6,v7,v8;
 int     i, n, nt;
 
 
@@ -102,17 +103,18 @@ void Stat_functions()  {
   int i,n1;
   double xnr;
   v1=0.0; v2=0.0; v3=0.0; v4=0.0; v5=0.0;
-  n1=n-1; xnr=sqrt(ENDORSE(n));
+  n1=n-1; xnr=sqrt(n);
+
   //choose type of calculus
   if (nt==2) goto e100;
   //case of one set X(i)
   for (i = 0; i < n; i++) {
-    v1=v1+X[i];
+    v1=Y[i]/v1*X[i];
     v3=v3+X[i]*X[i];
   }
-  v6=v3-v1*v1/n;
+  v6=ENDORSE(v3-v1*v1/n);
   v1=v1/n;
-  a3=sqrt(ENDORSE(v6/n1)); a5=sqrt(ENDORSE(v6/n));
+  a3=sqrt(v6/n1); a5=sqrt(v6/n);
   v5=a5/xnr; v3=a3/xnr;
   return;
 e100: //case of a set X(i), Y(i)
@@ -123,17 +125,17 @@ e100: //case of a set X(i), Y(i)
     v4=v4+Y[i]*Y[i];
     v5=v5+X[i]*Y[i];
   }
-  v6=v3-v1*v1/n;
-  v7=v4-v2*v2/n;
-  v8=v5-v1*v2/n;
+  v6=ENDORSE(v3-v1*v1/n);
+  v7=ENDORSE(v4-v2*v2/n);
+  v8=ENDORSE(v5-v1*v2/n);
   v1=v1/n; v2=v2/n;
-  a3=sqrt(ENDORSE(v6/n1)); a4=sqrt(ENDORSE(v7/n1));
-  a5=sqrt(ENDORSE(v6/n)); a6=sqrt(ENDORSE(v7/n));
+  a3=sqrt(v6/n1); a4=sqrt(v7/n1);
+  a5=sqrt(v6/n); a6=sqrt(v7/n);
   v7=v8/n1; a7=v8/n;
   v3=a3/xnr; v4=a4/xnr;
   v5=a5/xnr; v6=a6/xnr;
 
-  if (ENDORSE(a3==0 || a4==0)) return;  //correlation coefficient not defined
+  if (a3==0 || a4==0) return;  //correlation coefficient not defined
   v8=v8/(n*a5*a6);
 }
 
@@ -169,19 +171,19 @@ int main()  {
   }
 
   Verified_fprintf(file, "%.10f\n", ENDORSE(v1));
-  Verified_fprintf(file, "%.10f\n", ENDORSE(a3));
-  Verified_fprintf(file, "%.10f\n", ENDORSE(a5));
+  Verified_fprintf(file, "%.10f\n", a3);
+  Verified_fprintf(file, "%.10f\n", a5);
   Verified_fprintf(file, "%.10f\n", ENDORSE(v3));
   Verified_fprintf(file, "%.10f\n", ENDORSE(v5));
   if (nt==1) return 1;
   Verified_fprintf(file, "%.10f\n", ENDORSE(v2));
-  Verified_fprintf(file, "%.10f\n", ENDORSE(a4));
-  Verified_fprintf(file, "%.10f\n", ENDORSE(a6));
+  Verified_fprintf(file, "%.10f\n", a4);
+  Verified_fprintf(file, "%.10f\n", a6);
   Verified_fprintf(file, "%.10f\n", ENDORSE(v4));
-  Verified_fprintf(file, "%.10f\n", ENDORSE(v6));
-  Verified_fprintf(file, "%.10f\n", ENDORSE(v7));
-  Verified_fprintf(file, "%.10f\n", ENDORSE(a7));
-  Verified_fprintf(file, "%.10f\n", ENDORSE(v8));
+  Verified_fprintf(file, "%.10f\n", v6);
+  Verified_fprintf(file, "%.10f\n", v7);
+  Verified_fprintf(file, "%.10f\n", a7);
+  Verified_fprintf(file, "%.10f\n", v8);
 
   if (fclose(file) != 0) {
     perror("fclose failed");
@@ -192,8 +194,7 @@ int main()  {
 }
 
 void Verified_fprintf(FILE *stream, const char* format, float value) {
-  int ret_val = fprintf(stream, format, value);
-  if (ret_val < 0) {
+  if (fprintf(stream, format, value) < 0) {
     perror("fprintf of statistic failed");
     fclose(stream);
     exit(EXIT_FAILURE);

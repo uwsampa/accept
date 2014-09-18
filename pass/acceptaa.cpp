@@ -133,7 +133,8 @@ namespace {
 
       const Function *func1 = CS1.getCalledFunction();
       const Function *func2 = CS2.getCalledFunction();
-      if ((func1 && transformPass->AI->isPrecisePure(const_cast<Function*>(func1))) || (func2 && transformPass->AI->isPrecisePure(const_cast<Function*>(func2)))) {
+      if ((func1 && transformPass->AI->isPrecisePure(const_cast<Function*>(func1))) ||
+          (func2 && transformPass->AI->isPrecisePure(const_cast<Function*>(func2)))) {
         return NoModRef;
       }
 

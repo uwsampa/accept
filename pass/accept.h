@@ -19,7 +19,8 @@
 #define ECQ_APPROX_PTR 2
 
 // Logging macro.
-#define ACCEPT_LOG_(ai) if (!(ai)->logEnabled) ; else (*(ai)->logFile)
+#define ACCEPT_LOG_(d) if (d) *d
+#define ACCEPT_LOG ACCEPT_LOG_(desc)
 
 
 namespace llvm {
@@ -32,7 +33,8 @@ namespace llvm {
   LoopPass *createLoopNPUPass();
 
   std::string srcPosDesc(const Module &mod, const DebugLoc &dl);
-  std::string instDesc(const Module &mod, Instruction *inst);
+  std::string instDesc(const Module &mod, const Instruction *inst);
+  std::string getFilename(const Module &mod, const DebugLoc &dl);
 
   extern bool acceptUseProfile;
 }
@@ -45,23 +47,74 @@ typedef enum {
   markerForbid
 } LineMarker;
 
+// Logging: a section of the ACCEPT log.
+class LogDescription {
+public:
+  LogDescription() : text(""), stream(NULL) {}
+  LogDescription(const LogDescription &d)
+    : text(d.text), blockers(d.blockers), stream(NULL) {}
+  void operator=(const LogDescription &d);
+  ~LogDescription();
+  bool operator==(const LogDescription &rhs);
+  operator llvm::raw_ostream &();
+  std::string &getText();
+  void blocker(int lineno, llvm::StringRef s);
+  void operator<<(const llvm::Instruction *inst);
+  std::string text;
+  std::map< int, std::vector<std::string> > blockers;
+  llvm::raw_string_ostream *stream;
+
+  // The location of a LogDescription for positioning in the log.
+  class Location {
+    public:
+      Location() : kind(""), fileName(""), lineNumber(0) {}
+      Location(llvm::StringRef myKind,
+          llvm::StringRef myFile, const int myNum) :
+          kind(myKind), fileName(myFile),
+          lineNumber(myNum) {}
+      bool operator==(const Location &rhs) {
+        return (this->kind == rhs.kind) &&
+            (this->fileName == rhs.fileName) &&
+            (this->lineNumber == rhs.lineNumber);
+      }
+      std::string kind;
+      std::string fileName;
+      int lineNumber;
+  };
+
+  // Comparator for Location sorting.
+  class cmpLocation {
+    public:
+      bool operator() (const Location a, const Location b) const {
+        if (a.kind != b.kind) {
+          return (a.kind < b.kind);
+        } else if (a.fileName != b.fileName) {
+          return (a.fileName < b.fileName);
+        } else {
+          return (a.lineNumber < b.lineNumber);
+        }
+      }
+  };
+};
+
+
 // This class represents an analysis this determines whether functions and
 // chunks are approximate. It is consumed by our various optimizations.
 class ApproxInfo : public llvm::FunctionPass {
 public:
   static char ID;
+  std::map< llvm::Function*, std::pair<std::string, int> > functionLocs;
   ApproxInfo();
   virtual ~ApproxInfo();
   virtual const char *getPassName() const;
 
   // Required FunctionPass interface.
+  virtual void findFunctionLocs(llvm::Module &mod);
   virtual bool doInitialization(llvm::Module &M);
   virtual bool runOnFunction(llvm::Function &F);
   virtual bool doFinalization(llvm::Module &M);
 
   std::map<llvm::Function*, bool> functionPurity;
-  bool logEnabled;
-  llvm::raw_fd_ostream *logFile;
 
   std::set<llvm::Instruction*> preciseEscapeCheck(
       std::set<llvm::Instruction*> insts,
@@ -84,6 +137,11 @@ public:
                     const std::set<llvm::Instruction*> &insts,
                     bool approx=true);
 
+  // Logging.
+  LogDescription *logAdd(llvm::StringRef kind, llvm::StringRef filename,
+      const int lineno);
+  LogDescription *logAdd(llvm::StringRef kind, llvm::Instruction *where);
+
 private:
   void successorsOfHelper(llvm::BasicBlock *block,
                           std::set<llvm::BasicBlock*> &succ);
@@ -91,6 +149,12 @@ private:
                                const std::set<llvm::Instruction*> &insts);
   bool approxOrLocal(std::set<llvm::Instruction*> &insts,
                      llvm::Instruction *inst);
+
+  // Logging.
+  std::map<LogDescription::Location, std::vector<LogDescription*>, LogDescription::cmpLocation> logDescs;
+  bool logEnabled;
+  llvm::raw_fd_ostream *logFile;
+  void dumpLog();
 };
 
 // The pass that actually performs optimizations.
@@ -124,9 +188,10 @@ struct ACCEPTPass : public llvm::FunctionPass {
   bool optimizeSync(llvm::Function &F);
   bool optimizeAcquire(llvm::Instruction *inst);
   bool optimizeBarrier(llvm::Instruction *bar1);
-  llvm::Instruction *findCritSec(llvm::Instruction *acq, std::set<llvm::Instruction*> &cs);
-  llvm::Instruction *findApproxCritSec(llvm::Instruction *acq);
-
+  llvm::Instruction *findCritSec(llvm::Instruction *acq,
+      std::set<llvm::Instruction*> &cs, LogDescription *desc);
+  llvm::Instruction *findApproxCritSec(llvm::Instruction *acq,
+      LogDescription *desc);
   bool nullifyApprox(llvm::Function &F);
 };
 

@@ -35,7 +35,8 @@
 #define  increment 0.0000005
 #define  one  1.0
 #define  fpf  5.5
-#define  zero 0.0 
+#define  zero 0.0
+#define  number 1000000
 
 APPROX double x, y;
 int i;  
@@ -73,12 +74,12 @@ int main()  {
   FILE *file;
   char *outputfile = "my_output.txt";
   int retval;
-  APPROX double xval[1000000];
-  APPROX double yval[1000000];
+  APPROX double xval[number];
+  APPROX double yval[number];
 
   accept_roi_begin();
   x = zero;
-  for (i = 0; i < 1000000; i++) {
+  for (i = 0; i < number; i++) {
     x += increment;
     y = Gamma(x);
     xval[i] = x;
@@ -91,7 +92,7 @@ int main()  {
     perror("fopen for write failed\n");
     return EXIT_FAILURE;
   }
-  for (i = 0; i < 1000000; i++) {
+  for (i = 0; i < number; i++) {
     retval = fprintf(file, "%.10f\n", ENDORSE(xval[i]));
     if (retval < 0) {
       perror("fprintf of x-value failed\n");
