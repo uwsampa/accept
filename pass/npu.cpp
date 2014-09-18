@@ -191,7 +191,7 @@ namespace {
       ss << "npu_region at " << srcPosDesc(*module, loopStart->getDebugLoc());
       std::string optName = ss.str();
 
-      Description *desc = AI->logAdd("NPU Region", loopStart);
+      LogDescription *desc = AI->logAdd("NPU Region", loopStart);
 
       // Look for ACCEPT_FORBID marker.
       if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {
@@ -531,7 +531,7 @@ namespace {
     return false;
   } // pre_pos_call_dependency_check
 
-  bool tryToNPU(Loop *loop, Instruction *inst, StringRef optName, Description *desc) {
+  bool tryToNPU(Loop *loop, Instruction *inst, StringRef optName, LogDescription *desc) {
     // We need a loop latch to jump to after reading oBuff
     // and executing the instructions after the function call.
     if (!loop->getLoopLatch() || !loop->getLoopPreheader() || !loop->getHeader()) {

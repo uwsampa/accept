@@ -657,7 +657,7 @@ bool ApproxInfo::isPrecisePure(Function *func) {
     fileName = functionLocs[func].first;
     lineNumber = functionLocs[func].second;
   }
-  Description *desc = logAdd("Function", fileName, lineNumber);
+  LogDescription *desc = logAdd("Function", fileName, lineNumber);
 
   ACCEPT_LOG << "checking function " << func->getName().str();
   if (functionLocs.count(func)) {

@@ -73,7 +73,7 @@ void instructionsBetween(Instruction *start, Instruction *end,
 // release/next barrier instruction if one is found or NULL otherwise.
 Instruction *ACCEPTPass::findCritSec(Instruction *acq,
                                      std::set<Instruction*> &cs,
-                                     Description *desc) {
+                                     LogDescription *desc) {
   bool acquired = false;
   BasicBlock *bb = acq->getParent();
 
@@ -146,7 +146,7 @@ std::string ACCEPTPass::siteName(std::string kind, Instruction *at) {
 // section cannot be identified or is not approximate, return null.
 Instruction *ACCEPTPass::findApproxCritSec(
     Instruction *acq,
-    Description *desc) {
+    LogDescription *desc) {
   // Find all the instructions between this acquire and the next release.
   std::set<Instruction*> critSec;
   Instruction *rel = findCritSec(acq, critSec, desc);
@@ -177,7 +177,7 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
   // Generate a name for this opportunity site.
   std::string optName = siteName("lock acquire", acq);
 
-  Description *desc = AI->logAdd("Loop", acq);
+  LogDescription *desc = AI->logAdd("Loop", acq);
   ACCEPT_LOG << optName << "\n";
 
   Instruction *rel = findApproxCritSec(acq, desc);
@@ -204,7 +204,7 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
 
 bool ACCEPTPass::optimizeBarrier(Instruction *bar1) {
   std::string optName = siteName("barrier", bar1);
-  Description *desc = AI->logAdd("Loop", bar1);
+  LogDescription *desc = AI->logAdd("Loop", bar1);
   ACCEPT_LOG << optName << "\n";
 
   Instruction *rel = findApproxCritSec(bar1, desc);

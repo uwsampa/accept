@@ -2,40 +2,40 @@
 
 using namespace llvm;
 
-void Description::operator=(const Description &d) {
+void LogDescription::operator=(const LogDescription &d) {
   text = d.text;
   blockers = d.blockers;
   stream = NULL;
 }
 
-Description::~Description() {
+LogDescription::~LogDescription() {
   if (stream)
     delete stream;
 }
 
-bool Description::operator==(const Description &rhs) {
+bool LogDescription::operator==(const LogDescription &rhs) {
   return (this->text == rhs.text) &&
       (this->blockers == rhs.blockers);
 }
 
-Description::operator llvm::raw_ostream &() {
+LogDescription::operator llvm::raw_ostream &() {
   if (!stream) {
     stream = new llvm::raw_string_ostream(text);
   }
   return *stream;
 }
 
-std::string &Description::getText() {
+std::string &LogDescription::getText() {
   if (stream)
     stream->flush();
   return text;
 }
 
-void Description::blocker(int lineno, llvm::StringRef s) {
+void LogDescription::blocker(int lineno, llvm::StringRef s) {
   blockers[lineno].push_back(s);
 }
 
-void Description::operator<<(const llvm::Instruction *inst) {
+void LogDescription::operator<<(const llvm::Instruction *inst) {
   const llvm::Module *mod = inst->getParent()->getParent()->getParent();
   blocker(
     inst->getDebugLoc().getLine(),
@@ -43,7 +43,7 @@ void Description::operator<<(const llvm::Instruction *inst) {
   );
 }
 
-Description *ApproxInfo::logAdd(llvm::StringRef kind,
+LogDescription *ApproxInfo::logAdd(llvm::StringRef kind,
       StringRef filename, const int lineno) {
   // Adding a log description returns NULL if the log is disabled. The
   // ACCEPT_LOG macro then skips operations on the null description.
@@ -51,14 +51,14 @@ Description *ApproxInfo::logAdd(llvm::StringRef kind,
     return NULL;
   }
 
-  Description::Location loc(kind, filename, lineno);
-  std::vector<Description*> &descs = logDescs[loc];
-  Description *desc = new Description();
+  LogDescription::Location loc(kind, filename, lineno);
+  std::vector<LogDescription*> &descs = logDescs[loc];
+  LogDescription *desc = new LogDescription();
   descs.push_back(desc);
   return desc;
 }
 
-Description *ApproxInfo::logAdd(llvm::StringRef kind,
+LogDescription *ApproxInfo::logAdd(llvm::StringRef kind,
     llvm::Instruction *where) {
   DebugLoc dl = where->getDebugLoc();
   return logAdd(
@@ -73,7 +73,7 @@ void ApproxInfo::dumpLog() {
   std::string prevKind;
 
   // For each location, print all the descriptions to the log.
-  for (std::map<Description::Location, std::vector<Description*>, Description::cmpLocation>::iterator
+  for (std::map<LogDescription::Location, std::vector<LogDescription*>, LogDescription::cmpLocation>::iterator
       i = logDescs.begin(); i != logDescs.end(); i++) {
     std::string newKind = i->first.kind;
     if (newKind != prevKind) {
@@ -103,8 +103,8 @@ void ApproxInfo::dumpLog() {
 
     prevKind = newKind;
 
-    std::vector<Description*> descVector = i->second;
-    for (std::vector<Description*>::iterator j = descVector.begin();
+    std::vector<LogDescription*> descVector = i->second;
+    for (std::vector<LogDescription*>::iterator j = descVector.begin();
         j != descVector.end(); j++) {
       // Within the section for a kind, descriptions with blockers are
       // printed before descriptions with no blockers, in order to help
@@ -112,7 +112,7 @@ void ApproxInfo::dumpLog() {
       // Five additional dashes are included for the demarcation between
       // the last description with blockers and the first description
       // without blockers within a section.
-      Description *desc = *j;
+      LogDescription *desc = *j;
       *logFile << "-----\n" << desc->getText();
 
       std::map< int, std::vector<std::string> > blockers = desc->blockers;

@@ -50,14 +50,14 @@ typedef enum {
 } LineMarker;
 
 // Logging: a section of the ACCEPT log.
-class Description {
+class LogDescription {
 public:
-  Description() : text(""), stream(NULL) {}
-  Description(const Description &d)
+  LogDescription() : text(""), stream(NULL) {}
+  LogDescription(const LogDescription &d)
     : text(d.text), blockers(d.blockers), stream(NULL) {}
-  void operator=(const Description &d);
-  ~Description();
-  bool operator==(const Description &rhs);
+  void operator=(const LogDescription &d);
+  ~LogDescription();
+  bool operator==(const LogDescription &rhs);
   operator llvm::raw_ostream &();
   std::string &getText();
   void blocker(int lineno, llvm::StringRef s);
@@ -66,7 +66,7 @@ public:
   std::map< int, std::vector<std::string> > blockers;
   llvm::raw_string_ostream *stream;
 
-  // The location of a Description for positioning in the log.
+  // The location of a LogDescription for positioning in the log.
   class Location {
     public:
       Location() : kind(""), fileName(""), lineNumber(0) {}
@@ -140,9 +140,9 @@ public:
                     bool approx=true);
 
   // Logging.
-  Description *logAdd(llvm::StringRef kind, llvm::StringRef filename,
+  LogDescription *logAdd(llvm::StringRef kind, llvm::StringRef filename,
       const int lineno);
-  Description *logAdd(llvm::StringRef kind, llvm::Instruction *where);
+  LogDescription *logAdd(llvm::StringRef kind, llvm::Instruction *where);
 
 private:
   void successorsOfHelper(llvm::BasicBlock *block,
@@ -153,7 +153,7 @@ private:
                      llvm::Instruction *inst);
 
   // Logging.
-  std::map<Description::Location, std::vector<Description*>, Description::cmpLocation> logDescs;
+  std::map<LogDescription::Location, std::vector<LogDescription*>, LogDescription::cmpLocation> logDescs;
   bool logEnabled;
   llvm::raw_fd_ostream *logFile;
   void dumpLog();
@@ -191,9 +191,9 @@ struct ACCEPTPass : public llvm::FunctionPass {
   bool optimizeAcquire(llvm::Instruction *inst);
   bool optimizeBarrier(llvm::Instruction *bar1);
   llvm::Instruction *findCritSec(llvm::Instruction *acq,
-      std::set<llvm::Instruction*> &cs, Description *desc);
+      std::set<llvm::Instruction*> &cs, LogDescription *desc);
   llvm::Instruction *findApproxCritSec(llvm::Instruction *acq,
-      Description *desc);
+      LogDescription *desc);
   bool nullifyApprox(llvm::Function &F);
 };
 

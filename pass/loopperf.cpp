@@ -62,7 +62,7 @@ namespace {
       ss << "loop at " << srcPosDesc(*module, loopStart->getDebugLoc());
       std::string loopName = ss.str();
 
-      Description *desc = AI->logAdd("Loop", loopStart);
+      LogDescription *desc = AI->logAdd("Loop", loopStart);
       ACCEPT_LOG << loopName << "\n";
 
       Instruction *inst = loop->getHeader()->begin();
