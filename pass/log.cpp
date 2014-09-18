@@ -72,38 +72,32 @@ LogDescription *ApproxInfo::logAdd(llvm::StringRef kind,
 }
 
 void ApproxInfo::dumpLog() {
-  int numKind = 0;
+  bool first = true;
   std::string prevKind;
 
   // For each location, print all the descriptions to the log.
   for (std::map<LogDescription::Location, std::vector<LogDescription*>, LogDescription::cmpLocation>::iterator
       i = logDescs.begin(); i != logDescs.end(); i++) {
+    // Descriptions are organized into sections according to their kinds.
+    // Include a header if the description is of a different kind than the
+    // previous description.
     std::string newKind = i->first.kind;
     if (newKind != prevKind) {
-      if (numKind != 0) {
+      if (!first) {
         *logFile << "\n\n";
       }
-      numKind++;
+      first = false;
 
-      // Descriptions are organized into sections according to their kinds.
-      // Include a header if the description is of a different kind than the
-      // previous description.
       if (newKind == "Function") {
-        *logFile << "ANALYZING FUNCTIONS FOR PRECISE-PURITY:\n";
-      } else if (newKind == "Loop") {
-        *logFile << "ANALYZING LOOP BODIES FOR PERFORABILITY:\n";
-      } else if (newKind == "NPU Region") {
-        *logFile << "ANALYZING NPU REGIONS FOR PRECISE-PURITY:\n";
-      } else if (newKind == "Synchronization") {
-        *logFile << "ANALYZING CRITICAL SECTIONS FOR PRECISE-PURITY:\n";
+        *logFile << "FUNCTION PURITY\n";
       } else {
+        std::string upperKind = newKind;
         for (size_t ch = 0; ch < newKind.length(); ch++) {
-          newKind[ch] = toupper(newKind[ch]);
+          upperKind[ch] = toupper(newKind[ch]);
         }
-        *logFile << "ANALYZING " << newKind << "S FOR PRECISE-PURITY:\n";
+        *logFile << upperKind << " OPTIMIZATION\n";
       }
     }
-
     prevKind = newKind;
 
     std::vector<LogDescription*> descVector = i->second;
