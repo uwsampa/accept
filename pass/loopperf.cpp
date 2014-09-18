@@ -4,6 +4,7 @@
 #include "llvm/Module.h"
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include "../llvm/lib/Transforms/Utils/LoopUnrollRuntime.cpp"
+#include "llvm/Support/CommandLine.h"
 
 #include <iostream>
 #include <sstream>
@@ -16,6 +17,13 @@
 using namespace llvm;
 
 namespace {
+  // Optionally enable "advanced" loop perforation with partial body
+  // preservation.
+  bool enablePreservation;
+  cl::opt<bool, true> optEnablePreservation("accept-perf-preserve",
+      cl::desc("ACCEPT: use partial loop body preservation"),
+      cl::location(enablePreservation));
+
   struct LoopPerfPass : public LoopPass {
     static char ID;
     ACCEPTPass *transformPass;
@@ -500,6 +508,95 @@ namespace {
         return;
       }
 
+      // If enabled, partially duplicate the loop body on perforated
+      // iterations. In this case, the edge for skipped iterations goes to the
+      // cloned body rather than the top of the loop (the latch).
+      BasicBlock *skipDest = loop->getLoopLatch();
+      if (enablePreservation)
+        skipDest = preserveBody(loop, isForLike, bodyBlock, condBranch);
+
+      IRBuilder<> builder(module->getContext());
+      Value *result;
+
+      // Allocate stack space for the counter.
+      // LLVM "alloca" instructions go in the function's entry block. Otherwise,
+      // they have to adjust the frame size dynamically (and, in my experience,
+      // can actually segfault!). And we only want one of these per static loop
+      // anyway.
+      builder.SetInsertPoint(
+          loop->getLoopPreheader()->getParent()->getEntryBlock().begin()
+      );
+
+      IntegerType *nativeInt = getNativeIntegerType();
+      AllocaInst *counterAlloca = builder.CreateAlloca(
+          nativeInt,
+          0,
+          "accept_counter"
+      );
+
+      // Initialize the counter in the preheader.
+      builder.SetInsertPoint(loop->getLoopPreheader()->getTerminator());
+      builder.CreateStore(
+          ConstantInt::get(nativeInt, 0, false),
+          counterAlloca
+      );
+
+      // Increment the counter in the latch.
+      builder.SetInsertPoint(loop->getLoopLatch()->getTerminator());
+      result = builder.CreateLoad(
+          counterAlloca,
+          "accept_tmp"
+      );
+      result = builder.CreateAdd(
+          result,
+          ConstantInt::get(nativeInt, 1, false),
+          "accept_inc"
+      );
+      builder.CreateStore(
+          result,
+          counterAlloca
+      );
+
+      // Check the counter before the loop's body.
+      BasicBlock *checkBlock = BasicBlock::Create(
+          module->getContext(),
+          "accept_cond",
+          bodyBlock->getParent(),
+          bodyBlock
+      );
+      builder.SetInsertPoint(checkBlock);
+      result = builder.CreateLoad(
+          counterAlloca,
+          "accept_tmp"
+      );
+      // Check whether the low n bits of the counter are zero.
+      result = builder.CreateTrunc(
+          result,
+          Type::getIntNTy(module->getContext(), logfactor),
+          "accept_trunc"
+      );
+      result = builder.CreateIsNull(
+          result,
+          "accept_cmp"
+      );
+      result = builder.CreateCondBr(
+          result,
+          bodyBlock,
+          skipDest
+      );
+
+      // Change the condition block to point to our new condition
+      // instead of the body.
+      condBranch->setSuccessor(0, checkBlock);
+
+      // Add condition block to the loop structure.
+      loop->addBasicBlockToLoop(checkBlock, LI->getBase());
+    }
+
+    // Duplicate the loop body (partially) for cheap updated on skipped loop
+    // iterations.
+    BasicBlock *preserveBody(Loop *loop, bool isForLike,
+                             BasicBlock *bodyBlock, BranchInst *condBranch) {
       // Get the shortcut for the destination. In for-like loop perforation, we
       // shortcut to the latch (increment block). In while-like perforation, we
       // jump to the header (condition block).
@@ -745,83 +842,6 @@ namespace {
       // Change the preheader block to point to the condition block again.
       preheaderBlock->getTerminator()->setSuccessor(0, condBranch->getParent());
 
-      IRBuilder<> builder(module->getContext());
-      Value *result;
-
-      // Allocate stack space for the counter.
-      // LLVM "alloca" instructions go in the function's entry block. Otherwise,
-      // they have to adjust the frame size dynamically (and, in my experience,
-      // can actually segfault!). And we only want one of these per static loop
-      // anyway.
-      builder.SetInsertPoint(
-          loop->getLoopPreheader()->getParent()->getEntryBlock().begin()
-      );
-
-      IntegerType *nativeInt = getNativeIntegerType();
-      AllocaInst *counterAlloca = builder.CreateAlloca(
-          nativeInt,
-          0,
-          "accept_counter"
-      );
-
-      // Initialize the counter in the preheader.
-      builder.SetInsertPoint(loop->getLoopPreheader()->getTerminator());
-      builder.CreateStore(
-          ConstantInt::get(nativeInt, 0, false),
-          counterAlloca
-      );
-
-      // Increment the counter in the latch.
-      builder.SetInsertPoint(loop->getLoopLatch()->getTerminator());
-      result = builder.CreateLoad(
-          counterAlloca,
-          "accept_tmp"
-      );
-      result = builder.CreateAdd(
-          result,
-          ConstantInt::get(nativeInt, 1, false),
-          "accept_inc"
-      );
-      builder.CreateStore(
-          result,
-          counterAlloca
-      );
-
-      // Check the counter before the loop's body.
-      BasicBlock *checkBlock = BasicBlock::Create(
-          module->getContext(),
-          "accept_cond",
-          bodyBlock->getParent(),
-          bodyBlock
-      );
-      builder.SetInsertPoint(checkBlock);
-      result = builder.CreateLoad(
-          counterAlloca,
-          "accept_tmp"
-      );
-      // Check whether the low n bits of the counter are zero.
-      result = builder.CreateTrunc(
-          result,
-          Type::getIntNTy(module->getContext(), logfactor),
-          "accept_trunc"
-      );
-      result = builder.CreateIsNull(
-          result,
-          "accept_cmp"
-      );
-      result = builder.CreateCondBr(
-          result,
-          bodyBlock,
-          clonedBodyBlock
-      );
-
-      // Change the condition block to point to our new condition
-      // instead of the body.
-      condBranch->setSuccessor(0, checkBlock);
-
-      // Add condition block to the loop structure.
-      loop->addBasicBlockToLoop(checkBlock, LI->getBase());
-
       // Change the clone of each predecessor of the shortcut for the destination
       // to point to the shortcut. In for-like loop perforation, we shortcut to
       // the latch (increment block). In while-like perforation, we jump to the
@@ -843,6 +863,8 @@ namespace {
       }
 
       // Insert instructions to store and load values saved from evaluated iterations.
+      IRBuilder<> builder(module->getContext());
+      Value *result;
       for (std::set<StoreInst *>::iterator i = preservedStores.begin();
           i != preservedStores.end(); i++) {
         StoreInst *SI = *i;
@@ -1067,6 +1089,8 @@ namespace {
         Instruction *clonedStore = (Instruction *) &*VMap[storeInst];
         clonedStore->setOperand(0, clonedOp);
       }
+
+      return clonedBodyBlock;
     }
   };
 }
