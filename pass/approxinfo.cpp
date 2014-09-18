@@ -237,9 +237,10 @@ Description *ApproxInfo::logAdd(llvm::StringRef kind,
       StringRef filename, const int lineno) {
   // TODO return NULL if the log is disabled
   Location loc(kind, filename, lineno);
-  std::vector<Description> &descs = logDescs[loc];
-  descs.push_back(Description());  // want emplace from C++11
-  return &(descs.back());
+  std::vector<Description*> &descs = logDescs[loc];
+  Description *desc = new Description();
+  descs.push_back(desc);
+  return desc;
 }
 
 void ApproxInfo::dumpLog() {
@@ -247,7 +248,7 @@ void ApproxInfo::dumpLog() {
   std::string prevKind;
 
   // For each location, print all the descriptions to the log.
-  for (std::map<Location, std::vector<Description>, cmpLocation>::iterator
+  for (std::map<Location, std::vector<Description*>, cmpLocation>::iterator
       i = logDescs.begin(); i != logDescs.end(); i++) {
     std::string newKind = i->first.kind;
     if (newKind != prevKind) {
@@ -277,8 +278,8 @@ void ApproxInfo::dumpLog() {
 
     prevKind = newKind;
 
-    std::vector<Description> descVector = i->second;
-    for (std::vector<Description>::iterator j = descVector.begin();
+    std::vector<Description*> descVector = i->second;
+    for (std::vector<Description*>::iterator j = descVector.begin();
         j != descVector.end(); j++) {
       // Within the section for a kind, descriptions with blockers are
       // printed before descriptions with no blockers, in order to help
@@ -286,9 +287,10 @@ void ApproxInfo::dumpLog() {
       // Five additional dashes are included for the demarcation between
       // the last description with blockers and the first description
       // without blockers within a section.
-      *logFile << "-----\n" << j->getText();
+      Description *desc = *j;
+      *logFile << "-----\n" << desc->getText();
 
-      std::map< int, std::vector<std::string> > blockers = j->blockers;
+      std::map< int, std::vector<std::string> > blockers = desc->blockers;
       for (std::map< int, std::vector<std::string> >::iterator
           k = blockers.begin(); k != blockers.end(); k++) {
         std::vector<std::string> entryVector = k->second;
@@ -297,6 +299,9 @@ void ApproxInfo::dumpLog() {
           *logFile << "  * " << *l << "\n";
         }
       }
+
+      // Free the description. We're done.
+      delete desc;
     }
   }
 }

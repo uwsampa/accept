@@ -192,7 +192,7 @@ private:
                      llvm::Instruction *inst);
 
   // Logging.
-  std::map<Location, std::vector<Description>, cmpLocation> logDescs;
+  std::map<Location, std::vector<Description*>, cmpLocation> logDescs;
   bool logEnabled;
   llvm::raw_fd_ostream *logFile;
   void dumpLog();
