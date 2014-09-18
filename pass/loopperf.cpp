@@ -1,5 +1,3 @@
-#include "accept.h"
-
 #include "llvm/Analysis/LoopIterator.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/IRBuilder.h"
@@ -12,6 +10,8 @@
 #include <cstdlib>
 #include <string>
 #include <algorithm>
+
+#include "accept.h"
 
 #define ACCEPT_LOG ACCEPT_LOG_(AI)
 
@@ -53,29 +53,12 @@ namespace {
                               layout.getPointerSizeInBits());
     }
 
-    // This function adds a loop description to descTable.
-    void addLoopDesc(const bool hasBlockers, const std::string fileName,
-        const int lineNumber, const std::string prefix, const std::string postfix,
-        const std::map< int, std::vector<std::string> > blockerEntries) {
-      Location loc("Loop", hasBlockers, fileName, lineNumber);
-      if (AI->descTable.count(loc) == 0) {
-        AI->descTable[loc] = std::vector<Description>();
-      }
-
-      Description loopDesc(prefix, postfix, blockerEntries);
-      AI->descTable[loc].push_back(loopDesc);
-    }
-      
     // Assess whether a loop can be optimized and, if so, log some messages and
     // update the configuration map. If optimization is turned on, the
     // configuration map will be used to actually transform the loop. Returns a
     // boolean indicating whether the code was changed (i.e., the loop
     // perforated).
     bool tryToOptimizeLoop(Loop *loop) {
-      std::stringstream prefixStream;
-      std::stringstream postfixStream;
-      std::map< int, std::vector<std::string> > blockerEntries;
-
       // Generate the first line of the loop description.
       std::string posDesc = srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc());
       std::string fileName, line;
@@ -86,19 +69,18 @@ namespace {
       ss << "loop at " << posDesc;
       std::string loopName = ss.str();
 
-      prefixStream << loopName << "\n";
+      Description *desc = AI->logAdd("Loop", fileName, lineNumber);
+      *desc << loopName << "\n";
 
       Instruction *inst = loop->getHeader()->begin();
       Function *func = inst->getParent()->getParent();
       std::string funcName = func->getName().str();
 
-      prefixStream << " - within function " << funcName << "\n";
+      *desc << " - within function " << funcName << "\n";
 
       // Look for ACCEPT_FORBID marker.
       if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {
-        prefixStream << " - optimization forbidden\n";
-        addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
-            postfixStream.str(), blockerEntries);
+        *desc << " - optimization forbidden\n";
         return false;
       }
 
@@ -106,17 +88,13 @@ namespace {
       // latch (increment, in "for"), and a preheader (initialization).
       if (!loop->getHeader() || !loop->getLoopLatch()
           || !loop->getLoopPreheader()) {
-        prefixStream << " - loop not in perforatable form\n";
-        addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
-            postfixStream.str(), blockerEntries);
+        *desc << " - loop not in perforatable form\n";
         return false;
       }
 
       // Skip array constructor loops manufactured by Clang.
       if (loop->getHeader()->getName().startswith("arrayctor.loop")) {
-        prefixStream << " - array constructor\n";
-        addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
-            postfixStream.str(), blockerEntries);
+        *desc << " - array constructor\n";
         return false;
       }
 
@@ -125,9 +103,7 @@ namespace {
           && loop->getHeader() != loop->getLoopLatch()) {
         BasicBlock *latch = loop->getLoopLatch();
         if (&(latch->front()) == &(latch->back())) {
-          prefixStream << " - empty body\n";
-          addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
-              postfixStream.str(), blockerEntries);
+          *desc << " - empty body\n";
           return false;
         }
       }
@@ -136,24 +112,20 @@ namespace {
       // the heuristic that determines which parts of the loop to perforate.
       bool isForLike = false;
       if (loop->getHeader()->getName().startswith("for.cond")) {
-        prefixStream << " - for-like loop\n";
+        *desc << " - for-like loop\n";
         isForLike = true;
       } else {
-        prefixStream << " - while-like loop\n";
+        *desc << " - while-like loop\n";
       }
 
       if (transformPass->relax) {
         int param = transformPass->relaxConfig[loopName];
         if (param) {
-          prefixStream << " - perforating with factor 2^" << param << "\n";
+          *desc << " - perforating with factor 2^" << param << "\n";
           perforateLoop(loop, param, isForLike);
-          addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
-              postfixStream.str(), blockerEntries);
           return true;
         } else {
-          prefixStream << " - not perforating\n";
-          addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
-              postfixStream.str(), blockerEntries);
+          *desc << " - not perforating\n";
           return false;
         }
       }
@@ -175,9 +147,7 @@ namespace {
         bodyBlocks.insert(*bi);
       }
       if (bodyBlocks.empty()) {
-        prefixStream << " - empty body\n";
-        addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
-            postfixStream.str(), blockerEntries);
+        *desc << " - empty body\n";
         return false;
       }
 
@@ -186,10 +156,8 @@ namespace {
       for (std::set<BasicBlock*>::iterator i = bodyBlocks.begin();
             i != bodyBlocks.end(); ++i) {
         if (loop->isLoopExiting(*i)) {
-          prefixStream << " - contains loop exit\n";
-          prefixStream << " - cannot perforate loop\n";
-          addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
-              postfixStream.str(), blockerEntries);
+          *desc << " - contains loop exit\n";
+          *desc << " - cannot perforate loop\n";
           return false;
         }
       }
@@ -198,30 +166,19 @@ namespace {
       std::set<Instruction*> blockers = AI->preciseEscapeCheck(bodyBlocks);
 
       // Print the blockers to the log.
-      prefixStream << " - blockers: " << blockers.size() << "\n";
+      *desc << " - blockers: " << blockers.size() << "\n";
       for (std::set<Instruction*>::iterator i = blockers.begin();
             i != blockers.end(); ++i) {
         std::string blockerEntry = instDesc(*module, *i);
         int blockerLine = extractBlockerLine(blockerEntry);
-
-        if (blockerEntries.count(blockerLine) == 0) {
-          blockerEntries[blockerLine] = std::vector<std::string>();
-        }
-
-        std::stringstream blockerStream;
-        blockerStream << "    * " << blockerEntry << "\n";
-        blockerEntries[blockerLine].push_back(blockerStream.str());
+        desc->blocker(blockerLine, blockerEntry);
       }
 
       if (!blockers.size()) {
-        postfixStream << " - can perforate loop\n";
+        *desc << " - can perforate loop\n";
         transformPass->relaxConfig[loopName] = 0;
-        addLoopDesc(false, fileName, lineNumber, prefixStream.str(),
-            postfixStream.str(), blockerEntries);
       } else {
-        postfixStream << " - cannot perforate loop\n";
-        addLoopDesc(true, fileName, lineNumber, prefixStream.str(),
-            postfixStream.str(), blockerEntries);
+        *desc << " - cannot perforate loop\n";
       }
 
       return false;
@@ -266,7 +223,7 @@ namespace {
             }
           }
         }
-        typedef typename std::vector<BasicBlock *>::reverse_iterator reverse_block_iterator;
+        typedef std::vector<BasicBlock *>::reverse_iterator reverse_block_iterator;
         std::vector<BasicBlock *> loopBlocks = loop->getBlocks();
         reverse_block_iterator revBlkItr =
             ++std::find(loopBlocks.rbegin(), loopBlocks.rend(), bodyBlock);

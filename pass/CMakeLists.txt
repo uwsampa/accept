@@ -8,7 +8,6 @@ add_llvm_loadable_module(enerc
   loopperf.cpp
   acceptaa.cpp
   desync.cpp
-  nullify.cpp
   npu.cpp
 )
 set_target_properties( enerc PROPERTIES 

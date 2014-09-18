@@ -49,27 +49,44 @@ typedef enum {
 
 // Logging: a section of the ACCEPT log.
 class Description {
-  public:
-    Description() : prefix(""), postfix("") {}
-    Description(const std::string myPrefix, const std::string myPostfix,
-        const std::map< int, std::vector<std::string> > myBlockers) :
-        prefix(myPrefix), postfix(myPostfix), blockers(myBlockers) {}
-    bool operator==(const Description &rhs) {
-      return (this->prefix == rhs.prefix) &&
-          (this->postfix == rhs.postfix) &&
-          (this->blockers == rhs.blockers);
-    }
-    std::string prefix;
-    std::string postfix;
-    std::map< int, std::vector<std::string> > blockers;
+public:
+  Description() : prefix(""), postfix(""), stream(prefix) {}
+  Description(const std::string myPrefix, const std::string myPostfix,
+      const std::map< int, std::vector<std::string> > myBlockers) :
+      prefix(myPrefix), postfix(myPostfix), blockers(myBlockers),
+      stream(prefix) {}
+  Description(const Description &d) :
+    prefix(d.prefix), postfix(d.postfix), blockers(d.blockers),
+    stream(prefix) {}
+  bool operator==(const Description &rhs) {
+    return (this->prefix == rhs.prefix) &&
+        (this->postfix == rhs.postfix) &&
+        (this->blockers == rhs.blockers);
+  }
+  void operator=(const Description &d) {
+    prefix = d.prefix;
+    postfix = d.postfix;
+    blockers = d.blockers;
+    stream.str() = prefix;
+  }
+  llvm::raw_ostream &operator<<(llvm::StringRef s) {
+    return stream << s;
+  }
+  void blocker(int lineno, llvm::StringRef s) {
+    blockers[lineno].push_back(s);
+  }
+  std::string prefix;
+  std::string postfix;
+  std::map< int, std::vector<std::string> > blockers;
+  llvm::raw_string_ostream stream;
 };
 
 // Logging: the location of a Description for positioning in the log.
 class Location {
   public:
     Location() : kind(""), hasBlockers(false), fileName(""), lineNumber(0) {}
-    Location(const std::string myKind, const bool myHasBlockers,
-        const std::string myFile, const int myNum) :
+    Location(llvm::StringRef myKind, const bool myHasBlockers,
+        llvm::StringRef myFile, const int myNum) :
         kind(myKind), hasBlockers(myHasBlockers), fileName(myFile),
         lineNumber(myNum) {}
     bool operator==(const Location &rhs) {
@@ -129,13 +146,9 @@ class ApproxInfo : public llvm::FunctionPass {
 public:
   static char ID;
   std::map< llvm::Function*, std::pair<std::string, int> > functionLocs;
-  std::map<Location, std::vector<Description>, cmpLocation> descTable;
   ApproxInfo();
   virtual ~ApproxInfo();
   virtual const char *getPassName() const;
-  virtual void addFuncDesc(const bool hasBlockers, const std::string fileName,
-      const int lineNumber, const std::string prefix, const std::string postfix,
-      const std::map< int, std::vector<std::string> > blockerEntries);
 
   // Required FunctionPass interface.
   virtual void findFunctionLocs(llvm::Module &mod);
@@ -144,8 +157,6 @@ public:
   virtual bool doFinalization(llvm::Module &M);
 
   std::map<llvm::Function*, bool> functionPurity;
-  bool logEnabled;
-  llvm::raw_fd_ostream *logFile;
 
   std::set<llvm::Instruction*> preciseEscapeCheck(
       std::set<llvm::Instruction*> insts,
@@ -168,6 +179,10 @@ public:
                     const std::set<llvm::Instruction*> &insts,
                     bool approx=true);
 
+  // Logging.
+  Description *logAdd(llvm::StringRef kind, llvm::StringRef filename,
+      const int lineno);
+
 private:
   void successorsOfHelper(llvm::BasicBlock *block,
                           std::set<llvm::BasicBlock*> &succ);
@@ -175,6 +190,12 @@ private:
                                const std::set<llvm::Instruction*> &insts);
   bool approxOrLocal(std::set<llvm::Instruction*> &insts,
                      llvm::Instruction *inst);
+
+  // Logging.
+  std::map<Location, std::vector<Description>, cmpLocation> logDescs;
+  bool logEnabled;
+  llvm::raw_fd_ostream *logFile;
+  void dumpLog();
 };
 
 // The pass that actually performs optimizations.
@@ -212,13 +233,10 @@ struct ACCEPTPass : public llvm::FunctionPass {
   bool optimizeSync(llvm::Function &F);
   bool optimizeAcquire(llvm::Instruction *inst);
   bool optimizeBarrier(llvm::Instruction *bar1);
-  llvm::Instruction *findCritSec(llvm::Instruction *acq, std::set<llvm::Instruction*> &cs,
-      std::string &outputString);
-  llvm::Instruction *findApproxCritSec(
-      llvm::Instruction *acq,
-      std::string &prefix,
-      std::map< int, std::vector<std::string> > &blockerEntries,
-      bool &hasBlockers);
+  llvm::Instruction *findCritSec(llvm::Instruction *acq,
+      std::set<llvm::Instruction*> &cs, Description *desc);
+  llvm::Instruction *findApproxCritSec(llvm::Instruction *acq,
+      Description *desc);
   bool nullifyApprox(llvm::Function &F);
 };
 

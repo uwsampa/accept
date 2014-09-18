@@ -69,26 +69,13 @@ void instructionsBetween(Instruction *start, Instruction *end,
   }
 }
 
-// This function adds a synchronization description to descTable.
-void ACCEPTPass::addSyncDesc(const bool hasBlockers, const std::string fileName,
-    const int lineNumber, const std::string prefix, const std::string postfix,
-    const std::map< int, std::vector<std::string> > blockerEntries) {
-  Location loc("Synchronization", hasBlockers, fileName, lineNumber);
-  if (AI->descTable.count(loc) == 0) {
-    AI->descTable[loc] = std::vector<Description>();
-  }
-  
-  Description syncDesc(prefix, postfix, blockerEntries);
-  AI->descTable[loc].push_back(syncDesc);
-}
-
 // Given an acquire call or a barrier call, find all the instructions between
 // it and a corresponding release call or the next barrier. The instructions
 // in the critical section are collected into the set supplied. Returns the
 // release/next barrier instruction if one is found or NULL otherwise.
 Instruction *ACCEPTPass::findCritSec(Instruction *acq,
                                      std::set<Instruction*> &cs,
-                                     std::string &outputString) {
+                                     Description *desc) {
   bool acquired = false;
   BasicBlock *bb = acq->getParent();
 
@@ -142,7 +129,7 @@ Instruction *ACCEPTPass::findCritSec(Instruction *acq,
   }
 
   if (rel == NULL) {
-    outputString = " - no matching sync found\n";
+    *desc << " - no matching sync found\n";
     return NULL;
   }
 
@@ -163,20 +150,11 @@ std::string ACCEPTPass::siteName(std::string kind, Instruction *at,
 // section cannot be identified or is not approximate, return null.
 Instruction *ACCEPTPass::findApproxCritSec(
     Instruction *acq,
-    std::string &prefix,
-    std::map< int, std::vector<std::string> > &blockerEntries,
-    bool &hasBlockers) {
-  std::stringstream prefixStream;
-  std::string critSecText;
-  prefixStream << prefix;
-
+    Description *desc) {
   // Find all the instructions between this acquire and the next release.
   std::set<Instruction*> critSec;
-  Instruction *rel = findCritSec(acq, critSec, critSecText);
-  prefixStream << critSecText;
+  Instruction *rel = findCritSec(acq, critSec, desc);
   if (!rel) {
-    hasBlockers = false;
-    prefix = prefixStream.str();
     return NULL;
   }
 
@@ -187,63 +165,44 @@ Instruction *ACCEPTPass::findApproxCritSec(
   std::set<Instruction*> blockers = AI->preciseEscapeCheck(critSec, &blessed);
 
   // Print the blockers to the log.
-  prefixStream << " - blockers: " << blockers.size() << "\n";
-  prefix = prefixStream.str();
+  *desc << " - blockers: " << blockers.size() << "\n";
   for (std::set<Instruction*>::iterator i = blockers.begin();
         i != blockers.end(); ++i) {
     std::string blockerEntry = instDesc(*module, *i);
     int blockerLine = extractBlockerLine(blockerEntry);
-
-    if (blockerEntries.count(blockerLine) == 0) {
-      blockerEntries[blockerLine] = std::vector<std::string>();
-    }
-
-    std::stringstream blockerStream;
-    blockerStream << "    * " << blockerEntry << "\n";
-    blockerEntries[blockerLine].push_back(blockerStream.str());
+    desc->blocker(blockerLine, blockerEntry);
   }
   if (blockers.size()) {
-    hasBlockers = true;
     return NULL;
   }
 
-  hasBlockers = false;
   return rel;
 }
 
 bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
   bool hasBlockers = false;
-  std::stringstream prefixStream, postfixStream;
-  std::string prefix, postfix;
   std::map< int, std::vector<std::string> > blockerEntries;
 
+  // Generate a name for this opportunity site.
   std::string fileName, line;
   std::string optName = siteName("lock acquire", acq, fileName, line);
   int lineNumber = atoi(line.c_str());
 
-  // Generate a name for this opportunity site.
-  
-  prefixStream << optName << "\n";
-  prefix = prefixStream.str();
+  Description *desc = AI->logAdd("Loop", fileName, lineNumber);
+  *desc << optName << "\n";
 
-  Instruction *rel = findApproxCritSec(acq, prefix,
-      blockerEntries, hasBlockers);
+  Instruction *rel = findApproxCritSec(acq, desc);
   if (!rel) {
-    addSyncDesc(hasBlockers, fileName, lineNumber, prefix,
-        postfix, blockerEntries);
     return false;
   }
 
   // Success.
-  postfixStream << " - can elide lock\n";
+  *desc << " - can elide lock\n";
   if (relax) {
     int param = relaxConfig[optName];
     if (param) {
       // Remove the acquire and release calls.
-      postfixStream << " - eliding lock\n";
-      postfix = postfixStream.str();
-      addSyncDesc(hasBlockers, fileName, lineNumber, prefix,
-          postfix, blockerEntries);
+      *desc << " - eliding lock\n";
       acq->eraseFromParent();
       rel->eraseFromParent();
       return true;
@@ -251,52 +210,35 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
   } else {
     relaxConfig[optName] = 0;
   }
-  postfix = postfixStream.str();
-  addSyncDesc(hasBlockers, fileName, lineNumber, prefix,
-      postfix, blockerEntries);
   return false;
 }
 
 bool ACCEPTPass::optimizeBarrier(Instruction *bar1) {
-  bool hasBlockers = false;
-  std::stringstream prefixStream, postfixStream;
-  std::string prefix, postfix;
-  std::map< int, std::vector<std::string> > blockerEntries;
-
   std::string fileName, line;
   std::string optName = siteName("barrier", bar1, fileName, line);
   int lineNumber = atoi(line.c_str());
 
-  prefixStream << optName << "\n";
-  prefix = prefixStream.str();
+  Description *desc = AI->logAdd("Loop", fileName, lineNumber);
+  *desc << optName << "\n";
 
-  Instruction *rel = findApproxCritSec(bar1, prefix,
-      blockerEntries, hasBlockers);
+  Instruction *rel = findApproxCritSec(bar1, desc);
   if (!rel) {
-    addSyncDesc(hasBlockers, fileName, lineNumber, prefix,
-        postfix, blockerEntries);
     return false;
   }
 
   // Success.
-  postfixStream << " - can elide barrier\n";
+  *desc << " - can elide barrier\n";
   if (relax) {
     int param = relaxConfig[optName];
     if (param) {
       // Remove the first barrier.
-      postfixStream << " - eliding barrier wait\n";
-      postfix = postfixStream.str();
+      *desc << " - eliding barrier wait\n";
       bar1->eraseFromParent();
-      addSyncDesc(hasBlockers, fileName, lineNumber, prefix,
-          postfix, blockerEntries);
       return true;
     }
   } else {
     relaxConfig[optName] = 0;
   }
-  postfix = postfixStream.str();
-  addSyncDesc(hasBlockers, fileName, lineNumber, prefix,
-      postfix, blockerEntries);
   return false;
 }
 

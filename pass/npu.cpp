@@ -86,7 +86,7 @@ namespace {
       for (std::set<std::set<BasicBlock*> >::iterator ri = regions.begin(); ri != regions.end(); ++ri) {
         rso << "------ region:\n";
         for (std::set<BasicBlock*>::iterator bi = ri->begin(); bi != ri->end(); ++bi) {
-          for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii) 
+          for (BasicBlock::iterator ii = (*bi)->begin(); ii != (*bi)->end(); ++ii)
             rso << *ii << "\n";
           rso << "\n";
         }
@@ -110,22 +110,6 @@ namespace {
 #endif
     }
 
-    /*
-    void dumpFuncInsts(Function *f) {
-    	std::cerr << "\nDumping function " << f->getName().str() << std::endl;
-    	std::string type_str;
-    	llvm::raw_string_ostream rso(type_str);
-        for (Function::iterator bi = f->begin(); bi != f->end(); ++bi) {
-          BasicBlock *bb = bi;
-          for (BasicBlock::iterator ii = bb->begin();
-              ii != bb->end(); ++ii) {
-            Instruction *inst = ii;
-            rso << *inst << "\n";
-          }
-        }
-        std::cerr << rso.str() << std::endl;
-    }
-    */
     std::vector<Loop *> loops_to_npu;
     std::vector<Instruction *> calls_to_npu;
     bool find_inst(Instruction *inst) {
@@ -203,25 +187,7 @@ namespace {
       }
     }
 
-    // This function adds an NPU description to descTable.
-    void addNPUDesc(const bool hasBlockers, const std::string fileName,
-        const int lineNumber, const std::string prefix, const std::string postfix,
-        const std::map< int, std::vector<std::string> > blockerEntries) {
-      Location loc("NPU Region", hasBlockers, fileName, lineNumber);
-      if (AI->descTable.count(loc) == 0) {
-        AI->descTable[loc] = std::vector<Description>();
-      }
-  
-      Description npuDesc(prefix, postfix, blockerEntries);
-      AI->descTable[loc].push_back(npuDesc);
-    }
-
     bool tryToOptimizeLoop(Loop *loop) {
-      bool hasBlockers = false;
-      std::stringstream prefixStream, postfixStream;
-      std::string prefix, postfix;
-      std::map< int, std::vector<std::string> > blockerEntries;
-
       std::string fileName, line;
       std::string posDesc = srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc());
       splitPosDesc(posDesc, fileName, line);
@@ -230,21 +196,18 @@ namespace {
       std::stringstream ss;
       ss << "npu_region at " << posDesc;
       std::string optName = ss.str();
-      prefixStream << optName << "\n";
+
+      Description *desc = AI->logAdd("NPU Region", fileName, lineNumber);
 
       // Look for ACCEPT_FORBID marker.
       if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {
-        prefixStream << " - optimization forbidden\n";
-        prefix = prefixStream.str();
-        addNPUDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
+        *desc << " - optimization forbidden\n";
         return false;
       }
 
       // Skip array constructor loops manufactured by Clang.
       if (loop->getHeader()->getName().startswith("arrayctor.loop")) {
-        prefixStream << " - array constructor\n";
-        prefix = prefixStream.str();
-        addNPUDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
+        *desc << " - array constructor\n";
         return false;
       }
 
@@ -266,43 +229,38 @@ namespace {
           Function *callee = c_inst->getCalledFunction();
 
           if (c_inst->isInlineAsm()) {
-            prefixStream << " - has inline assembly\n";
-            prefix = prefixStream.str();
-            addNPUDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
+            *desc << " - has inline assembly\n";
             return false;
           }
 
           bool hasInlineAsm = false;
           //testSubFunctions(callee, loop, hasInlineAsm);
           if (hasInlineAsm) {
-            prefixStream << " - function has inline assembly\n";
-            prefix = prefixStream.str();
-            addNPUDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
+            *desc << " - function has inline assembly\n";
             return false;
           }
 
           if (!isa<IntrinsicInst>(inst) && !AI->isWhitelistedPure(callee->getName()) && AI->isPrecisePure(callee)) {
-            prefixStream << " - " << callee->getName().str() << " is precise-pure\n";
+            *desc << " - " << callee->getName().str() << " is precise-pure\n";
             if (!find_inst(inst)) {
               loops_to_npu.push_back(loop);
               calls_to_npu.push_back(inst);
             }
           } else {
-            prefixStream << " - " << callee->getName().str() << " is not precise-pure\n";
+            *desc << " - " << callee->getName().str() << " is not precise-pure\n";
           }
 
         } // for instructions
 
       } // for basic blocks
 
-      prefixStream << " - calls: " << calls_to_npu.size() << "\n";
-      prefix = prefixStream.str();
+      *desc << " - calls: " << calls_to_npu.size() << "\n";
       for (int i = 0; i < calls_to_npu.size(); ++i) {
         // std::cerr << "Calls to npu size: " << calls_to_npu.size() << std::endl;
         // std::cerr << "++++ begin" << std::endl;
         CallInst *c = dyn_cast<CallInst>(calls_to_npu[i]);
         // std::cerr << "Function npu: " << (c->getCalledFunction()->getName()).str() << std::endl;
-        modified = tryToNPU(loops_to_npu[i], calls_to_npu[i], optName, prefix);
+        modified = tryToNPU(loops_to_npu[i], calls_to_npu[i], optName, desc);
         // std::cerr << "++++ middle" << std::endl;
         /*
         for (Loop::block_iterator bi = loop->block_begin(); bi != loop->block_end(); ++bi) {
@@ -321,7 +279,6 @@ namespace {
       calls_to_npu.clear();
       loops_to_npu.clear();
 
-      addNPUDesc(hasBlockers, fileName, lineNumber, prefix, postfix, blockerEntries);
       return modified;
 
   } // tryToOptimizeLoop
@@ -580,23 +537,18 @@ namespace {
     return false;
   } // pre_pos_call_dependency_check
 
-  bool tryToNPU(Loop *loop, Instruction *inst, StringRef optName, std::string &prefix) {
-    std::stringstream prefixStream;
-    prefixStream << prefix;
-
+  bool tryToNPU(Loop *loop, Instruction *inst, StringRef optName, Description *desc) {
     // We need a loop latch to jump to after reading oBuff
     // and executing the instructions after the function call.
     if (!loop->getLoopLatch() || !loop->getLoopPreheader() || !loop->getHeader()) {
-      prefixStream << " - malformed loop\n";
-      prefix = prefixStream.str();
+      *desc << " - malformed loop\n";
       return false;
     }
 
     if (!inst->getType()->isIntegerTy() &&
         !inst->getType()->isVoidTy() &&
         !inst->getType()->isFloatTy()) {
-      prefixStream << " - call's return type is not int, void, or FP\n";
-      prefix = prefixStream.str();
+      *desc << " - call's return type is not int, void, or FP\n";
       return false;
     }
 
@@ -606,8 +558,7 @@ namespace {
     std::vector<StoreInst*> st_inst;
     if (pre_pos_call_dependency_check(inst, loop, before_insts_tobuff, st_value, st_addr, st_inst)) {
       // std::cerr << "BOSTA" << std::endl;
-      prefixStream << " - dependency check failed\n";
-      prefix = prefixStream.str();
+      *desc << " - dependency check failed\n";
       return false;
     }
 
@@ -627,8 +578,7 @@ namespace {
       // be executed and whether it would write to the same address
       // or not in order to know how much buffer space we need.
       if (in_loop) {
-        prefixStream << " - escaping store in loop";
-        prefix = prefixStream.str();
+        *desc << " - escaping store in loop";
         return false;
       }
 
@@ -757,7 +707,7 @@ namespace {
       */
 
       //====================================
-      
+
 
       if (!GEP || !GEP->hasAllZeroIndices()) {
         op_size[i] = 0;
@@ -850,22 +800,20 @@ namespace {
     if (transformPass->relax) {
       int param = transformPass->relaxConfig[optName];
       if (param) {
-        prefixStream << " - NPUifying region\n";
+        *desc << " - NPUifying region\n";
       } else {
-        prefixStream << " - could NPUify region\n";
-        prefix = prefixStream.str();
+        *desc << " - could NPUify region\n";
         return false;
       }
     } else {
-      prefixStream << " - can NPUify region\n";
-      prefix = prefixStream.str();
+      *desc << " - can NPUify region\n";
       transformPass->relaxConfig[optName] = 0;
       return false;
     }
 
     // Assume a constant buffer size for now.
     int buffer_size = optNPUBufferSize;
-    prefixStream << " - with buffer size: " << optNPUBufferSize << "\n";
+    *desc << " - with buffer size: " << optNPUBufferSize << "\n";
     unsigned int ibuff_addr = 0xFFFF0000;
     unsigned int obuff_addr = 0xFFFF8000;
     IntegerType *nativeInt = getNativeIntegerType();
@@ -1582,7 +1530,7 @@ namespace {
     // So, starting by the current BB, we find all the BB's that
     // jump to the latch by using BFS.
     std::set<BasicBlock *> jump_to_latch;
-    
+
     std::queue<BasicBlock *> bfs_q;
     std::set<BasicBlock *> seen;
 
@@ -1740,7 +1688,6 @@ namespace {
     builder.CreateCall(asm4);
 
     inst->eraseFromParent();
-    prefix = prefixStream.str();
     return true;
   }
 
