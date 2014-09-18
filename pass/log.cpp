@@ -119,14 +119,20 @@ void ApproxInfo::dumpLog() {
       *logFile << "-----\n" << desc->getText();
 
       std::map< int, std::vector<std::string> > blockers = desc->blockers;
+      unsigned count = 0;
       for (std::map< int, std::vector<std::string> >::iterator
           k = blockers.begin(); k != blockers.end(); k++) {
         std::vector<std::string> entryVector = k->second;
         for (std::vector<std::string>::iterator l = entryVector.begin();
             l != entryVector.end(); l++) {
-          *logFile << "  * " << *l << "\n";
+          *logFile << " * " << *l << "\n";
+          ++count;
         }
       }
+      if (count == 1)
+        *logFile << "1 blocker\n";
+      else if (count)
+        *logFile << count << " blockers\n";
 
       // Free the description. We're done.
       delete desc;

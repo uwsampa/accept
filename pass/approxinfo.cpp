@@ -695,7 +695,6 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   std::set<Instruction*> blockers = preciseEscapeCheck(blocks);
 
   // Add blocker entries to the description.
-  ACCEPT_LOG << "blockers: " << blockers.size() << "\n";
   for (std::set<Instruction*>::iterator i = blockers.begin();
       i != blockers.end(); ++i) {
     ACCEPT_LOG << *i;

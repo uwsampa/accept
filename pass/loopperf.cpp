@@ -159,7 +159,6 @@ namespace {
       std::set<Instruction*> blockers = AI->preciseEscapeCheck(bodyBlocks);
 
       // Print the blockers to the log.
-      ACCEPT_LOG << "blockers: " << blockers.size() << "\n";
       for (std::set<Instruction*>::iterator i = blockers.begin();
             i != blockers.end(); ++i) {
         ACCEPT_LOG << *i;

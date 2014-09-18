@@ -161,7 +161,6 @@ Instruction *ACCEPTPass::findApproxCritSec(
   std::set<Instruction*> blockers = AI->preciseEscapeCheck(critSec, &blessed);
 
   // Print the blockers to the log.
-  ACCEPT_LOG << "blockers: " << blockers.size() << "\n";
   for (std::set<Instruction*>::iterator i = blockers.begin();
         i != blockers.end(); ++i) {
     ACCEPT_LOG << *i;
