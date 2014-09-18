@@ -182,6 +182,125 @@ namespace {
       return false;
     }
 
+    // Transform a loop to skip iterations.
+    // The loop should already be validated as perforatable, but checks will be
+    // performed nonetheless to ensure safety.
+    void perforateLoop(Loop *loop, int logfactor, bool isForLike) {
+      // Check whether this loop is perforatable.
+      // First, check for required blocks.
+      if (!loop->getHeader() || !loop->getLoopLatch()
+          || !loop->getLoopPreheader() || !loop->getExitBlock()) {
+        errs() << "malformed loop\n";
+        return;
+      }
+
+      // Next, make sure the header (condition block) ends with a body/exit
+      // conditional branch.
+      BranchInst *condBranch = dyn_cast_or_null<BranchInst>(
+          loop->getHeader()->getTerminator()
+      );
+      if (!condBranch || condBranch->getNumSuccessors() != 2) {
+        errs() << "malformed loop condition\n";
+        return;
+      }
+      BasicBlock *bodyBlock;
+      if (condBranch->getSuccessor(0) == loop->getExitBlock()) {
+        bodyBlock = condBranch->getSuccessor(1);
+      } else if (condBranch->getSuccessor(1) == loop->getExitBlock()) {
+        bodyBlock = condBranch->getSuccessor(0);
+      } else {
+        errs() << "loop condition does no exit\n";
+        return;
+      }
+
+      // If enabled, partially duplicate the loop body on perforated
+      // iterations. In this case, the edge for skipped iterations goes to the
+      // cloned body rather than the top of the loop (the latch).
+      BasicBlock *skipDest = loop->getLoopLatch();
+      if (enablePreservation)
+        skipDest = preserveBody(loop, isForLike, bodyBlock, condBranch);
+
+      IRBuilder<> builder(module->getContext());
+      Value *result;
+
+      // Allocate stack space for the counter.
+      // LLVM "alloca" instructions go in the function's entry block. Otherwise,
+      // they have to adjust the frame size dynamically (and, in my experience,
+      // can actually segfault!). And we only want one of these per static loop
+      // anyway.
+      builder.SetInsertPoint(
+          loop->getLoopPreheader()->getParent()->getEntryBlock().begin()
+      );
+
+      IntegerType *nativeInt = getNativeIntegerType();
+      AllocaInst *counterAlloca = builder.CreateAlloca(
+          nativeInt,
+          0,
+          "accept_counter"
+      );
+
+      // Initialize the counter in the preheader.
+      builder.SetInsertPoint(loop->getLoopPreheader()->getTerminator());
+      builder.CreateStore(
+          ConstantInt::get(nativeInt, 0, false),
+          counterAlloca
+      );
+
+      // Increment the counter in the latch.
+      builder.SetInsertPoint(loop->getLoopLatch()->getTerminator());
+      result = builder.CreateLoad(
+          counterAlloca,
+          "accept_tmp"
+      );
+      result = builder.CreateAdd(
+          result,
+          ConstantInt::get(nativeInt, 1, false),
+          "accept_inc"
+      );
+      builder.CreateStore(
+          result,
+          counterAlloca
+      );
+
+      // Check the counter before the loop's body.
+      BasicBlock *checkBlock = BasicBlock::Create(
+          module->getContext(),
+          "accept_cond",
+          bodyBlock->getParent(),
+          bodyBlock
+      );
+      builder.SetInsertPoint(checkBlock);
+      result = builder.CreateLoad(
+          counterAlloca,
+          "accept_tmp"
+      );
+      // Check whether the low n bits of the counter are zero.
+      result = builder.CreateTrunc(
+          result,
+          Type::getIntNTy(module->getContext(), logfactor),
+          "accept_trunc"
+      );
+      result = builder.CreateIsNull(
+          result,
+          "accept_cmp"
+      );
+      result = builder.CreateCondBr(
+          result,
+          bodyBlock,
+          skipDest
+      );
+
+      // Change the condition block to point to our new condition
+      // instead of the body.
+      condBranch->setSuccessor(0, checkBlock);
+
+      // Add condition block to the loop structure.
+      loop->addBasicBlockToLoop(checkBlock, LI->getBase());
+    }
+
+
+    /**** PARTIAL BODY PRESERVATION ****/
+
     // This class keeps track of some important instructions for a store
     // corresponding to a compound assignment.
     class CmpdAssignInfo {
@@ -477,121 +596,6 @@ namespace {
       return false;
     }
 
-    // Transform a loop to skip iterations.
-    // The loop should already be validated as perforatable, but checks will be
-    // performed nonetheless to ensure safety.
-    void perforateLoop(Loop *loop, int logfactor, bool isForLike) {
-      // Check whether this loop is perforatable.
-      // First, check for required blocks.
-      if (!loop->getHeader() || !loop->getLoopLatch()
-          || !loop->getLoopPreheader() || !loop->getExitBlock()) {
-        errs() << "malformed loop\n";
-        return;
-      }
-
-      // Next, make sure the header (condition block) ends with a body/exit
-      // conditional branch.
-      BranchInst *condBranch = dyn_cast_or_null<BranchInst>(
-          loop->getHeader()->getTerminator()
-      );
-      if (!condBranch || condBranch->getNumSuccessors() != 2) {
-        errs() << "malformed loop condition\n";
-        return;
-      }
-      BasicBlock *bodyBlock;
-      if (condBranch->getSuccessor(0) == loop->getExitBlock()) {
-        bodyBlock = condBranch->getSuccessor(1);
-      } else if (condBranch->getSuccessor(1) == loop->getExitBlock()) {
-        bodyBlock = condBranch->getSuccessor(0);
-      } else {
-        errs() << "loop condition does no exit\n";
-        return;
-      }
-
-      // If enabled, partially duplicate the loop body on perforated
-      // iterations. In this case, the edge for skipped iterations goes to the
-      // cloned body rather than the top of the loop (the latch).
-      BasicBlock *skipDest = loop->getLoopLatch();
-      if (enablePreservation)
-        skipDest = preserveBody(loop, isForLike, bodyBlock, condBranch);
-
-      IRBuilder<> builder(module->getContext());
-      Value *result;
-
-      // Allocate stack space for the counter.
-      // LLVM "alloca" instructions go in the function's entry block. Otherwise,
-      // they have to adjust the frame size dynamically (and, in my experience,
-      // can actually segfault!). And we only want one of these per static loop
-      // anyway.
-      builder.SetInsertPoint(
-          loop->getLoopPreheader()->getParent()->getEntryBlock().begin()
-      );
-
-      IntegerType *nativeInt = getNativeIntegerType();
-      AllocaInst *counterAlloca = builder.CreateAlloca(
-          nativeInt,
-          0,
-          "accept_counter"
-      );
-
-      // Initialize the counter in the preheader.
-      builder.SetInsertPoint(loop->getLoopPreheader()->getTerminator());
-      builder.CreateStore(
-          ConstantInt::get(nativeInt, 0, false),
-          counterAlloca
-      );
-
-      // Increment the counter in the latch.
-      builder.SetInsertPoint(loop->getLoopLatch()->getTerminator());
-      result = builder.CreateLoad(
-          counterAlloca,
-          "accept_tmp"
-      );
-      result = builder.CreateAdd(
-          result,
-          ConstantInt::get(nativeInt, 1, false),
-          "accept_inc"
-      );
-      builder.CreateStore(
-          result,
-          counterAlloca
-      );
-
-      // Check the counter before the loop's body.
-      BasicBlock *checkBlock = BasicBlock::Create(
-          module->getContext(),
-          "accept_cond",
-          bodyBlock->getParent(),
-          bodyBlock
-      );
-      builder.SetInsertPoint(checkBlock);
-      result = builder.CreateLoad(
-          counterAlloca,
-          "accept_tmp"
-      );
-      // Check whether the low n bits of the counter are zero.
-      result = builder.CreateTrunc(
-          result,
-          Type::getIntNTy(module->getContext(), logfactor),
-          "accept_trunc"
-      );
-      result = builder.CreateIsNull(
-          result,
-          "accept_cmp"
-      );
-      result = builder.CreateCondBr(
-          result,
-          bodyBlock,
-          skipDest
-      );
-
-      // Change the condition block to point to our new condition
-      // instead of the body.
-      condBranch->setSuccessor(0, checkBlock);
-
-      // Add condition block to the loop structure.
-      loop->addBasicBlockToLoop(checkBlock, LI->getBase());
-    }
 
     // Duplicate the loop body (partially) for cheap updated on skipped loop
     // iterations.
