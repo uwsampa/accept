@@ -169,9 +169,7 @@ namespace {
       *desc << " - blockers: " << blockers.size() << "\n";
       for (std::set<Instruction*>::iterator i = blockers.begin();
             i != blockers.end(); ++i) {
-        std::string blockerEntry = instDesc(*module, *i);
-        int blockerLine = extractBlockerLine(blockerEntry);
-        desc->blocker(blockerLine, blockerEntry);
+        *desc << *i;
       }
 
       if (!blockers.size()) {
@@ -259,7 +257,7 @@ namespace {
     // This function is a helper function for slicing operands.
     void sliceOperandHelper(Instruction *inst, Loop *loop,
         std::set<Instruction *> &insts,
-        std::set<Instruction *> &preserved) {        
+        std::set<Instruction *> &preserved) {
       BasicBlock *bodyBlock = inst->getParent();
 
       if (LoadInst *LI = dyn_cast_or_null<LoadInst>(inst)) {
@@ -379,7 +377,7 @@ namespace {
       }
 
       return false;
-    }        
+    }
 
     // Find the most recent mul/fmul/udiv/sdiv/fdiv instruction.
     BinaryOperator *findMulInst(Instruction *inst, Loop *loop, Value *pointerOperand,
@@ -744,7 +742,7 @@ namespace {
       }
 
       // Drop all the references of each of the instructions that will be removed,
-      // then remove the instructions one by one. 
+      // then remove the instructions one by one.
       for (std::set<Instruction *>::iterator i = removed.begin(); i != removed.end(); i++) {
         (*i)->dropAllReferences();
       }
@@ -874,7 +872,7 @@ namespace {
             SI->getValueOperand(),
             valueAlloca
         );
-        
+
         // Insert a LoadInst to load the saved value.
         Instruction *clonedStore = (Instruction *) &*VMap[SI];
         builder.SetInsertPoint(clonedStore);
@@ -942,7 +940,7 @@ namespace {
                 "accept_accumFDiff"
             );
           }
-          
+
           incValue = result;
         }
 
@@ -1038,7 +1036,7 @@ namespace {
                 "accept_scaleFQuo"
             );
           }
-          
+
           factorValue = result;
         }
 

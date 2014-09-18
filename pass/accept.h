@@ -34,7 +34,7 @@ namespace llvm {
   LoopPass *createLoopNPUPass();
 
   std::string srcPosDesc(const Module &mod, const DebugLoc &dl);
-  std::string instDesc(const Module &mod, Instruction *inst);
+  std::string instDesc(const Module &mod, const Instruction *inst);
 
   extern bool acceptUseProfile;
 }
@@ -79,6 +79,13 @@ public:
   }
   void blocker(int lineno, llvm::StringRef s) {
     blockers[lineno].push_back(s);
+  }
+  void operator<<(const llvm::Instruction *inst) {
+    const llvm::Module *mod = inst->getParent()->getParent()->getParent();
+    blocker(
+      inst->getDebugLoc().getLine(),
+      instDesc(*mod, inst)
+    );
   }
   std::string text;
   std::map< int, std::vector<std::string> > blockers;
@@ -128,16 +135,6 @@ static void splitPosDesc(
 
   file = posDesc.substr(0, i);
   line = posDesc.substr(i + 1, length - i - 1);
-}
-
-// This static function extracts the line number from a description returned
-// by instDesc.
-static int extractBlockerLine(const std::string instDesc) {
-  size_t i = instDesc.find(":");
-  size_t length = instDesc.length();
-
-  std::string line = instDesc.substr(i + 1, length - i - 1);
-  return atoi(line.c_str());
 }
 
 // This class represents an analysis this determines whether functions and

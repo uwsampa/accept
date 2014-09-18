@@ -168,9 +168,7 @@ Instruction *ACCEPTPass::findApproxCritSec(
   *desc << " - blockers: " << blockers.size() << "\n";
   for (std::set<Instruction*>::iterator i = blockers.begin();
         i != blockers.end(); ++i) {
-    std::string blockerEntry = instDesc(*module, *i);
-    int blockerLine = extractBlockerLine(blockerEntry);
-    desc->blocker(blockerLine, blockerEntry);
+    *desc << *i;
   }
   if (blockers.size()) {
     return NULL;

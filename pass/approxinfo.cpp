@@ -38,7 +38,7 @@ std::string llvm::srcPosDesc(const Module &mod, const DebugLoc &dl) {
 }
 
 // Describe an instruction.
-std::string llvm::instDesc(const Module &mod, Instruction *inst) {
+std::string llvm::instDesc(const Module &mod, const Instruction *inst) {
   std::string out;
   raw_string_ostream ss(out);
   ss << srcPosDesc(mod, inst->getDebugLoc()) << ": ";
@@ -46,10 +46,10 @@ std::string llvm::instDesc(const Module &mod, Instruction *inst) {
   // call and invoke instructions
   Function *calledFunc = NULL;
   bool isCall = false;
-  if (CallInst *call = dyn_cast<CallInst>(inst)) {
+  if (const CallInst *call = dyn_cast<CallInst>(inst)) {
     calledFunc = call->getCalledFunction();
     isCall = true;
-  } else if (InvokeInst *invoke = dyn_cast<InvokeInst>(inst)) {
+  } else if (const InvokeInst *invoke = dyn_cast<InvokeInst>(inst)) {
     calledFunc = invoke->getCalledFunction();
     isCall = true;
   }
@@ -65,8 +65,8 @@ std::string llvm::instDesc(const Module &mod, Instruction *inst) {
     }
     else
       ss << "indirect function call";
-  } else if (StoreInst *store = dyn_cast<StoreInst>(inst)) {
-    Value *ptr = store->getPointerOperand();
+  } else if (const StoreInst *store = dyn_cast<StoreInst>(inst)) {
+    const Value *ptr = store->getPointerOperand();
     StringRef name = ptr->getName();
     if (name.empty()) {
       ss << "store to intermediate:";
@@ -766,9 +766,7 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   *desc << " - blockers: " << blockers.size() << "\n";
   for (std::set<Instruction*>::iterator i = blockers.begin();
       i != blockers.end(); ++i) {
-    std::string blockerEntry = instDesc(*(func->getParent()), *i);
-    int blockerLine = extractBlockerLine(blockerEntry);
-    desc->blocker(blockerLine, blockerEntry);
+    *desc << *i;
   }
   if (blockers.empty()) {
     *desc << " - precise-pure function: " <<
