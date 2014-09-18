@@ -50,24 +50,18 @@ typedef enum {
 // Logging: a section of the ACCEPT log.
 class Description {
 public:
-  Description() : prefix(""), postfix(""), stream(prefix) {}
-  Description(const std::string myPrefix, const std::string myPostfix,
-      const std::map< int, std::vector<std::string> > myBlockers) :
-      prefix(myPrefix), postfix(myPostfix), blockers(myBlockers),
-      stream(prefix) {}
+  Description() : text(""), stream(text) {}
   Description(const Description &d) :
-    prefix(d.prefix), postfix(d.postfix), blockers(d.blockers),
-    stream(prefix) {}
+    text(d.text), blockers(d.blockers),
+    stream(text) {}
   bool operator==(const Description &rhs) {
-    return (this->prefix == rhs.prefix) &&
-        (this->postfix == rhs.postfix) &&
+    return (this->text == rhs.text) &&
         (this->blockers == rhs.blockers);
   }
   void operator=(const Description &d) {
-    prefix = d.prefix;
-    postfix = d.postfix;
+    text = d.text;
     blockers = d.blockers;
-    stream.str() = prefix;
+    stream.str() = text;
   }
   llvm::raw_ostream &operator<<(llvm::StringRef s) {
     return stream << s;
@@ -75,8 +69,7 @@ public:
   void blocker(int lineno, llvm::StringRef s) {
     blockers[lineno].push_back(s);
   }
-  std::string prefix;
-  std::string postfix;
+  std::string text;
   std::map< int, std::vector<std::string> > blockers;
   llvm::raw_string_ostream stream;
 };
@@ -227,9 +220,6 @@ struct ACCEPTPass : public llvm::FunctionPass {
   void dumpRelaxConfig();
   void loadRelaxConfig();
 
-  void addSyncDesc(const bool hasBlockers, const std::string fileName,
-      const int lineNumber, const std::string prefix, const std::string postfix,
-      const std::map< int, std::vector<std::string> > blockerEntries);
   bool optimizeSync(llvm::Function &F);
   bool optimizeAcquire(llvm::Instruction *inst);
   bool optimizeBarrier(llvm::Instruction *bar1);
