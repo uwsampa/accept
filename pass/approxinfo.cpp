@@ -659,22 +659,22 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   }
   Description *desc = logAdd("Function", fileName, lineNumber);
 
-  *desc << "checking function " << func->getName().str();
+  ACCEPT_LOG << "checking function " << func->getName().str();
   if (functionLocs.count(func)) {
-    *desc << " at " << fileName << ":" << lineNumber;
+    ACCEPT_LOG << " at " << fileName << ":" << lineNumber;
   }
-  *desc << "\n";
+  ACCEPT_LOG << "\n";
 
   // LLVM's own nominal purity analysis.
   if (func->onlyReadsMemory()) {
-    *desc << " - only reads memory\n";
+    ACCEPT_LOG << " - only reads memory\n";
     functionPurity[func] = true;
     return true;
   }
 
   // Whitelisted pure functions from standard libraries.
   if (func->empty() && isWhitelistedPure(func->getName())) {
-    *desc << " - whitelisted\n";
+    ACCEPT_LOG << " - whitelisted\n";
     functionPurity[func] = true;
     return true;
   }
@@ -682,7 +682,7 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   // Empty functions (those for which we don't have a definition) are
   // conservatively marked non-pure.
   if (func->empty()) {
-    *desc << " - definition not available\n";
+    ACCEPT_LOG << " - definition not available\n";
     functionPurity[func] = false;
     return false;
   }
@@ -698,16 +698,16 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   std::set<Instruction*> blockers = preciseEscapeCheck(blocks);
 
   // Add blocker entries to the description.
-  *desc << " - blockers: " << blockers.size() << "\n";
+  ACCEPT_LOG << " - blockers: " << blockers.size() << "\n";
   for (std::set<Instruction*>::iterator i = blockers.begin();
       i != blockers.end(); ++i) {
-    *desc << *i;
+    ACCEPT_LOG << *i;
   }
   if (blockers.empty()) {
-    *desc << " - precise-pure function: " <<
+    ACCEPT_LOG << " - precise-pure function: " <<
         func->getName().str() << "\n";
   } else {
-    *desc << " - precise-impure function: " <<
+    ACCEPT_LOG << " - precise-impure function: " <<
         func->getName().str() << "\n";
   }
 

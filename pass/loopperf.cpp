@@ -13,8 +13,6 @@
 
 #include "accept.h"
 
-#define ACCEPT_LOG ACCEPT_LOG_(AI)
-
 using namespace llvm;
 
 namespace {
@@ -65,17 +63,17 @@ namespace {
       std::string loopName = ss.str();
 
       Description *desc = AI->logAdd("Loop", loopStart);
-      *desc << loopName << "\n";
+      ACCEPT_LOG << loopName << "\n";
 
       Instruction *inst = loop->getHeader()->begin();
       Function *func = inst->getParent()->getParent();
       std::string funcName = func->getName().str();
 
-      *desc << " - within function " << funcName << "\n";
+      ACCEPT_LOG << " - within function " << funcName << "\n";
 
       // Look for ACCEPT_FORBID marker.
       if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {
-        *desc << " - optimization forbidden\n";
+        ACCEPT_LOG << " - optimization forbidden\n";
         return false;
       }
 
@@ -83,13 +81,13 @@ namespace {
       // latch (increment, in "for"), and a preheader (initialization).
       if (!loop->getHeader() || !loop->getLoopLatch()
           || !loop->getLoopPreheader()) {
-        *desc << " - loop not in perforatable form\n";
+        ACCEPT_LOG << " - loop not in perforatable form\n";
         return false;
       }
 
       // Skip array constructor loops manufactured by Clang.
       if (loop->getHeader()->getName().startswith("arrayctor.loop")) {
-        *desc << " - array constructor\n";
+        ACCEPT_LOG << " - array constructor\n";
         return false;
       }
 
@@ -98,7 +96,7 @@ namespace {
           && loop->getHeader() != loop->getLoopLatch()) {
         BasicBlock *latch = loop->getLoopLatch();
         if (&(latch->front()) == &(latch->back())) {
-          *desc << " - empty body\n";
+          ACCEPT_LOG << " - empty body\n";
           return false;
         }
       }
@@ -107,20 +105,20 @@ namespace {
       // the heuristic that determines which parts of the loop to perforate.
       bool isForLike = false;
       if (loop->getHeader()->getName().startswith("for.cond")) {
-        *desc << " - for-like loop\n";
+        ACCEPT_LOG << " - for-like loop\n";
         isForLike = true;
       } else {
-        *desc << " - while-like loop\n";
+        ACCEPT_LOG << " - while-like loop\n";
       }
 
       if (transformPass->relax) {
         int param = transformPass->relaxConfig[loopName];
         if (param) {
-          *desc << " - perforating with factor 2^" << param << "\n";
+          ACCEPT_LOG << " - perforating with factor 2^" << param << "\n";
           perforateLoop(loop, param, isForLike);
           return true;
         } else {
-          *desc << " - not perforating\n";
+          ACCEPT_LOG << " - not perforating\n";
           return false;
         }
       }
@@ -142,7 +140,7 @@ namespace {
         bodyBlocks.insert(*bi);
       }
       if (bodyBlocks.empty()) {
-        *desc << " - empty body\n";
+        ACCEPT_LOG << " - empty body\n";
         return false;
       }
 
@@ -151,8 +149,8 @@ namespace {
       for (std::set<BasicBlock*>::iterator i = bodyBlocks.begin();
             i != bodyBlocks.end(); ++i) {
         if (loop->isLoopExiting(*i)) {
-          *desc << " - contains loop exit\n";
-          *desc << " - cannot perforate loop\n";
+          ACCEPT_LOG << " - contains loop exit\n";
+          ACCEPT_LOG << " - cannot perforate loop\n";
           return false;
         }
       }
@@ -161,17 +159,17 @@ namespace {
       std::set<Instruction*> blockers = AI->preciseEscapeCheck(bodyBlocks);
 
       // Print the blockers to the log.
-      *desc << " - blockers: " << blockers.size() << "\n";
+      ACCEPT_LOG << " - blockers: " << blockers.size() << "\n";
       for (std::set<Instruction*>::iterator i = blockers.begin();
             i != blockers.end(); ++i) {
-        *desc << *i;
+        ACCEPT_LOG << *i;
       }
 
       if (!blockers.size()) {
-        *desc << " - can perforate loop\n";
+        ACCEPT_LOG << " - can perforate loop\n";
         transformPass->relaxConfig[loopName] = 0;
       } else {
-        *desc << " - cannot perforate loop\n";
+        ACCEPT_LOG << " - cannot perforate loop\n";
       }
 
       return false;

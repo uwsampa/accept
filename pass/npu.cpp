@@ -25,8 +25,6 @@
 #define ALIAS_DUMP 0
 #define BB_INTERSECTION 1
 
-#define ACCEPT_LOG ACCEPT_LOG_(AI)
-
 using namespace llvm;
 
 namespace {
@@ -197,13 +195,13 @@ namespace {
 
       // Look for ACCEPT_FORBID marker.
       if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {
-        *desc << " - optimization forbidden\n";
+        ACCEPT_LOG << " - optimization forbidden\n";
         return false;
       }
 
       // Skip array constructor loops manufactured by Clang.
       if (loop->getHeader()->getName().startswith("arrayctor.loop")) {
-        *desc << " - array constructor\n";
+        ACCEPT_LOG << " - array constructor\n";
         return false;
       }
 
@@ -225,32 +223,32 @@ namespace {
           Function *callee = c_inst->getCalledFunction();
 
           if (c_inst->isInlineAsm()) {
-            *desc << " - has inline assembly\n";
+            ACCEPT_LOG << " - has inline assembly\n";
             return false;
           }
 
           bool hasInlineAsm = false;
           //testSubFunctions(callee, loop, hasInlineAsm);
           if (hasInlineAsm) {
-            *desc << " - function has inline assembly\n";
+            ACCEPT_LOG << " - function has inline assembly\n";
             return false;
           }
 
           if (!isa<IntrinsicInst>(inst) && !AI->isWhitelistedPure(callee->getName()) && AI->isPrecisePure(callee)) {
-            *desc << " - " << callee->getName().str() << " is precise-pure\n";
+            ACCEPT_LOG << " - " << callee->getName().str() << " is precise-pure\n";
             if (!find_inst(inst)) {
               loops_to_npu.push_back(loop);
               calls_to_npu.push_back(inst);
             }
           } else {
-            *desc << " - " << callee->getName().str() << " is not precise-pure\n";
+            ACCEPT_LOG << " - " << callee->getName().str() << " is not precise-pure\n";
           }
 
         } // for instructions
 
       } // for basic blocks
 
-      *desc << " - calls: " << calls_to_npu.size() << "\n";
+      ACCEPT_LOG << " - calls: " << calls_to_npu.size() << "\n";
       for (int i = 0; i < calls_to_npu.size(); ++i) {
         // std::cerr << "Calls to npu size: " << calls_to_npu.size() << std::endl;
         // std::cerr << "++++ begin" << std::endl;
@@ -537,14 +535,14 @@ namespace {
     // We need a loop latch to jump to after reading oBuff
     // and executing the instructions after the function call.
     if (!loop->getLoopLatch() || !loop->getLoopPreheader() || !loop->getHeader()) {
-      *desc << " - malformed loop\n";
+      ACCEPT_LOG << " - malformed loop\n";
       return false;
     }
 
     if (!inst->getType()->isIntegerTy() &&
         !inst->getType()->isVoidTy() &&
         !inst->getType()->isFloatTy()) {
-      *desc << " - call's return type is not int, void, or FP\n";
+      ACCEPT_LOG << " - call's return type is not int, void, or FP\n";
       return false;
     }
 
@@ -554,7 +552,7 @@ namespace {
     std::vector<StoreInst*> st_inst;
     if (pre_pos_call_dependency_check(inst, loop, before_insts_tobuff, st_value, st_addr, st_inst)) {
       // std::cerr << "BOSTA" << std::endl;
-      *desc << " - dependency check failed\n";
+      ACCEPT_LOG << " - dependency check failed\n";
       return false;
     }
 
@@ -574,7 +572,7 @@ namespace {
       // be executed and whether it would write to the same address
       // or not in order to know how much buffer space we need.
       if (in_loop) {
-        *desc << " - escaping store in loop";
+        ACCEPT_LOG << " - escaping store in loop";
         return false;
       }
 
@@ -796,20 +794,20 @@ namespace {
     if (transformPass->relax) {
       int param = transformPass->relaxConfig[optName];
       if (param) {
-        *desc << " - NPUifying region\n";
+        ACCEPT_LOG << " - NPUifying region\n";
       } else {
-        *desc << " - could NPUify region\n";
+        ACCEPT_LOG << " - could NPUify region\n";
         return false;
       }
     } else {
-      *desc << " - can NPUify region\n";
+      ACCEPT_LOG << " - can NPUify region\n";
       transformPass->relaxConfig[optName] = 0;
       return false;
     }
 
     // Assume a constant buffer size for now.
     int buffer_size = optNPUBufferSize;
-    *desc << " - with buffer size: " << optNPUBufferSize << "\n";
+    ACCEPT_LOG << " - with buffer size: " << optNPUBufferSize << "\n";
     unsigned int ibuff_addr = 0xFFFF0000;
     unsigned int obuff_addr = 0xFFFF8000;
     IntegerType *nativeInt = getNativeIntegerType();

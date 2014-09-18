@@ -45,7 +45,12 @@ void Description::operator<<(const llvm::Instruction *inst) {
 
 Description *ApproxInfo::logAdd(llvm::StringRef kind,
       StringRef filename, const int lineno) {
-  // TODO return NULL if the log is disabled
+  // Adding a log description returns NULL if the log is disabled. The
+  // ACCEPT_LOG macro then skips operations on the null description.
+  if (!logEnabled) {
+    return NULL;
+  }
+
   Description::Location loc(kind, filename, lineno);
   std::vector<Description*> &descs = logDescs[loc];
   Description *desc = new Description();

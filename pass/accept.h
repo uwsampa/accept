@@ -21,7 +21,8 @@
 #define ECQ_APPROX_PTR 2
 
 // Logging macro.
-#define ACCEPT_LOG_(ai) if (!(ai)->logEnabled) ; else (*(ai)->logFile)
+#define ACCEPT_LOG_(d) if (d) *d
+#define ACCEPT_LOG ACCEPT_LOG_(desc)
 
 
 namespace llvm {
