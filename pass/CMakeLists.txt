@@ -3,6 +3,7 @@ add_llvm_loadable_module(enerc
   transform.cpp
   registration.cpp
   approxinfo.cpp
+  log.cpp
 
   # Optimizations.
   loopperf.cpp

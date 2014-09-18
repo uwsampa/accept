@@ -35,6 +35,7 @@ namespace llvm {
 
   std::string srcPosDesc(const Module &mod, const DebugLoc &dl);
   std::string instDesc(const Module &mod, const Instruction *inst);
+  std::string getFilename(const Module &mod, const DebugLoc &dl);
 
   extern bool acceptUseProfile;
 }
@@ -53,76 +54,50 @@ public:
   Description() : text(""), stream(NULL) {}
   Description(const Description &d)
     : text(d.text), blockers(d.blockers), stream(NULL) {}
-  void operator=(const Description &d) {
-    text = d.text;
-    blockers = d.blockers;
-    stream = NULL;
-  }
-  ~Description() {
-    if (stream)
-      delete stream;
-  }
-  bool operator==(const Description &rhs) {
-    return (this->text == rhs.text) &&
-        (this->blockers == rhs.blockers);
-  }
-  operator llvm::raw_ostream &() {
-    if (!stream) {
-      stream = new llvm::raw_string_ostream(text);
-    }
-    return *stream;
-  }
-  std::string &getText() {
-    if (stream)
-      stream->flush();
-    return text;
-  }
-  void blocker(int lineno, llvm::StringRef s) {
-    blockers[lineno].push_back(s);
-  }
-  void operator<<(const llvm::Instruction *inst) {
-    const llvm::Module *mod = inst->getParent()->getParent()->getParent();
-    blocker(
-      inst->getDebugLoc().getLine(),
-      instDesc(*mod, inst)
-    );
-  }
+  void operator=(const Description &d);
+  ~Description();
+  bool operator==(const Description &rhs);
+  operator llvm::raw_ostream &();
+  std::string &getText();
+  void blocker(int lineno, llvm::StringRef s);
+  void operator<<(const llvm::Instruction *inst);
   std::string text;
   std::map< int, std::vector<std::string> > blockers;
   llvm::raw_string_ostream *stream;
-};
 
-// Logging: the location of a Description for positioning in the log.
-class Location {
-  public:
-    Location() : kind(""), fileName(""), lineNumber(0) {}
-    Location(llvm::StringRef myKind,
-        llvm::StringRef myFile, const int myNum) :
-        kind(myKind), fileName(myFile),
-        lineNumber(myNum) {}
-    bool operator==(const Location &rhs) {
-      return (this->kind == rhs.kind) &&
-          (this->fileName == rhs.fileName) &&
-          (this->lineNumber == rhs.lineNumber);
-    }
-    std::string kind;
-    std::string fileName;
-    int lineNumber;
-};
-
-// Logging: comparator for Location sorting.
-class cmpLocation {
-  public:
-    bool operator() (const Location a, const Location b) const {
-      if (a.kind != b.kind) {
-        return (a.kind < b.kind);
-      } else if (a.fileName != b.fileName) {
-        return (a.fileName < b.fileName);
-      } else {
-        return (a.lineNumber < b.lineNumber);
+  // The location of a Description for positioning in the log.
+  class Location {
+    public:
+      Location() : kind(""), fileName(""), lineNumber(0) {}
+      Location(llvm::StringRef myKind,
+          llvm::StringRef myFile, const int myNum) :
+          kind(myKind), fileName(myFile),
+          lineNumber(myNum) {}
+      bool operator==(const Location &rhs) {
+        return (this->kind == rhs.kind) &&
+            (this->fileName == rhs.fileName) &&
+            (this->lineNumber == rhs.lineNumber);
       }
-    }
+      std::string kind;
+      std::string fileName;
+      int lineNumber;
+  };
+
+  // Comparator for Location sorting.
+  class cmpLocation {
+    public:
+      bool operator() (const Location a, const Location b) const {
+        if (a.kind != b.kind) {
+          return (a.kind < b.kind);
+        } else if (a.fileName != b.fileName) {
+          return (a.fileName < b.fileName);
+        } else {
+          return (a.lineNumber < b.lineNumber);
+        }
+      }
+  };
 };
+
 
 // This class represents an analysis this determines whether functions and
 // chunks are approximate. It is consumed by our various optimizations.
@@ -177,7 +152,7 @@ private:
                      llvm::Instruction *inst);
 
   // Logging.
-  std::map<Location, std::vector<Description*>, cmpLocation> logDescs;
+  std::map<Description::Location, std::vector<Description*>, Description::cmpLocation> logDescs;
   bool logEnabled;
   llvm::raw_fd_ostream *logFile;
   void dumpLog();
