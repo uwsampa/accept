@@ -8,9 +8,6 @@
 #include "llvm/Support/CommandLine.h"
 
 #include <fstream>
-#include <sstream>
-#include <cctype>
-#include <utility>
 
 using namespace llvm;
 

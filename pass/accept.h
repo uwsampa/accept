@@ -12,9 +12,7 @@
 #include <set>
 #include <map>
 #include <string>
-#include <iostream>
 #include <cassert>
-#include <cstdlib>
 
 #define ECQ_PRECISE 0
 #define ECQ_APPROX 1
