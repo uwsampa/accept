@@ -77,19 +77,17 @@ public:
 // Logging: the location of a Description for positioning in the log.
 class Location {
   public:
-    Location() : kind(""), hasBlockers(false), fileName(""), lineNumber(0) {}
-    Location(llvm::StringRef myKind, const bool myHasBlockers,
+    Location() : kind(""), fileName(""), lineNumber(0) {}
+    Location(llvm::StringRef myKind,
         llvm::StringRef myFile, const int myNum) :
-        kind(myKind), hasBlockers(myHasBlockers), fileName(myFile),
+        kind(myKind), fileName(myFile),
         lineNumber(myNum) {}
     bool operator==(const Location &rhs) {
       return (this->kind == rhs.kind) &&
-          (this->hasBlockers == rhs.hasBlockers) &&
           (this->fileName == rhs.fileName) &&
           (this->lineNumber == rhs.lineNumber);
     }
     std::string kind;
-    bool hasBlockers;
     std::string fileName;
     int lineNumber;
 };
@@ -100,8 +98,6 @@ class cmpLocation {
     bool operator() (const Location a, const Location b) const {
       if (a.kind != b.kind) {
         return (a.kind < b.kind);
-      } else if (a.hasBlockers != b.hasBlockers) {
-        return (a.hasBlockers && !b.hasBlockers);
       } else if (a.fileName != b.fileName) {
         return (a.fileName < b.fileName);
       } else {

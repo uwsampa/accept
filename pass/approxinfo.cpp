@@ -236,7 +236,7 @@ ApproxInfo::ApproxInfo() : FunctionPass(ID) {
 Description *ApproxInfo::logAdd(llvm::StringRef kind,
       StringRef filename, const int lineno) {
   // TODO return NULL if the log is disabled
-  Location loc(kind, false, filename, lineno);
+  Location loc(kind, filename, lineno);
   std::vector<Description> &descs = logDescs[loc];
   descs.push_back(Description());  // want emplace from C++11
   return &(descs.back());
@@ -245,7 +245,6 @@ Description *ApproxInfo::logAdd(llvm::StringRef kind,
 void ApproxInfo::dumpLog() {
   int numKind = 0;
   std::string prevKind;
-  bool prevHasBlockers;
 
   // For each location, print all the descriptions to the log.
   for (std::map<Location, std::vector<Description>, cmpLocation>::iterator
@@ -276,13 +275,6 @@ void ApproxInfo::dumpLog() {
       }
     }
 
-    bool newHasBlockers = i->first.hasBlockers;
-    // Include a demarcation of five dashes between descriptions of
-    // the same kind.
-    if ((newKind == prevKind) && (newHasBlockers != prevHasBlockers)) {
-      *logFile << "-----";
-    }
-    prevHasBlockers = newHasBlockers;
     prevKind = newKind;
 
     std::vector<Description> descVector = i->second;
