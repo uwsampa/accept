@@ -6,11 +6,7 @@
 #include "../llvm/lib/Transforms/Utils/LoopUnrollRuntime.cpp"
 #include "llvm/Support/CommandLine.h"
 
-#include <iostream>
 #include <sstream>
-#include <cstdlib>
-#include <string>
-#include <algorithm>
 
 #include "accept.h"
 
@@ -209,7 +205,7 @@ namespace {
       } else if (condBranch->getSuccessor(1) == loop->getExitBlock()) {
         bodyBlock = condBranch->getSuccessor(0);
       } else {
-        errs() << "loop condition does no exit\n";
+        errs() << "loop condition does not exit\n";
         return;
       }
 
