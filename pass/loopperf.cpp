@@ -59,17 +59,12 @@ namespace {
     // boolean indicating whether the code was changed (i.e., the loop
     // perforated).
     bool tryToOptimizeLoop(Loop *loop) {
-      // Generate the first line of the loop description.
-      std::string posDesc = srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc());
-      std::string fileName, line;
-      splitPosDesc(posDesc, fileName, line);
-      int lineNumber = atoi(line.c_str());
-
+      Instruction *loopStart = loop->getHeader()->begin();
       std::stringstream ss;
-      ss << "loop at " << posDesc;
+      ss << "loop at " << srcPosDesc(*module, loopStart->getDebugLoc());
       std::string loopName = ss.str();
 
-      Description *desc = AI->logAdd("Loop", fileName, lineNumber);
+      Description *desc = AI->logAdd("Loop", loopStart);
       *desc << loopName << "\n";
 
       Instruction *inst = loop->getHeader()->begin();

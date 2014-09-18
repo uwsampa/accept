@@ -124,19 +124,6 @@ class cmpLocation {
     }
 };
 
-// This static function splits a description returned by srcPosDesc
-// into two strings: the file name and the line number.
-static void splitPosDesc(
-    const std::string posDesc,
-    std::string &file,
-    std::string &line) {
-  size_t i = posDesc.find(":");
-  size_t length = posDesc.length();
-
-  file = posDesc.substr(0, i);
-  line = posDesc.substr(i + 1, length - i - 1);
-}
-
 // This class represents an analysis this determines whether functions and
 // chunks are approximate. It is consumed by our various optimizations.
 class ApproxInfo : public llvm::FunctionPass {
@@ -179,6 +166,7 @@ public:
   // Logging.
   Description *logAdd(llvm::StringRef kind, llvm::StringRef filename,
       const int lineno);
+  Description *logAdd(llvm::StringRef kind, llvm::Instruction *where);
 
 private:
   void successorsOfHelper(llvm::BasicBlock *block,
@@ -214,8 +202,7 @@ struct ACCEPTPass : public llvm::FunctionPass {
   virtual bool doFinalization(llvm::Module &M);
 
   bool shouldSkipFunc(llvm::Function &F);
-  std::string siteName(std::string kind, llvm::Instruction *at,
-      std::string &fileName, std::string &line);
+  std::string siteName(std::string kind, llvm::Instruction *at);
 
   void collectFuncDebug(llvm::Module &M);
   void collectSubprogram(llvm::DISubprogram sp);

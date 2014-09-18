@@ -136,11 +136,9 @@ Instruction *ACCEPTPass::findCritSec(Instruction *acq,
   return rel;
 }
 
-std::string ACCEPTPass::siteName(std::string kind, Instruction *at,
-    std::string &fileName, std::string &line) {
+std::string ACCEPTPass::siteName(std::string kind, Instruction *at) {
   std::stringstream ss;
   std::string posDesc = srcPosDesc(*module, at->getDebugLoc());
-  splitPosDesc(posDesc, fileName, line);
   ss << kind << " at " << posDesc;
   return ss.str();
 }
@@ -178,15 +176,10 @@ Instruction *ACCEPTPass::findApproxCritSec(
 }
 
 bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
-  bool hasBlockers = false;
-  std::map< int, std::vector<std::string> > blockerEntries;
-
   // Generate a name for this opportunity site.
-  std::string fileName, line;
-  std::string optName = siteName("lock acquire", acq, fileName, line);
-  int lineNumber = atoi(line.c_str());
+  std::string optName = siteName("lock acquire", acq);
 
-  Description *desc = AI->logAdd("Loop", fileName, lineNumber);
+  Description *desc = AI->logAdd("Loop", acq);
   *desc << optName << "\n";
 
   Instruction *rel = findApproxCritSec(acq, desc);
@@ -212,11 +205,8 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
 }
 
 bool ACCEPTPass::optimizeBarrier(Instruction *bar1) {
-  std::string fileName, line;
-  std::string optName = siteName("barrier", bar1, fileName, line);
-  int lineNumber = atoi(line.c_str());
-
-  Description *desc = AI->logAdd("Loop", fileName, lineNumber);
+  std::string optName = siteName("barrier", bar1);
+  Description *desc = AI->logAdd("Loop", bar1);
   *desc << optName << "\n";
 
   Instruction *rel = findApproxCritSec(bar1, desc);

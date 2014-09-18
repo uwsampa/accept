@@ -17,13 +17,12 @@ using namespace llvm;
 
 /**** DESCRIBE SOURCE INFORMATION ****/
 
-// Format a source position.
-std::string llvm::srcPosDesc(const Module &mod, const DebugLoc &dl) {
+// Try to get filename from debug location.
+std::string getFilename(const Module &mod, const DebugLoc &dl) {
   LLVMContext &ctx = mod.getContext();
   std::string out;
   raw_string_ostream ss(out);
 
-  // Try to get filename from debug location.
   DIScope scope(dl.getScope(ctx));
   if (scope.Verify()) {
     ss << scope.getFilename().data();
@@ -31,9 +30,18 @@ std::string llvm::srcPosDesc(const Module &mod, const DebugLoc &dl) {
     // Fall back to the compilation unit name.
     ss << "(" << mod.getModuleIdentifier() << ")";
   }
-  ss << ":";
 
-  ss << dl.getLine();
+  return ss.str();
+}
+
+// Format a source position.
+std::string llvm::srcPosDesc(const Module &mod, const DebugLoc &dl) {
+  LLVMContext &ctx = mod.getContext();
+  std::string out;
+  raw_string_ostream ss(out);
+  ss << getFilename(mod, dl)
+     << ":"
+     << dl.getLine();
   return out;
 }
 
@@ -241,6 +249,16 @@ Description *ApproxInfo::logAdd(llvm::StringRef kind,
   Description *desc = new Description();
   descs.push_back(desc);
   return desc;
+}
+
+Description *ApproxInfo::logAdd(llvm::StringRef kind,
+    llvm::Instruction *where) {
+  DebugLoc dl = where->getDebugLoc();
+  return logAdd(
+    kind,
+    getFilename(*where->getParent()->getParent()->getParent(), dl),
+    dl.getLine()
+  );
 }
 
 void ApproxInfo::dumpLog() {

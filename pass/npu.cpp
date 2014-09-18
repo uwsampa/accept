@@ -188,16 +188,12 @@ namespace {
     }
 
     bool tryToOptimizeLoop(Loop *loop) {
-      std::string fileName, line;
-      std::string posDesc = srcPosDesc(*module, loop->getHeader()->begin()->getDebugLoc());
-      splitPosDesc(posDesc, fileName, line);
-      int lineNumber = atoi(line.c_str());
-
+      Instruction *loopStart = loop->getHeader()->begin();
       std::stringstream ss;
-      ss << "npu_region at " << posDesc;
+      ss << "npu_region at " << srcPosDesc(*module, loopStart->getDebugLoc());
       std::string optName = ss.str();
 
-      Description *desc = AI->logAdd("NPU Region", fileName, lineNumber);
+      Description *desc = AI->logAdd("NPU Region", loopStart);
 
       // Look for ACCEPT_FORBID marker.
       if (AI->instMarker(loop->getHeader()->begin()) == markerForbid) {
