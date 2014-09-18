@@ -664,14 +664,14 @@ bool ApproxInfo::isPrecisePure(Function *func) {
 
   // LLVM's own nominal purity analysis.
   if (func->onlyReadsMemory()) {
-    ACCEPT_LOG << " - only reads memory\n";
+    ACCEPT_LOG << "only reads memory\n";
     functionPurity[func] = true;
     return true;
   }
 
   // Whitelisted pure functions from standard libraries.
   if (func->empty() && isWhitelistedPure(func->getName())) {
-    ACCEPT_LOG << " - whitelisted\n";
+    ACCEPT_LOG << "whitelisted\n";
     functionPurity[func] = true;
     return true;
   }
@@ -679,7 +679,7 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   // Empty functions (those for which we don't have a definition) are
   // conservatively marked non-pure.
   if (func->empty()) {
-    ACCEPT_LOG << " - definition not available\n";
+    ACCEPT_LOG << "definition not available\n";
     functionPurity[func] = false;
     return false;
   }
@@ -695,16 +695,16 @@ bool ApproxInfo::isPrecisePure(Function *func) {
   std::set<Instruction*> blockers = preciseEscapeCheck(blocks);
 
   // Add blocker entries to the description.
-  ACCEPT_LOG << " - blockers: " << blockers.size() << "\n";
+  ACCEPT_LOG << "blockers: " << blockers.size() << "\n";
   for (std::set<Instruction*>::iterator i = blockers.begin();
       i != blockers.end(); ++i) {
     ACCEPT_LOG << *i;
   }
   if (blockers.empty()) {
-    ACCEPT_LOG << " - precise-pure function: " <<
+    ACCEPT_LOG << "precise-pure function: " <<
         func->getName().str() << "\n";
   } else {
-    ACCEPT_LOG << " - precise-impure function: " <<
+    ACCEPT_LOG << "precise-impure function: " <<
         func->getName().str() << "\n";
   }
 

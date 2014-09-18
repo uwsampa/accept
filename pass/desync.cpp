@@ -127,7 +127,7 @@ Instruction *ACCEPTPass::findCritSec(Instruction *acq,
   }
 
   if (rel == NULL) {
-    ACCEPT_LOG << " - no matching sync found\n";
+    ACCEPT_LOG << "no matching sync found\n";
     return NULL;
   }
 
@@ -161,7 +161,7 @@ Instruction *ACCEPTPass::findApproxCritSec(
   std::set<Instruction*> blockers = AI->preciseEscapeCheck(critSec, &blessed);
 
   // Print the blockers to the log.
-  ACCEPT_LOG << " - blockers: " << blockers.size() << "\n";
+  ACCEPT_LOG << "blockers: " << blockers.size() << "\n";
   for (std::set<Instruction*>::iterator i = blockers.begin();
         i != blockers.end(); ++i) {
     ACCEPT_LOG << *i;
@@ -186,12 +186,12 @@ bool ACCEPTPass::optimizeAcquire(Instruction *acq) {
   }
 
   // Success.
-  ACCEPT_LOG << " - can elide lock\n";
+  ACCEPT_LOG << "can elide lock\n";
   if (relax) {
     int param = relaxConfig[optName];
     if (param) {
       // Remove the acquire and release calls.
-      ACCEPT_LOG << " - eliding lock\n";
+      ACCEPT_LOG << "eliding lock\n";
       acq->eraseFromParent();
       rel->eraseFromParent();
       return true;
@@ -213,12 +213,12 @@ bool ACCEPTPass::optimizeBarrier(Instruction *bar1) {
   }
 
   // Success.
-  ACCEPT_LOG << " - can elide barrier\n";
+  ACCEPT_LOG << "can elide barrier\n";
   if (relax) {
     int param = relaxConfig[optName];
     if (param) {
       // Remove the first barrier.
-      ACCEPT_LOG << " - eliding barrier wait\n";
+      ACCEPT_LOG << "eliding barrier wait\n";
       bar1->eraseFromParent();
       return true;
     }
