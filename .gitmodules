@@ -1,6 +1,3 @@
-[submodule "checkerlib"]
-	path = checkerlib
-	url = git@bitbucket.org:sampa/checkerlib.git
 [submodule "clang"]
 	path = clang
 	url = git://github.com/uwsampa/accept-clang.git
