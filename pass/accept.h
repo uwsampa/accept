@@ -50,28 +50,39 @@ typedef enum {
 // Logging: a section of the ACCEPT log.
 class Description {
 public:
-  Description() : text(""), stream(text) {}
-  Description(const Description &d) :
-    text(d.text), blockers(d.blockers),
-    stream(text) {}
+  Description() : text(""), stream(NULL) {}
+  Description(const Description &d)
+    : text(d.text), blockers(d.blockers), stream(NULL) {}
+  void operator=(const Description &d) {
+    text = d.text;
+    blockers = d.blockers;
+    stream = NULL;
+  }
+  ~Description() {
+    if (stream)
+      delete stream;
+  }
   bool operator==(const Description &rhs) {
     return (this->text == rhs.text) &&
         (this->blockers == rhs.blockers);
   }
-  void operator=(const Description &d) {
-    text = d.text;
-    blockers = d.blockers;
-    stream.str() = text;
+  operator llvm::raw_ostream &() {
+    if (!stream) {
+      stream = new llvm::raw_string_ostream(text);
+    }
+    return *stream;
   }
-  llvm::raw_ostream &operator<<(llvm::StringRef s) {
-    return stream << s;
+  std::string &getText() {
+    if (stream)
+      stream->flush();
+    return text;
   }
   void blocker(int lineno, llvm::StringRef s) {
     blockers[lineno].push_back(s);
   }
   std::string text;
   std::map< int, std::vector<std::string> > blockers;
-  llvm::raw_string_ostream stream;
+  llvm::raw_string_ostream *stream;
 };
 
 // Logging: the location of a Description for positioning in the log.

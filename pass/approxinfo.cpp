@@ -286,7 +286,7 @@ void ApproxInfo::dumpLog() {
       // Five additional dashes are included for the demarcation between
       // the last description with blockers and the first description
       // without blockers within a section.
-      *logFile << "-----\n" << j->text;
+      *logFile << "-----\n" << j->getText();
 
       std::map< int, std::vector<std::string> > blockers = j->blockers;
       for (std::map< int, std::vector<std::string> >::iterator
