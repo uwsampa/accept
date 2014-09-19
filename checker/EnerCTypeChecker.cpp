@@ -201,6 +201,7 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
 
 
   // BINARY OPERATORS
+  case clang::Stmt::CompoundAssignOperatorClass:
   case clang::Stmt::BinaryOperatorClass: {
     clang::BinaryOperator *bop = llvm::cast<BinaryOperator>(expr);
     DEBUG(llvm::errs() << "binary operator " << bop->getOpcode() << "\n");
