@@ -171,8 +171,7 @@ def run_cmd(command, timeout=None):
 
 def _make_args():
     return [
-        'ENERCDIR={}'.format(BASEDIR),
-        'APP_MK={}'.format(os.path.join(BASEDIR, 'apps', 'app.mk')),
+        'ACCEPT_DIR={}'.format(BASEDIR),
         'CLANGARGS=-fcolor-diagnostics',
     ]
 
