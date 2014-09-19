@@ -102,44 +102,6 @@ $(RUN_TARGETS): run_%: $(TARGET).%
 setup:
 #################################################################
 
-# Platform-specific settings for the Zynq.
-ifeq ($(ARCH),zynq)
-ZYNQDIR := $(ACCEPTDIR)/plat/zynqlib
-override CFLAGS += -target arm-none-linux-gnueabi \
-	-ccc-gcc-name arm-linux-gnueabi-gcc \
-	-D_GNU_SOURCE=1 \
-	-I$(ZYNQDIR) -I$(ZYNQDIR)/bsp/include
-ARMTOOLCHAIN ?= /sampa/share/Xilinx/14.6/14.6/ISE_DS/EDK/gnu/arm/lin
-LINKER := $(ARMTOOLCHAIN)/bin/arm-xilinx-eabi-gcc
-LDFLAGS := -Wl,-T -Wl,$(ZYNQDIR)/lscript.ld -L$(ZYNQDIR)/bsp/lib
-LIBS := -Wl,--start-group,-lxil,-lgcc,-lc,-lm,--end-group
-LLCARGS += -march=arm -mcpu=cortex-a9
-RUNSHIM := $(ACCEPTDIR)/plat/zynqrun.sh $(ZYNQBIT)
-CLEANMETOO += output.txt zynqlog.txt
-OPTARGS += -accept-npu
-endif
-
-# And for msp430.
-ifeq ($(ARCH),msp430)
-LINKER     := msp430-gcc
-LLCARGS    += -march=msp430 -msp430-hwmult-mode=no
-LDFLAGS    += -mmcu=msp430fr5969
-RUNSHIM    := $(ACCEPTDIR)/plat/msp430/run.sh
-MSP430LIBS += perfctr
-MSP430DEPS := $(foreach L,$(MSP430LIBS),$(ACCEPTDIR)/rt/msp430/$(L)/lib$(L).a)
-EXTRADEPS  += $(MSP430DEPS)
-override \
-CFLAGS     += -target msp430-elf -Wall -fno-stack-protector -D__MSP430FR5969__ \
-		$(addprefix -I, \
-			$(shell msp430-cpp -Wp,-v </dev/null 2>&1 | \
-			grep /include | sed -e 's/^ *//')) \
-		$(addprefix -I$(ACCEPTDIR)/rt/msp430/,$(MSP430LIBS))
-LIBS       += $(foreach L,$(MSP430LIBS),-L$(ACCEPTDIR)/rt/msp430/$(L) -l$(L))
-
-$(MSP430DEPS):
-	make -C $(dir $@)
-endif
-
 # BUILD_TARGETS rule is here to catch any EXTRADEPS assigned above
 $(BUILD_TARGETS): build_%: setup $(EXTRADEPS) $(TARGET).%
 
