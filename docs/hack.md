@@ -27,7 +27,9 @@ But, when things go wrong, sometimes it can be useful to directly invoke
 
 ## Reproduce the Experiments
 
-ACCEPT ships with several benchmarks used to evaluate it in our paper. You can reproduce the experiments using the included Makefile.
+ACCEPT has several benchmarks, which we used to evaluate it in our paper. To reproduce these experiments, clone [the `accept-apps` repository][accept-apps]:
+
+    $ git clone --recurse-submodules https://github.com/uwsampa/accept-apps.git
 
 First, build ACCEPT if you haven't already. You might want to specify the `RELEASE=1` option (see above).
 
@@ -46,6 +48,7 @@ There are several variables you can specify to customize the experiments:
 
 [cw]: https://github.com/sampsyo/cluster-workers
 [PARSEC]: http://parsec.cs.princeton.edu/
+[accept-apps]: https://github.com/uwsampa/accept-apps
 
 
 ## Troubleshooting
