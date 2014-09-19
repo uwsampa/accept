@@ -28,9 +28,8 @@ This repository includes lots of stuff:
   be a symlink to this directory at `llvm/tools/clang`.
 * `checker/`: The Clang plugin that checks the EnerC type system and
   emits annotated LLVM bitcode.
-* `checkerlib/`: This is a subrepository (hosted as a separate git repo
-  on BitBucket) that supports the writing of modular type checkers for
-  Clang like the one above.
+* `checkerlib/`: This small library supports the writing of modular type
+  checkers for Clang like the one above.
 * `pass/`: The LLVM compiler pass that analyzes annotated bitcode and
   performs instrumentation/transformation.
 * `include/`: A header file that EnerC programs should use (via
@@ -42,7 +41,6 @@ This repository includes lots of stuff:
 * `test/`: Some tests for the frontend (type errors and bitcode
   emission). This uses LLVM's [LIT][] testing infrastructure. To run the
   tests, just type `./bin/runtests.sh`.
-* `apps/`: Benchmarks annotated for use with EnerC.
 * `accept/`: The high-level profile-guided feedback loop used to drive a full
   compilation. This Python package also scripts the experiments that generate
   the results used in the (eventual) paper.
