@@ -1102,7 +1102,6 @@ namespace {
     int ssize = st_value.size();
     Value *scounterf;
     Value *scounteri;
-    // std::cerr << "fuck size: " << ssize << std::endl;
     if (ssize) {
       scounterf = builder.CreateLoad(depsStoreFloatCounterAlloca, false, "npu_load_depsSFcounter");
       scounteri = builder.CreateLoad(depsStoreIntCounterAlloca, false, "npu_load_depsSIcounter");
