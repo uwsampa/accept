@@ -67,4 +67,12 @@ If you have the appropriate permissions, type `make deploydocs` to upload the HT
 License
 -------
 
-We haven't settled on a license yet! We should do that at some point.
+ACCEPT is a project of the [Sampa group][sampa] at [UW CSE][uw]. It was written by [Adrian Sampson][adrian], [Ben Ransford][ben], Andre Baixo, [Thierry Moreau][thierry], and Joshua Yip. The project is advised by [Luis Ceze][luis] and [Mark Oskin][mark]. The code is made available under the [MIT license][mit].
+
+[sampa]: http://sampa.cs.washington.edu
+[adrian]: http://homes.cs.washington.edu/~asampson/
+[ben]: https://homes.cs.washington.edu/~ransford/
+[thierry]: http://homes.cs.washington.edu/~moreau/
+[luis]: https://homes.cs.washington.edu/~luisceze/
+[mark]: https://homes.cs.washington.edu/~oskin/
+[mit]: http://opensource.org/licenses/MIT
