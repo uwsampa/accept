@@ -147,4 +147,3 @@ CSEHOST := bicycle.cs.washington.edu
 CSEPATH := /cse/www2/sampa/accept
 deploy: cleandocs docs
 	rsync --compress --recursive --checksum --itemize-changes --delete -e ssh site/ $(CSEHOST):$(CSEPATH)
-	ssh $(CSEHOST) "echo -e 'authtype csenetid\\nrequire valid-user' > $(CSEPATH)/.htaccess"
