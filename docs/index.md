@@ -11,10 +11,12 @@ Here's how to build the ACCEPT toolchain in four easy steps.
 
 #### Clone
 
-Clone the repository to your Unix-like system. Use the submodules flag to grab
+Clone [the repository][gh] to your Unix-like system. Use the submodules flag to grab
 the project's dependencies:
 
     $ git clone --recurse-submodules https://github.com/uwsampa/accept.git
+
+[gh]: https://github.com/uwsampa/accept
 
 #### CMake, Ninja, and virtualenv
 
