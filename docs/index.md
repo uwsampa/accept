@@ -4,6 +4,11 @@ This is the documentation for ACCEPT, an *approximate compiler* for C and C++ pr
 
 [Clang]: http://clang.llvm.org/
 
+Please direct comments or questions to [Adrian Sampson][adrian] or to a [GitHub issue][ghi].
+
+[adrian]: http://homes.cs.washington.edu/~asampson/
+[ghi]: https://github.com/uwsampa/accept/issues/new
+
 
 ## Building
 
