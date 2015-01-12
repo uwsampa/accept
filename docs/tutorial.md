@@ -46,7 +46,7 @@ You will need to make a few small changes to your application's source code to m
 Your next task is to actually annotate the application to enable approximation.
 Insert `APPROX` type qualifiers and `ENDORSE()` casts into your code as appropriate.
 
-The ACCEPT paper contains details on the annotation language. This guide should eventually contain a summary of the annotation features, but for now, take a look at the paper.
+The ACCEPT paper contains details on the annotation language. (See tech report [UW-CSE-15-01-1](ftp://ftp.cs.washington.edu/tr/2015/01/UW-CSE-15-01-01.pdf).) This guide should eventually contain a summary of the annotation features, but for now, take a look at the paper.
 
 You might find it helpful to repeatedly run `accept -f build` during annotation to see type errors and guide your placement of qualifiers.
 
