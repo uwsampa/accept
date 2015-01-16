@@ -30,7 +30,7 @@ There are three dependencies you need to install yourself before getting started
 * [CMake][], which the easiest route to building LLVM.
 * [Ninja][], a nice companion to CMake.
 * [virtualenv][], a Python packaging tool. You can usually get this just by
-  typing `pip install virtualenv`.
+  typing `pip install virtualenv`. For OS X with homebrew installed, you need to first intall python: `brew install python`.
 
 (If you prefer not to use Ninja, you can fairly easily edit the relevant scripts to have CMake write Makefiles instead.)
 
