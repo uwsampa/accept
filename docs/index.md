@@ -36,7 +36,7 @@ There are three dependencies you need to install yourself before getting started
 
 #### make setup
 
-Inside this directory (the repository containing this README file), type `make setup`. This will do several things:
+Inside this directory (the repository containing this README.md file), type `make setup`. This will do several things:
 
 * Download and extract the [LLVM][llvm-dl] source.
 * Build LLVM and our modified Clang frontend using CMake and Ninja. (This can take a long time.) The programs and libraries are installed into the `build/built/` subdirectory.
