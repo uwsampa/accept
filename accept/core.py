@@ -766,7 +766,7 @@ class Evaluation(object):
             self.pout = pex.output
             self.base_elapsed = pex.elapsed
             self.base_config = pex.config
-            # At this point, base_config is just the parsed relaxCondif table
+            # At this point, base_config is just the parsed relaxConfig table
             self.base_configs = list(permute_config(self.base_config))
 
     def precise_times(self, test=False):
