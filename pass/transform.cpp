@@ -42,7 +42,7 @@ void ACCEPTPass::getAnalysisUsage(AnalysisUsage &Info) const {
   Info.addRequired<LoopInfo>();
   Info.addRequired<DominatorTree>();
   Info.addRequired<PostDominatorTree>();
-  Info.addRequired<ApproxInfo>();
+  Info.addRequiredTransitive<ApproxInfo>();
   if (acceptUseProfile)
     Info.addRequired<ProfileInfo>();
 }

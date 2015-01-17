@@ -4,12 +4,14 @@ add_llvm_loadable_module(enerc
   registration.cpp
   approxinfo.cpp
   log.cpp
+  liberror.cpp
 
   # Optimizations.
   loopperf.cpp
   acceptaa.cpp
   desync.cpp
   npu.cpp
+  error.cpp
 )
 set_target_properties( enerc PROPERTIES 
     COMPILE_FLAGS "-fno-rtti -fvisibility-inlines-hidden"

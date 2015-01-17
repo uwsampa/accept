@@ -31,6 +31,9 @@ namespace llvm {
   LoopPass *createLoopPerfPass();
   void initializeLoopNPUPass(PassRegistry &Registry);
   LoopPass *createLoopNPUPass();
+  FunctionPass *createErrorInjectionPass();
+  void initializeErrorInjectionPass(PassRegistry &Registry);
+  void initializeApproxInfoPass(PassRegistry &Registry);
 
   std::string srcPosDesc(const Module &mod, const DebugLoc &dl);
   std::string instDesc(const Module &mod, const Instruction *inst);

@@ -231,6 +231,7 @@ cl::opt<bool, true> acceptLogEnabledOpt("accept-log",
     cl::location(acceptLogEnabled));
 
 ApproxInfo::ApproxInfo() : FunctionPass(ID) {
+  initializeApproxInfoPass(*PassRegistry::getPassRegistry());
   std::string error;
   logEnabled = acceptLogEnabled;
   if (logEnabled) {
@@ -712,3 +713,5 @@ bool ApproxInfo::isPrecisePure(Function *func) {
 }
 
 char ApproxInfo::ID = 0;
+INITIALIZE_PASS_BEGIN(ApproxInfo, "approxinfo", "ApproxInfo Pass", false, false)
+INITIALIZE_PASS_END(ApproxInfo, "approxinfo", "ApproxInfo Pass", false, false)

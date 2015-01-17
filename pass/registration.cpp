@@ -36,6 +36,7 @@ namespace {
     */
     PM.add(new ApproxInfo());
     PM.add(createAcceptTransformPass());
+    PM.add(createErrorInjectionPass());
     PM.add(createLoopPerfPass());
     if (acceptEnableNPU)
       PM.add(createLoopNPUPass());
