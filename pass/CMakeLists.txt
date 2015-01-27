@@ -6,6 +6,7 @@ add_llvm_loadable_module(enerc
   log.cpp
 
   # Optimizations.
+  testpass.cpp
   loopperf.cpp
   acceptaa.cpp
   desync.cpp

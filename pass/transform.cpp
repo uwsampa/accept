@@ -36,6 +36,8 @@ ACCEPTPass::ACCEPTPass() : FunctionPass(ID) {
 
   if (relax)
     loadRelaxConfig();
+
+  printf("ACCEPTPass hit\n");
 }
 
 void ACCEPTPass::getAnalysisUsage(AnalysisUsage &Info) const {

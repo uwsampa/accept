@@ -27,6 +27,7 @@ namespace llvm {
   ImmutablePass *createAcceptAAPass();
   void initializeAcceptAAPass(PassRegistry &Registry);
   FunctionPass *createAcceptTransformPass();
+  LoopPass *createTestPass();
   extern FunctionPass *sharedAcceptTransformPass;
   LoopPass *createLoopPerfPass();
   void initializeLoopNPUPass(PassRegistry &Registry);
