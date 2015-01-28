@@ -48,6 +48,8 @@ namespace {
   };
 }
 
+char LoopTestPass::ID = 0;
+
 LoopPass *llvm::createTestPass() {
   return new LoopTestPass();
 }
