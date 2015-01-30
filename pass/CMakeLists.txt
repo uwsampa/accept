@@ -4,7 +4,6 @@ add_llvm_loadable_module(enerc
   registration.cpp
   approxinfo.cpp
   log.cpp
-  liberror.cpp
 
   # Optimizations.
   loopperf.cpp
