@@ -13,6 +13,27 @@ using namespace llvm;
 //    cl::desc("ACCEPT: enable error injection"));
 
 namespace {
+  std::string getTypeStr(Type* orig_type, Module* module) {
+    if (orig_type == Type::getHalfTy(module->getContext()))
+      return "Half";
+    else if (orig_type == Type::getFloatTy(module->getContext()))
+      return "Float";
+    else if (orig_type == Type::getDoubleTy(module->getContext()))
+      return "Double";
+    else if (orig_type == Type::getInt1Ty(module->getContext()))
+      return "Int1";
+    else if (orig_type == Type::getInt8Ty(module->getContext()))
+      return "Int8";
+    else if (orig_type == Type::getInt16Ty(module->getContext()))
+      return "Int16";
+    else if (orig_type == Type::getInt32Ty(module->getContext()))
+      return "Int32";
+    else if (orig_type == Type::getInt64Ty(module->getContext()))
+      return "Int64";
+    else
+      return "";
+  }
+
   void replaceAllUsesWithExcept(Instruction* oldInst, Value* newInst,
       std::vector<Value*>& except) {
     std::vector<User*> users;
@@ -85,6 +106,10 @@ struct ErrorInjection : public FunctionPass {
       Function* injectFn);
   bool injectHooksBinOp(Instruction* inst, Instruction* nextInst, int param,
       Function* injectFn);
+  bool injectHooksStore(Instruction* inst, Instruction* nextInst, int param,
+      Function* injectFn);
+  bool injectHooksLoad(Instruction* inst, Instruction* nextInst, int param,
+      Function* injectFn);
 };
 
 void ErrorInjection::getAnalysisUsage(AnalysisUsage &AU) const {
@@ -147,29 +172,128 @@ bool ErrorInjection::instructionErrorInjection(Function& F) {
   return modified;
 }
 
+bool ErrorInjection::injectHooksLoad(Instruction* inst, Instruction* nextInst,
+    int param, Function* injectFn) {
+  LoadInst* load_inst = dyn_cast<LoadInst>(inst);
+
+  Type* orig_type = inst->getType();
+  std::string orig_type_str = getTypeStr(orig_type, module);
+  if (orig_type_str == "") return false;
+
+  IRBuilder<> builder(module->getContext());
+  builder.SetInsertPoint(nextInst);
+
+  Type* int64ty = Type::getInt64Ty(module->getContext());
+  Value* param_addr = builder.CreatePtrToInt(load_inst->getPointerOperand(),
+      int64ty);
+
+  Type* dst_type = NULL;
+  if (orig_type_str == "Half")
+    dst_type = Type::getInt16Ty(module->getContext());
+  else if (orig_type_str == "Float")
+    dst_type = Type::getInt32Ty(module->getContext());
+  else if (orig_type_str == "Double")
+    dst_type = Type::getInt64Ty(module->getContext());
+
+  Value* ret_to_be_casted = inst;
+  if (dst_type) ret_to_be_casted = builder.CreateBitCast(inst, dst_type);
+  Value* param_ret = builder.CreateZExtOrBitCast(ret_to_be_casted, int64ty);
+
+  Value* opcode_global_str = builder.CreateGlobalString(inst->getOpcodeName());
+  Value* param_opcode = builder.CreateBitCast(opcode_global_str,
+      Type::getInt8PtrTy(module->getContext()));
+  Value* type_global_str = builder.CreateGlobalString(orig_type_str.c_str());
+  Value* param_orig_type = builder.CreateBitCast(type_global_str,
+      Type::getInt8PtrTy(module->getContext()));
+
+  Value* param_knob = ConstantInt::get(int64ty, param, false);
+  Value* param_op2_dummy = ConstantInt::get(int64ty, 0, false);
+
+  SmallVector<Value *, 6> Args;
+  Args.push_back(param_opcode);
+  Args.push_back(param_knob);
+  Args.push_back(param_ret);
+  Args.push_back(param_addr);
+  Args.push_back(param_op2_dummy);
+  Args.push_back(param_orig_type);
+  CallInst* call = builder.CreateCall(injectFn, Args);
+
+  Value* final_result;
+  if (dst_type && dst_type != int64ty) {
+    Value* trunc = builder.CreateTrunc(call, dst_type);
+    final_result = builder.CreateBitCast(trunc, orig_type);
+  } else {
+    final_result = builder.CreateTruncOrBitCast(call, orig_type);
+  }
+
+  std::vector<Value*> except;
+  if (ret_to_be_casted != inst)
+    except.push_back(ret_to_be_casted);
+  else
+    except.push_back(param_ret);
+  except.push_back(call);
+  replaceAllUsesWithExcept(inst, final_result, except);
+
+  return true;
+}
+
+bool ErrorInjection::injectHooksStore(Instruction* inst, Instruction* nextInst,
+    int param, Function* injectFn) {
+  StoreInst* store_inst = dyn_cast<StoreInst>(inst);
+
+  Type* orig_type = store_inst->getValueOperand()->getType();
+  std::string orig_type_str = getTypeStr(orig_type, module);
+  if (orig_type_str == "") return false;
+
+  IRBuilder<> builder(module->getContext());
+  builder.SetInsertPoint(nextInst);
+
+  Value* opValue_to_be_casted = store_inst->getValueOperand();
+  if (orig_type_str == "Half") {
+    opValue_to_be_casted = builder.CreateBitCast(opValue_to_be_casted,
+        Type::getInt16Ty(module->getContext()));
+  } else if (orig_type_str == "Float") {
+    opValue_to_be_casted = builder.CreateBitCast(opValue_to_be_casted,
+        Type::getInt32Ty(module->getContext()));
+  } else if (orig_type_str == "Double") {
+    opValue_to_be_casted = builder.CreateBitCast(opValue_to_be_casted,
+        Type::getInt64Ty(module->getContext()));
+  }
+
+  Type* int64ty = Type::getInt64Ty(module->getContext());
+  Value* param_val = builder.CreateZExtOrBitCast(opValue_to_be_casted, int64ty);
+  Value* param_addr = builder.CreatePtrToInt(store_inst->getPointerOperand(),
+      int64ty);
+
+  Value* opcode_global_str = builder.CreateGlobalString(inst->getOpcodeName());
+  Value* param_opcode = builder.CreateBitCast(opcode_global_str,
+      Type::getInt8PtrTy(module->getContext()));
+  Value* type_global_str = builder.CreateGlobalString(orig_type_str.c_str());
+  Value* param_orig_type = builder.CreateBitCast(type_global_str,
+      Type::getInt8PtrTy(module->getContext()));
+
+  Value* param_knob = ConstantInt::get(int64ty, param, false);
+  Value* param_ret_dummy = ConstantInt::get(int64ty, 0, false);
+
+  SmallVector<Value *, 6> Args;
+  Args.push_back(param_opcode);
+  Args.push_back(param_knob);
+  Args.push_back(param_ret_dummy);
+  Args.push_back(param_addr);
+  Args.push_back(param_val);
+  Args.push_back(param_orig_type);
+  CallInst* call = builder.CreateCall(injectFn, Args);
+
+  return true;
+}
+
 bool ErrorInjection::injectHooksBinOp(Instruction* inst, Instruction* nextInst,
     int param, Function* injectFn) {
   if (dyn_cast<Constant>(inst)) return false;
+  
   Type* orig_type = inst->getType();
-  std::string orig_type_str;
-  if (orig_type == Type::getHalfTy(module->getContext()))
-    orig_type_str = "Half";
-  else if (orig_type == Type::getFloatTy(module->getContext()))
-    orig_type_str = "Float";
-  else if (orig_type == Type::getDoubleTy(module->getContext()))
-    orig_type_str = "Double";
-  else if (orig_type == Type::getInt1Ty(module->getContext()))
-    orig_type_str = "Int1";
-  else if (orig_type == Type::getInt8Ty(module->getContext()))
-    orig_type_str = "Int8";
-  else if (orig_type == Type::getInt16Ty(module->getContext()))
-    orig_type_str = "Int16";
-  else if (orig_type == Type::getInt32Ty(module->getContext()))
-    orig_type_str = "Int32";
-  else if (orig_type == Type::getInt64Ty(module->getContext()))
-    orig_type_str = "Int64";
-  else
-    return false;
+  std::string orig_type_str = getTypeStr(orig_type, module);
+  if (orig_type_str == "") return false;
 
   IRBuilder<> builder(module->getContext());
   builder.SetInsertPoint(nextInst);
@@ -236,10 +360,12 @@ bool ErrorInjection::injectHooksBinOp(Instruction* inst, Instruction* nextInst,
 
 bool ErrorInjection::injectHooks(Instruction* inst, Instruction* nextInst,
     int param, Function* injectFn) {
-  if (isa<BinaryOperator>(inst)) {
-    bool mod = injectHooksBinOp(inst, nextInst, param, injectFn);
-    return mod;
-  }
+  if (isa<BinaryOperator>(inst))
+    return injectHooksBinOp(inst, nextInst, param, injectFn);
+  else if (isa<StoreInst>(inst))
+    return injectHooksStore(inst, nextInst, param, injectFn);
+  else if (isa<LoadInst>(inst))
+    return injectHooksLoad(inst, nextInst, param, injectFn);
 
   return false;
 }
