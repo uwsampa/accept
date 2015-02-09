@@ -13,6 +13,12 @@ using namespace llvm;
 //    cl::desc("ACCEPT: enable error injection"));
 
 namespace {
+  typedef struct {
+    Instruction* inst;
+    int bb_index;
+    int i_index;
+  } InstId;
+
   std::string getTypeStr(Type* orig_type, Module* module) {
     if (orig_type == Type::getHalfTy(module->getContext()))
       return "Half";
@@ -100,8 +106,7 @@ struct ErrorInjection : public FunctionPass {
   bool injectError(Function &F);
 
   bool instructionErrorInjection(Function& F);
-  bool injectErrorInst(Instruction* inst, Instruction* nextInst,
-      Function* injectFn);
+  bool injectErrorInst(InstId iid, Instruction* nextInst, Function* injectFn);
   bool injectHooks(Instruction* inst, Instruction* nextInst, int param,
       Function* injectFn);
   bool injectHooksBinOp(Instruction* inst, Instruction* nextInst, int param,
@@ -154,18 +159,24 @@ bool ErrorInjection::instructionErrorInjection(Function& F) {
   Function* injectFn = module->getFunction(injectFn_mangled_name);
 
   bool modified = false;
-  std::vector<Instruction*> all_insts;
+  std::vector<InstId> all_insts;
+  int bbcounter = 0;
   for (Function::iterator fi = F.begin(); fi != F.end(); ++fi) {
     BasicBlock *bb = fi;
+    int icounter = 0;
     for (BasicBlock::iterator bi = bb->begin(); bi != bb->end(); ++bi) {
       Instruction *inst = bi;
-      all_insts.push_back(inst);
+      InstId iid;
+      iid.inst = inst; iid.bb_index = bbcounter; iid.i_index = icounter;
+      all_insts.push_back(iid);
+      ++icounter;
     }
+    ++bbcounter;
   }
 
   int n_insts = all_insts.size();
   for (int i = 0; i < n_insts; ++i) {
-    Instruction* nextInst = ((i == n_insts - 1) ? NULL : all_insts[i + 1]);
+    Instruction* nextInst = ((i == n_insts - 1) ? NULL : all_insts[i + 1].inst);
     if (injectErrorInst(all_insts[i], nextInst, injectFn)) modified = true;
   }
 
@@ -370,11 +381,12 @@ bool ErrorInjection::injectHooks(Instruction* inst, Instruction* nextInst,
   return false;
 }
 
-bool ErrorInjection::injectErrorInst(Instruction* inst, Instruction* nextInst,
+bool ErrorInjection::injectErrorInst(InstId iid, Instruction* nextInst,
     Function* injectFn) {
+  Instruction* inst = iid.inst;
   std::stringstream ss;
-  ss << "instruction " << inst->getOpcodeName() << " at " <<
-      srcPosDesc(*module, inst->getDebugLoc());
+  ss << "instruction " << inst->getParent()->getParent()->getName().str() <<
+      ' ' << iid.bb_index << ' ' << iid.i_index;
   std::string instName = ss.str();
 
   LogDescription *desc = AI->logAdd("Instruction", inst);
@@ -382,7 +394,7 @@ bool ErrorInjection::injectErrorInst(Instruction* inst, Instruction* nextInst,
 
   bool approx = isApprox(inst);
 
-  if (transformPass->relax) { // we're injecting error
+  if (transformPass->relax && approx) { // we're injecting error
     int param = transformPass->relaxConfig[instName];
     if (param) {
       ACCEPT_LOG << "injecting error " << param << "\n";
