@@ -1,4 +1,4 @@
-// RUN: clang %s -emit-llvm -O0 -o - -S | FileCheck %s
+// RUN: clang %s -g -emit-llvm -O0 -o - -S | FileCheck %s
 
 #include <enerc.h>
 

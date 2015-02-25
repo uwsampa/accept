@@ -624,6 +624,12 @@ bool ApproxInfo::isWhitelistedPure(StringRef s) {
 // This function finds the file name and line number of each function.
 void ApproxInfo::findFunctionLocs(Module &mod) {
   NamedMDNode *namedMD = mod.getNamedMetadata("llvm.dbg.cu");
+
+  if (!namedMD) {
+    llvm::errs() << "ACCEPT: no CU debug info found\n";
+    return;
+  }
+
   for (unsigned i = 0, e = namedMD->getNumOperands(); i != e; ++i) {
     DICompileUnit cu(namedMD->getOperand(i));
     DIArray subps = cu.getSubprograms();
