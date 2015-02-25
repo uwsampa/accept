@@ -71,7 +71,7 @@ llvm: llvm/CMakeLists.txt llvm/tools/clang check_cmake check_ninja
 setup: llvm accept driver
 
 test:
-	$(BUILT)/bin/llvm-lit -v test
+	$(BUILT)/bin/llvm-lit -v --filter='test_\w+\.' test
 
 clean:
 	rm -rf $(BUILD)
