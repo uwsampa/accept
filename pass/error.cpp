@@ -197,6 +197,8 @@ bool ErrorInjection::injectHooksLoad(Instruction* inst, Instruction* nextInst,
   Type* int64ty = Type::getInt64Ty(module->getContext());
   Value* param_addr = builder.CreatePtrToInt(load_inst->getPointerOperand(),
       int64ty);
+  Value* param_align = builder.CreateZExtOrBitCast(
+      ConstantInt::get(int64ty, load_inst->getAlignment(), false), int64ty);
 
   Type* dst_type = NULL;
   if (orig_type_str == "Half")
@@ -218,14 +220,13 @@ bool ErrorInjection::injectHooksLoad(Instruction* inst, Instruction* nextInst,
       Type::getInt8PtrTy(module->getContext()));
 
   Value* param_knob = ConstantInt::get(int64ty, param, false);
-  Value* param_op2_dummy = ConstantInt::get(int64ty, 0, false);
 
   SmallVector<Value *, 6> Args;
   Args.push_back(param_opcode);
   Args.push_back(param_knob);
   Args.push_back(param_ret);
   Args.push_back(param_addr);
-  Args.push_back(param_op2_dummy);
+  Args.push_back(param_align);
   Args.push_back(param_orig_type);
   CallInst* call = builder.CreateCall(injectFn, Args);
 
@@ -275,6 +276,8 @@ bool ErrorInjection::injectHooksStore(Instruction* inst, Instruction* nextInst,
   Value* param_val = builder.CreateZExtOrBitCast(opValue_to_be_casted, int64ty);
   Value* param_addr = builder.CreatePtrToInt(store_inst->getPointerOperand(),
       int64ty);
+  Value* param_align = builder.CreateZExtOrBitCast(
+      ConstantInt::get(int64ty, store_inst->getAlignment(), false), int64ty);
 
   Value* opcode_global_str = builder.CreateGlobalString(inst->getOpcodeName());
   Value* param_opcode = builder.CreateBitCast(opcode_global_str,
@@ -284,12 +287,11 @@ bool ErrorInjection::injectHooksStore(Instruction* inst, Instruction* nextInst,
       Type::getInt8PtrTy(module->getContext()));
 
   Value* param_knob = ConstantInt::get(int64ty, param, false);
-  Value* param_ret_dummy = ConstantInt::get(int64ty, 0, false);
 
   SmallVector<Value *, 6> Args;
   Args.push_back(param_opcode);
   Args.push_back(param_knob);
-  Args.push_back(param_ret_dummy);
+  Args.push_back(param_align);
   Args.push_back(param_addr);
   Args.push_back(param_val);
   Args.push_back(param_orig_type);
