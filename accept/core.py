@@ -349,6 +349,15 @@ def build_and_execute(directory, relax_config, test, rep, timeout=None):
 # Configuration space exploration.
 
 
+def get_injection_config(base):
+    final_config = list(base)
+    for i in range(len(base)):
+        ident, _ = base[i]
+        if ident.startswith('instruction'):
+            final_config[i] = ident, 4
+    return tuple(final_config)
+            
+
 def permute_config(base):
     """Given a base (null) relaxation configuration, generate new
     (relaxed) configurations.
@@ -689,7 +698,7 @@ def triage_results(results):
 class Evaluation(object):
     """The state for the evaluation of a single application.
     """
-    def __init__(self, appdir, client, reps, test_reps):
+    def __init__(self, appdir, client, reps, test_reps, inject):
         """Set up an experiment. Takes an active CWMemo instance,
         `client`, through which jobs will be submitted and outputs
         collected. `reps` is the number of executions per configuration
@@ -697,6 +706,11 @@ class Evaluation(object):
         """
         self.appdir = normpath(appdir)
         self.client = client
+        self.inject = inject
+        if inject:
+            reps = 1
+            test_reps = 0
+
         self.reps = reps
         self.test_reps = test_reps
 
@@ -748,7 +762,10 @@ class Evaluation(object):
         ))
 
         # Precise (baseline) execution.
-        reps = self.test_reps if test else self.reps
+        if (self.inject):
+            reps = 1
+        else:
+            reps = self.test_reps if test else self.reps
         for rep in range(reps):
             self.client.submit(
                 build_and_execute,
@@ -767,7 +784,10 @@ class Evaluation(object):
             self.base_elapsed = pex.elapsed
             self.base_config = pex.config
             # At this point, base_config is just the parsed relaxConfig table
-            self.base_configs = list(permute_config(self.base_config))
+            if not self.inject:
+                self.base_configs = list(permute_config(self.base_config))
+            else:
+                self.base_configs = list(get_injection_config(self.base_config))
 
     def precise_times(self, test=False):
         """Generate the durations for the precise executions. Must be
@@ -942,10 +962,14 @@ class Evaluation(object):
             len(base_configs)
         ))
         base_results = self.run_approx(base_configs)
-        logging.info('evaluating tuned parameters')
-        tuned_results = self.parameter_search(base_results)
-        logging.info('evaluating combined configs')
-        composite_results = self.evaluate_composites(tuned_results)
+        if not self.inject:
+            logging.info('evaluating tuned parameters')
+            tuned_results = self.parameter_search(base_results)
+            logging.info('evaluating combined configs')
+            composite_results = self.evaluate_composites(tuned_results)
+        else:
+            tuned_results = []
+            composite_results = []
 
         # Uniquify the results based on their configs.
         results = {}

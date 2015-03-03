@@ -19,7 +19,7 @@ RESULTS_JSON = 'results.json'
 
 
 GlobalConfig = namedtuple('GlobalConfig',
-                          'client reps test_reps keep_sandboxes')
+                          'client reps test_reps keep_sandboxes inject')
 
 
 @click.group(help='the ACCEPT approximate compiler driver')
@@ -35,8 +35,10 @@ GlobalConfig = namedtuple('GlobalConfig',
               help='testing replication factor')
 @click.option('--keep-sandboxes', '-k', is_flag=True,
               help='do not delete sandbox dirs')
+@click.option('--error-injection', '-e', 'inject', is_flag=True,
+              help='run the error injection framework')
 @click.pass_context
-def cli(ctx, verbose, cluster, force, reps, test_reps, keep_sandboxes):
+def cli(ctx, verbose, cluster, force, reps, test_reps, keep_sandboxes, inject):
     # Set up logging.
     logging.getLogger().addHandler(logging.StreamHandler(sys.stderr))
     if verbose >= 3:
@@ -52,7 +54,7 @@ def cli(ctx, verbose, cluster, force, reps, test_reps, keep_sandboxes):
     # Testing reps fall back to training reps if unspecified.
     test_reps = test_reps or reps
 
-    ctx.obj = GlobalConfig(client, reps, test_reps, keep_sandboxes)
+    ctx.obj = GlobalConfig(client, reps, test_reps, keep_sandboxes, inject)
 
 
 # Utilities.
@@ -61,7 +63,7 @@ def get_eval(appdir, config):
     """Get an Evaluation object given the configured `GlobalConfig`.
     """
     return core.Evaluation(appdir, config.client, config.reps,
-                           config.test_reps)
+                           config.test_reps, config.inject)
 
 
 def dump_config(config):
@@ -184,13 +186,16 @@ def run_experiments(ev, only=None, test=True):
     stats['main'] = main_stats
 
     # "Testing" phase.
-    if test:
+    if test and not ev.inject:
         main_results = ev.test_results(main_results)
         main_stats.update(_triage_stats(main_results, True))
 
     # Experiments with only one optimization type at a time.
     kind_results = {}
     for kind, words in OPT_KINDS.items():
+        if ev.inject:
+            continue
+
         if only and kind not in only:
             continue
 
