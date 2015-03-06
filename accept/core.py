@@ -342,8 +342,15 @@ def build_and_execute(directory, relax_config, test, rep, timeout=None):
                 with open(CONFIGFILE) as f:
                     relax_config = list(parse_relax_config(f))
 
-    return Execution(output, elapsed, status, relax_config,
-                     roitime, execlog)
+    print("\n\n\n======= Output that will be returned:")
+    print(output)
+    e = Execution(output, elapsed, status, relax_config, roitime, execlog)
+    print("\n\nTuple that will be returned:")
+    print(e)
+    print("\n========== end ==========\n\n\n")
+    return e
+    #return Execution(output, elapsed, status, relax_config,
+    #                 roitime, execlog)
 
 
 # Configuration space exploration.
@@ -355,7 +362,7 @@ def get_injection_config(base):
         ident, _ = base[i]
         if ident.startswith('instruction'):
             final_config[i] = ident, 4
-    return tuple(final_config)
+    yield tuple(final_config)
             
 
 def permute_config(base):
@@ -825,11 +832,14 @@ class Evaluation(object):
         base_elapsed = self.test_base_elapsed if test else self.base_elapsed
         reps = self.test_reps if test else self.reps
 
+        if self.inject:
+            timeout = None
+        else:
+            timeout = base_elapsed * TIMEOUT_FACTOR
         for rep in range(reps):
             self.client.submit(
                 build_and_execute,
-                self.appdir, config, test, rep,
-                timeout=base_elapsed * TIMEOUT_FACTOR
+                self.appdir, config, test, rep, timeout
             )
 
     def get_approx_result(self, config, test=False):
@@ -844,6 +854,14 @@ class Evaluation(object):
         exs = [self.client.get(build_and_execute,
                                self.appdir, config, test, rep)
                for rep in range(reps)]
+
+        print("\n\n\n======= Output actually returned:")
+        for ex in exs:
+            print(ex.output)
+        print("\n\nTuple actually returned:")
+        for ex in exs:
+            print(ex)
+        print("\n=================== end ==============\n\n\n")
 
         # Evaluate the result.
         res = Result(self.appname, config,

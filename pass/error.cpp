@@ -375,10 +375,10 @@ bool ErrorInjection::injectHooks(Instruction* inst, Instruction* nextInst,
     int param, Function* injectFn) {
   if (isa<BinaryOperator>(inst))
     return injectHooksBinOp(inst, nextInst, param, injectFn);
-  else if (isa<StoreInst>(inst))
-    return injectHooksStore(inst, nextInst, param, injectFn);
-  else if (isa<LoadInst>(inst))
-    return injectHooksLoad(inst, nextInst, param, injectFn);
+  //else if (isa<StoreInst>(inst))
+  //  return injectHooksStore(inst, nextInst, param, injectFn);
+  //else if (isa<LoadInst>(inst))
+  //  return injectHooksLoad(inst, nextInst, param, injectFn);
 
   return false;
 }
