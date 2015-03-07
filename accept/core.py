@@ -839,7 +839,7 @@ class Evaluation(object):
         for rep in range(reps):
             self.client.submit(
                 build_and_execute,
-                self.appdir, config, test, rep, timeout
+                self.appdir, config, test, rep, timeout=timeout
             )
 
     def get_approx_result(self, config, test=False):
