@@ -26,5 +26,6 @@ int main() {
 
     // crashy: const approx
     APPROX const void *data;
-    memcpy(0, data, 0);
+    APPROX void *dest;
+    memcpy(dest, data, 0);
 }
