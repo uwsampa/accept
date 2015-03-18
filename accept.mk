@@ -38,10 +38,13 @@ ifeq ($(shell uname -s),Darwin)
 	endif
 	LIBEXT := dylib
 else
-	ifneq ($(wildcard /usr/include/x86_64-linux-gnu/c++/4.8),)
-		# Work around Clang include path search bug on Debian/Ubuntu.
-		# https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=697127
-		CXXFLAGS += -I/usr/include/x86_64-linux-gnu/c++/4.8
+	# Work around Clang include path search bug on Debian/Ubuntu.
+	# https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=697127
+	# This manifests as clang being unable to find `bits/c++config.h` when
+	# compiling any C++. We manually amend the include path.
+	CXXLIBPATH := $(wildcard /usr/include/*-linux-gnu/c++/4.*)
+	ifneq ($(CXXLIBPATH),)
+		CXXFLAGS += $(CXXLIBPATH:%=-I%)
 	endif
 	LIBEXT := so
 endif
