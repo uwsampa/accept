@@ -342,27 +342,26 @@ def build_and_execute(directory, relax_config, test, rep, timeout=None):
                 with open(CONFIGFILE) as f:
                     relax_config = list(parse_relax_config(f))
 
-    print("\n\n\n======= Output that will be returned:")
-    print(output)
-    e = Execution(output, elapsed, status, relax_config, roitime, execlog)
-    print("\n\nTuple that will be returned:")
-    print(e)
-    print("\n========== end ==========\n\n\n")
-    return e
-    #return Execution(output, elapsed, status, relax_config,
-    #                 roitime, execlog)
+    return Execution(output, elapsed, status, relax_config, roitime, execlog)
 
 
 # Configuration space exploration.
 
 
-def get_injection_config(base):
-    final_config = list(base)
-    for i in range(len(base)):
-        ident, _ = base[i]
-        if ident.startswith('instruction'):
-            final_config[i] = ident, 4
-    yield tuple(final_config)
+def get_injection_configs(base):
+    values = []
+    for i in range(0, 8):
+        for j in range(2, 10):
+            values.append(i * 10 + j)
+    print("range:")
+    print(values)
+    for j in values:
+        final_config = list(base)
+        for i in range(len(base)):
+            ident, _ = base[i]
+            if ident.startswith('instruction'):
+                final_config[i] = ident, j
+        yield tuple(final_config)
             
 
 def permute_config(base):
@@ -587,12 +586,13 @@ class Result(object):
     """Represents the result of executing one relaxed configuration of a
     program.
     """
-    def __init__(self, app, config, durations, statuses, outputs):
+    def __init__(self, app, config, durations, statuses, outputs, inject):
         self.app = app
         self.config = tuple(config)
         self.durations = durations
         self.statuses = statuses
         self.outputs = outputs
+        self.inject = inject
 
     def evaluate(self, scorefunc, precise_output, precise_durations):
         p_dur = umean(precise_durations)
@@ -602,13 +602,23 @@ class Result(object):
         self.desc = 'unknown'  # Why not good?
 
         # Check for errors.
+        print("\n\nevaluate for config:")
+        print(self.config)
+        print("\nstatuses:")
+        print(self.statuses)
         for i, status in enumerate(self.statuses):
             if status is None:
                 # Timed out.
+                print("\nstatus is None!!!")
+                print("status:")
+                print(status)
                 self.desc = 'replica {} timed out'.format(i)
                 return
             elif status:
                 # Error status.
+                print("\nError status!!!")
+                print("status:")
+                print(status)
                 self.desc = 'error status (replica {}): {}'.format(
                     i, status
                 )
@@ -624,10 +634,14 @@ class Result(object):
 
         # Get average output error.
         self.errors = []
+        print("\noutputs:")
+        print(self.outputs)
         for i, output in enumerate(self.outputs):
             try:
                 error = scorefunc(precise_output, output)
             except Exception as exc:
+                print("\nException is score() output!!! output:")
+                print(output)
                 logging.warn('Exception in score() function:\n' +
                              traceback.format_exc())
                 self.error = 1.0
@@ -642,14 +656,19 @@ class Result(object):
 
         if self.error > MAX_ERROR:
             # Large output error.
+            print("\nLarge error!! MAX_ERROR:")
+            print(MAX_ERROR)
+            print("self.error:")
+            print(self.error)
             self.desc = 'large error: {} %'.format(self.error * 100)
             return
 
         # No error or large quality loss.
         self.safe = True
 
-        if not self.speedup > 1.0:
+        if not self.inject and not self.speedup > 1.0:
             # Slowdown.
+            print("\nComplaining about speedup!!!!!\n")
             self.desc = 'no speedup: {} vs. {}'.format(self.duration, p_dur)
             return
 
@@ -794,7 +813,7 @@ class Evaluation(object):
             if not self.inject:
                 self.base_configs = list(permute_config(self.base_config))
             else:
-                self.base_configs = list(get_injection_config(self.base_config))
+                self.base_configs = list(get_injection_configs(self.base_config))
 
     def precise_times(self, test=False):
         """Generate the durations for the precise executions. Must be
@@ -855,19 +874,12 @@ class Evaluation(object):
                                self.appdir, config, test, rep)
                for rep in range(reps)]
 
-        print("\n\n\n======= Output actually returned:")
-        for ex in exs:
-            print(ex.output)
-        print("\n\nTuple actually returned:")
-        for ex in exs:
-            print(ex)
-        print("\n=================== end ==============\n\n\n")
-
         # Evaluate the result.
         res = Result(self.appname, config,
                      [ex.roitime for ex in exs],
                      [ex.status for ex in exs],
-                     [ex.output for ex in exs])
+                     [ex.output for ex in exs],
+                     self.inject)
         res.evaluate(self.scorefunc, pout, ptimes)
         return res
 
