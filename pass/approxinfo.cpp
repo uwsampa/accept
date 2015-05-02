@@ -7,10 +7,7 @@
 #include "llvm/Module.h"
 #include "llvm/Support/CommandLine.h"
 
-#include <cctype>
 #include <fstream>
-#include <sstream>
-#include <string>
 
 using namespace llvm;
 
@@ -483,12 +480,10 @@ int ApproxInfo::preciseEscapeCheckHelper(std::map<Instruction*, bool> &flags,
   return changes;
 }
 
-LineMarker ApproxInfo::markerAtLine(std::string filename, int line,
-    std::map<std::string, int>** regionInfo) {
+LineMarker ApproxInfo::markerAtLine(std::string filename, int line) {
   if (!lineMarkers.count(filename)) {
     // Load markers for the file.
     std::map<int, LineMarker> markers;
-    std::map< int, std::map<std::string, int> > file_region;
 
     std::ifstream srcFile(filename.data());
     int lineno = 1;
@@ -500,50 +495,12 @@ LineMarker ApproxInfo::markerAtLine(std::string filename, int line,
         markers[lineno] = markerPermit;
       } else if (curLine.find(FORBID) != std::string::npos) {
         markers[lineno] = markerForbid;
-      } else if (curLine.find(REGION) != std::string::npos) {
-        markers[lineno] = markerRegion;
-        std::map<std::string, int> region;
-        int i;
-        for (i = curLine.find(REGION) + 1; !isspace(curLine[i]); ++i);
-        for (++i; isspace(curLine[i]); ++i);
-
-        while (i != curLine.size()) {
-          std::string name;
-          do {
-            name.push_back(curLine[i++]);
-          } while (!isspace(curLine[i]));
-          for (++i; isspace(curLine[i]); ++i);
-          std::string nbytes_str;
-          do {
-            nbytes_str.push_back(curLine[i++]);
-          } while (i != curLine.size() && curLine[i] != ',');
-          std::stringstream convert(nbytes_str);
-          int nbytes;
-          convert >> nbytes;
-          region[name] = nbytes;
-
-          if (curLine[i] == ',')
-            for (++i; i != curLine.size() && isspace(curLine[i]); ++i);
-        }
-
-        file_region[lineno] = region;
-
       }
       ++lineno;
     }
     srcFile.close();
 
     lineMarkers[filename] = markers;
-    regInfo[filename] = file_region;
-  }
-
-  if (regionInfo != NULL) {
-    std::map< int, std::map<std::string, int> > &fileRegions =
-        regInfo[filename];
-    if (fileRegions.count(line))
-      (*(*regionInfo)) = fileRegions[line];
-    else
-      (*regionInfo) = NULL;
   }
 
   std::map<int, LineMarker> &fileMarkers = lineMarkers[filename];
@@ -554,12 +511,11 @@ LineMarker ApproxInfo::markerAtLine(std::string filename, int line,
   }
 }
 
-LineMarker ApproxInfo::instMarker(Instruction *inst,
-    std::map<std::string, int>** regionInfo) {
+LineMarker ApproxInfo::instMarker(Instruction *inst) {
   DebugLoc dl = inst->getDebugLoc();
   DIScope scope(dl.getScope(inst->getContext()));
   if (scope.Verify())
-    return markerAtLine(scope.getFilename(), dl.getLine(), regionInfo);
+    return markerAtLine(scope.getFilename(), dl.getLine());
   return markerNone;
 }
 
