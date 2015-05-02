@@ -1,9 +1,14 @@
+#include <cassert>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <string>
 
+#include "llvm/Function.h"
 #include "llvm/Module.h"
+#include "llvm/IntrinsicInst.h"
 #include "llvm/IRBuilder.h"
+#include "llvm/ValueSymbolTable.h"
 
 #include "accept.h"
 
@@ -107,6 +112,8 @@ struct ErrorInjection : public FunctionPass {
 
   bool instructionErrorInjection(Function& F);
   bool injectErrorInst(InstId iid, Instruction* nextInst, Function* injectFn);
+  bool injectErrorRegion(InstId iid);
+  bool injectRegionHooks(Instruction* inst, int param);
   bool injectHooks(Instruction* inst, Instruction* nextInst, int param,
       Function* injectFn);
   bool injectHooksBinOp(Instruction* inst, Instruction* nextInst, int param,
@@ -383,9 +390,78 @@ bool ErrorInjection::injectHooks(Instruction* inst, Instruction* nextInst,
   return false;
 }
 
+bool ErrorInjection::injectRegionHooks(Instruction* inst, int param) {
+  CallInst* ci = dyn_cast<CallInst>(inst);
+  assert(ci != NULL);
+
+  const int nargs = ci->getNumArgOperands();
+
+  const std::string injectFn_unmangled_name = "injectRegion";
+  const std::string injectFn_mangled_name =
+      get_mangled_fn_name(module, injectFn_unmangled_name);
+  Function* injectFn = module->getFunction(injectFn_mangled_name);
+
+  Type* int64ty = Type::getInt64Ty(module->getContext());
+  Value* param_knob = ConstantInt::get(int64ty, param, false);
+  Value* param_npairs = ConstantInt::get(int64ty, nargs / 2, false);
+
+  SmallVector<Value *, 4> injectFn_args;
+  injectFn_args.push_back(param_knob);
+  injectFn_args.push_back(param_npairs);
+
+  for (int i = 0; i < nargs; ++i)
+    injectFn_args.push_back(ci->getArgOperand(i));
+
+  Type* int32ty = Type::getInt32Ty(module->getContext());
+  PointerType* int32ptrty = PointerType::getUnqual(int32ty);
+  Value* param_dummy_int = ConstantInt::get(int32ty, 0, false);
+  Value* param_dummy_ptr = ConstantPointerNull::get(int32ptrty);
+
+  IRBuilder<> builder(module->getContext());
+  builder.SetInsertPoint(inst);
+
+  CallInst* injection_call = builder.CreateCall(injectFn, injectFn_args);
+  //ci->eraseFromParent();
+}
+
+bool ErrorInjection::injectErrorRegion(InstId iid) {
+  Instruction* inst = iid.inst;
+  std::stringstream ss;
+  ss << "coarse " << inst->getParent()->getParent()->getName().str() <<
+      ' ' << iid.bb_index << ' ' << iid.i_index << ' ' << inst->getOpcodeName();
+  std::string instName = ss.str();
+
+  LogDescription *desc = AI->logAdd("Coarse", inst);
+  ACCEPT_LOG << instName << "\n";
+
+  if (transformPass->relax) { // we're injecting error
+    int param = transformPass->relaxConfig[instName];
+    if (param) {
+      ACCEPT_LOG << "injecting error " << param << "\n";
+      return injectRegionHooks(inst, param);
+    } else {
+      ACCEPT_LOG << "not injecting error\n";
+      return false;
+    }
+  } else { // we're just logging
+    ACCEPT_LOG << "can inject error\n";
+    transformPass->relaxConfig[instName] = 0;
+  }
+
+  return false;
+}
+
 bool ErrorInjection::injectErrorInst(InstId iid, Instruction* nextInst,
     Function* injectFn) {
   Instruction* inst = iid.inst;
+
+  CallInst* ci = dyn_cast<CallInst>(inst);
+  if (ci != NULL && !ci->isInlineAsm()) {
+    std::string called_fn_name = ci->getCalledFunction()->getName().str();
+    if (called_fn_name.find("ACCEPTRegion") != std::string::npos)
+      return injectErrorRegion(iid);
+  }
+
   std::stringstream ss;
   ss << "instruction " << inst->getParent()->getParent()->getName().str() <<
       ' ' << iid.bb_index << ' ' << iid.i_index << ' ' << inst->getOpcodeName();

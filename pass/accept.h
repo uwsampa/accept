@@ -44,10 +44,12 @@ namespace llvm {
 
 #define PERMIT "ACCEPT_PERMIT"
 #define FORBID "ACCEPT_FORBID"
+#define REGION "ACCEPT_REGION"
 typedef enum {
   markerNone,
   markerPermit,
-  markerForbid
+  markerForbid,
+  markerRegion
 } LineMarker;
 
 // Logging: a section of the ACCEPT log.
@@ -130,8 +132,11 @@ public:
       bool approx);
 
   std::map< std::string, std::map<int, LineMarker> > lineMarkers;
-  LineMarker markerAtLine(std::string filename, int line);
-  LineMarker instMarker(llvm::Instruction *inst);
+  std::map< std::string, std::map<int, std::map<std::string, int> > > regInfo;
+  LineMarker markerAtLine(std::string filename, int line,
+      std::map<std::string, int>** regionInfo = NULL);
+  LineMarker instMarker(llvm::Instruction *inst,
+      std::map<std::string, int>** regionInfo = NULL);
 
   bool isWhitelistedPure(llvm::StringRef s);
   std::set<llvm::BasicBlock*> successorsOf(llvm::BasicBlock *block);
