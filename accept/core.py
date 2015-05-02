@@ -353,8 +353,6 @@ def get_injection_configs(base):
     for i in range(0, 8):
         for j in range(2, 10):
             values.append(i * 10 + j)
-    print("range:")
-    print(values)
     for j in values:
         final_config = list(base)
         for i in range(len(base)):
