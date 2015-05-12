@@ -464,7 +464,7 @@ bool ErrorInjection::injectErrorInst(InstId iid, Instruction* nextInst,
 
   std::stringstream ss;
   ss << "instruction " << inst->getParent()->getParent()->getName().str() <<
-      ' ' << iid.bb_index << ' ' << iid.i_index << ' ' << inst->getOpcodeName();
+      ":" << iid.bb_index << ":" << iid.i_index;
   std::string instName = ss.str();
 
   LogDescription *desc = AI->logAdd("Instruction", inst);
