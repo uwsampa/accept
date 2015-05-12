@@ -23,14 +23,36 @@ def dump_relax_config(config, f):
 
 
 def adapt_config(coarse_fn, fine_fn):
+    """Take a coarse (per-function) configuration file and apply it to a
+    fine (per-instruction) ACCEPT configuration file. The latter is
+    modified on disk.
+
+    The first argument is the filename of a text file containing
+    entries like this:
+
+        function_name parameter
+
+    where the parameter is an integer. There can also be a line where
+    the function_name is "default", in which case all other instructions
+    (outside of the listed functions) are given this parameter.
+
+    All non-instruction parameters are left as 0.
+
+    The second argument is the filename of an ACCEPT configuration file.
+    """
     # Load the coarse configuration file.
     params = {}
+    default_param = 0
     with open(coarse_fn) as f:
         for line in f:
             line = line.strip()
             if line:
                 func, param = line.split()
-                params[func] = int(param)
+                param = int(param)
+                if func == 'default':
+                    default_param = param
+                else:
+                    params[func] = param
 
     # Load ACCEPT config and adjust parameters.
     config = []
@@ -46,6 +68,8 @@ def adapt_config(coarse_fn, fine_fn):
                 func, _, _ = i_ident.split(':')
                 if func in params:
                     param = params[func]
+                else:
+                    param = default_param
 
             config.append((ident, param))
 
