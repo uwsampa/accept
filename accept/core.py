@@ -713,9 +713,6 @@ class Evaluation(object):
         self.appdir = normpath(appdir)
         self.client = client
         self.inject = inject
-        if inject:
-            reps = 1
-            test_reps = 0
 
         self.reps = reps
         self.test_reps = test_reps
