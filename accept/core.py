@@ -342,7 +342,8 @@ def build_and_execute(directory, relax_config, test, rep, timeout=None):
                 with open(CONFIGFILE) as f:
                     relax_config = list(parse_relax_config(f))
 
-    return Execution(output, elapsed, status, relax_config, roitime, execlog)
+    return Execution(output, elapsed, status, relax_config,
+                     roitime, execlog)
 
 
 # Configuration space exploration.
@@ -360,7 +361,7 @@ def get_injection_configs(base):
             if ident.startswith('instruction'):
                 final_config[i] = ident, j
         yield tuple(final_config)
-            
+
 
 def permute_config(base):
     """Given a base (null) relaxation configuration, generate new
@@ -600,23 +601,13 @@ class Result(object):
         self.desc = 'unknown'  # Why not good?
 
         # Check for errors.
-        print("\n\nevaluate for config:")
-        print(self.config)
-        print("\nstatuses:")
-        print(self.statuses)
         for i, status in enumerate(self.statuses):
             if status is None:
                 # Timed out.
-                print("\nstatus is None!!!")
-                print("status:")
-                print(status)
                 self.desc = 'replica {} timed out'.format(i)
                 return
             elif status:
                 # Error status.
-                print("\nError status!!!")
-                print("status:")
-                print(status)
                 self.desc = 'error status (replica {}): {}'.format(
                     i, status
                 )
@@ -632,14 +623,10 @@ class Result(object):
 
         # Get average output error.
         self.errors = []
-        print("\noutputs:")
-        print(self.outputs)
         for i, output in enumerate(self.outputs):
             try:
                 error = scorefunc(precise_output, output)
             except Exception as exc:
-                print("\nException is score() output!!! output:")
-                print(output)
                 logging.warn('Exception in score() function:\n' +
                              traceback.format_exc())
                 self.error = 1.0
@@ -654,10 +641,6 @@ class Result(object):
 
         if self.error > MAX_ERROR:
             # Large output error.
-            print("\nLarge error!! MAX_ERROR:")
-            print(MAX_ERROR)
-            print("self.error:")
-            print(self.error)
             self.desc = 'large error: {} %'.format(self.error * 100)
             return
 
@@ -666,7 +649,6 @@ class Result(object):
 
         if not self.inject and not self.speedup > 1.0:
             # Slowdown.
-            print("\nComplaining about speedup!!!!!\n")
             self.desc = 'no speedup: {} vs. {}'.format(self.duration, p_dur)
             return
 

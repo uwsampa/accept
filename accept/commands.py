@@ -165,14 +165,7 @@ OPT_KINDS = {
 
 def _triage_stats(results, test):
     prefix = 'test-' if test else 'train-'
-    print("\n\ndef _triage_stats in commands.py. Before core.triage. results:")
-    print(results)
     optimal, suboptimal, bad = core.triage_results(results)
-    print("\n\nAfter core.triage.")
-    print("optimal:")
-    print(optimal)
-    print("suboptimal:")
-    print(suboptimal)
     return {
         prefix + 'optimal': len(optimal),
         prefix + 'suboptimal': len(suboptimal),
@@ -193,9 +186,6 @@ def run_experiments(ev, only=None, test=True):
         ev.setup()
     else:
         main_results, main_stats = ev.run()
-    print("\n\ndef run_experiments in commands.py")
-    print("right after calling ev.run(). main_results:")
-    print(main_results)
     main_stats.update(_triage_stats(main_results, False))
     stats['main'] = main_stats
 
@@ -269,30 +259,21 @@ def exp(ctx, appdirs, verbose, as_json, include_time, only, notest):
         with exp.client:
             main_results, kind_results, stats = \
                 run_experiments(exp, only, not notest)
-        print("\n\ndef exp in commands.py")
-        print("main_results:")
-        print(main_results)
 
         # Output as JSON to the results file.
         if as_json:
             out = {}
             out['main'] = dump_results_json(main_results, exp.inject)
-            print("\n\nout['main']")
-            print(out['main'])
             isolated = {}
             for kind, results in kind_results.items():
                 isolated[kind] = dump_results_json(results)
             out['isolated'] = isolated
-            print("\n\nout['isolated']")
-            print(out['isolated'])
             if include_time:
                 out['stats'] = stats
 
             if appname not in results_json:
                 results_json[appname] = {}
             results_json[appname].update(out)
-            print("\n\nresults_json:")
-            print(results_json)
 
             with open(RESULTS_JSON, 'w') as f:
                 json.dump(results_json, f, indent=2, sort_keys=True)
