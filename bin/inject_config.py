@@ -40,6 +40,9 @@ def adapt_config(coarse_fn, fine_fn):
 
     The second argument is the filename of an ACCEPT configuration file.
     """
+    # hack to deal with LVA PC
+    lva_pc = 1;
+
     # Load the coarse configuration file.
     params = {}
     default_param = 0
@@ -71,7 +74,11 @@ def adapt_config(coarse_fn, fine_fn):
                 else:
                     param = default_param
 
-            config.append((ident, param))
+	    if (param >= 0x40000 and param <= 0x50000):
+		config.append((ident, 0x40000 + lva_pc))
+		lva_pc += 1
+	    else:
+		config.append((ident, param))
 
     # Dump back to the fine (ACCEPT) configuration file.
     with open(fine_fn, 'w') as f:
