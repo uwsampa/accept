@@ -13,5 +13,5 @@ add_llvm_loadable_module(enerc
   error.cpp
 )
 set_target_properties( enerc PROPERTIES 
-    COMPILE_FLAGS "-fno-rtti -fvisibility-inlines-hidden"
+    COMPILE_FLAGS "-fno-rtti -fvisibility-inlines-hidden -std=gnu++11"
 )
