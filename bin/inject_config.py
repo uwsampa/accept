@@ -75,7 +75,7 @@ def adapt_config(coarse_fn, fine_fn):
                     param = default_param
 
 	    if (param >= 0x40000 and param <= 0x50000):
-		config.append((ident, 0x40000 + lva_pc))
+		config.append((ident, param + lva_pc))
 		lva_pc += 1
 	    else:
 		config.append((ident, param))
