@@ -2,12 +2,14 @@
 
 This is the documentation for ACCEPT, an *approximate compiler* for C and C++ programs based on [Clang][]. Think of it as your assistant in breaking your program in small ways to trade off correctness for performance.
 
-[Clang]: http://clang.llvm.org/
+This is also the home for ACCEPT's [benchmark suite of approximate C/C++ applications][accept-apps].
 
 Please direct comments or questions to [Adrian Sampson][adrian] or to a [GitHub issue][ghi].
 
 [adrian]: http://homes.cs.washington.edu/~asampson/
 [ghi]: https://github.com/uwsampa/accept/issues/new
+[accept-apps]: https://github.com/uwsampa/accept-apps
+[Clang]: http://clang.llvm.org/
 
 
 ## Building
