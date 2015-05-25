@@ -51,6 +51,21 @@ There are several variables you can specify to customize the experiments:
 [accept-apps]: https://github.com/uwsampa/accept-apps
 
 
+## Execution Shim
+
+ACCEPT can optionally execute your programs via a *shim*. We have used this functionality to run code in a simulator and to offload it to exotic hardware (embedded systems). You might want to use a shim in any situation where the *target program* needs to run in a different environment from the *ACCEPT workflow*---for example, any cross-compilation scenario.
+
+To use a shim, define a `RUNSHIM` variable in your Makefile. This command will be prepended to any invocation of your program. For example, if you define:
+
+    RUNSHIM := /usr/bin/simulate --fast
+
+then typing `make run_orig` will run this command:
+
+    /usr/bin/simulate --fast ./benchmark_orig --arg
+
+instead of just executing the program directly.
+
+
 ## Troubleshooting
 
 Here are some solutions to problems you might encounter along the way.
