@@ -57,11 +57,15 @@ ACCEPT can optionally execute your programs via a *shim*. We have used this func
 
 To use a shim, define a `RUNSHIM` variable in your Makefile. This command will be prepended to any invocation of your program. For example, if you define:
 
-    RUNSHIM := /usr/bin/simulate --fast
+```makefile
+RUNSHIM := /usr/bin/simulate --fast
+```
 
 then typing `make run_orig` will run this command:
 
-    /usr/bin/simulate --fast ./benchmark_orig --arg
+```sh
+/usr/bin/simulate --fast ./benchmark_orig --arg
+```
 
 instead of just executing the program directly.
 

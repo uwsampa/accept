@@ -21,7 +21,9 @@ Here's how to build the ACCEPT toolchain in four easy steps.
 Clone [the repository][gh] to your Unix-like system. Use the submodules flag to grab
 the project's dependencies:
 
-    $ git clone --recurse-submodules https://github.com/uwsampa/accept.git
+```sh
+$ git clone --recurse-submodules https://github.com/uwsampa/accept.git
+```
 
 [gh]: https://github.com/uwsampa/accept
 
@@ -59,8 +61,10 @@ You should now be able to use the `bin/enerclang` and `bin/enerclang++` programs
 The main entry point to the ACCEPT toolchain is the `bin/accept` script. For
 convenience, you can put this on your `$PATH` by running `source activate.sh`. Or you can add something like this to your [shell profile (.profile or .bashrc file)][dotprofile]:
 
-    accept=~/path/to/your/git/checkout
-    export PATH=$accept/bin:$PATH
+```sh
+accept=~/path/to/your/git/checkout
+export PATH=$accept/bin:$PATH
+```
 
 [dotprofile]: http://askubuntu.com/questions/148337/adding-a-directory-to-a-path-in-profile
 
