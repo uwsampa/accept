@@ -349,28 +349,17 @@ def build_and_execute(directory, relax_config, test, rep, timeout=None):
 # Configuration space exploration.
 
 
-def get_injection_configs(base):
-    values = []
-    for i in range(0, 8):
-        for j in range(2, 10):
-            values.append(i * 10 + j)
-    for j in values:
-        final_config = list(base)
-        for i in range(len(base)):
-            ident, _ = base[i]
-            if ident.startswith('instruction'):
-                final_config[i] = ident, j
-        yield tuple(final_config)
-
-
-def permute_config(base):
+def permute_config(base, param=1):
     """Given a base (null) relaxation configuration, generate new
     (relaxed) configurations.
+
+    These are *base* configurations: in each, exactly one site is
+    enabled and its parameter is set to `param` (default 1).
     """
     for i in range(len(base)):
         config = list(base)
         ident, _ = config[i]
-        config[i] = ident, 1
+        config[i] = ident, param
         yield tuple(config)
 
 
@@ -585,15 +574,15 @@ class Result(object):
     """Represents the result of executing one relaxed configuration of a
     program.
     """
-    def __init__(self, app, config, durations, statuses, outputs, inject):
+    def __init__(self, app, config, durations, statuses, outputs):
         self.app = app
         self.config = tuple(config)
         self.durations = durations
         self.statuses = statuses
         self.outputs = outputs
-        self.inject = inject
 
-    def evaluate(self, scorefunc, precise_output, precise_durations):
+    def evaluate(self, scorefunc, precise_output, precise_durations,
+                 ignore_performance=False):
         p_dur = umean(precise_durations)
 
         self.good = False  # A useful configuration?
@@ -647,8 +636,9 @@ class Result(object):
         # No error or large quality loss.
         self.safe = True
 
-        if not self.inject and not self.speedup > 1.0:
-            # Slowdown.
+        # A result is not good if it results in a slowdown. Skip this
+        # check if we're ignoring performance.
+        if not ignore_performance and not self.speedup > 1.0:
             self.desc = 'no speedup: {} vs. {}'.format(self.duration, p_dur)
             return
 
@@ -704,15 +694,25 @@ def triage_results(results):
 class Evaluation(object):
     """The state for the evaluation of a single application.
     """
-    def __init__(self, appdir, client, reps, test_reps, inject):
+    def __init__(self, appdir, client, reps, test_reps, simulate=False,
+                 timeout_factor=3):
         """Set up an experiment. Takes an active CWMemo instance,
         `client`, through which jobs will be submitted and outputs
-        collected. `reps` is the number of executions per configuration
-        to run.
+        collected.
+
+        `reps` is the number of executions per configuration to run.
+
+        `simulate` indicates that this is for a simulated (i.e.,
+        performance-insensitive) evaluation. The running time of
+        executions is not taken into account in simulation mode.
+
+        `timeout_factor` sets how long relaxed executions have to
+        finish, as a multiple of the precise running time. If it is
+        `None`, there is no timeout.
         """
         self.appdir = normpath(appdir)
         self.client = client
-        self.inject = inject
+        self.simulate = simulate
 
         self.reps = reps
         self.test_reps = test_reps
@@ -765,10 +765,7 @@ class Evaluation(object):
         ))
 
         # Precise (baseline) execution.
-        if (self.inject):
-            reps = 1
-        else:
-            reps = self.test_reps if test else self.reps
+        reps = self.test_reps if test else self.reps
         for rep in range(reps):
             self.client.submit(
                 build_and_execute,
@@ -786,11 +783,7 @@ class Evaluation(object):
             self.pout = pex.output
             self.base_elapsed = pex.elapsed
             self.base_config = pex.config
-            # At this point, base_config is just the parsed relaxConfig table
-            if not self.inject:
-                self.base_configs = list(permute_config(self.base_config))
-            else:
-                self.base_configs = list(get_injection_configs(self.base_config))
+            self.base_configs = list(permute_config(self.base_config))
 
     def precise_times(self, test=False):
         """Generate the durations for the precise executions. Must be
@@ -828,10 +821,10 @@ class Evaluation(object):
         base_elapsed = self.test_base_elapsed if test else self.base_elapsed
         reps = self.test_reps if test else self.reps
 
-        if self.inject:
-            timeout = None
-        else:
+        if self.timeout_factor:
             timeout = base_elapsed * TIMEOUT_FACTOR
+        else:
+            timeout = None
         for rep in range(reps):
             self.client.submit(
                 build_and_execute,
@@ -855,9 +848,8 @@ class Evaluation(object):
         res = Result(self.appname, config,
                      [ex.roitime for ex in exs],
                      [ex.status for ex in exs],
-                     [ex.output for ex in exs],
-                     self.inject)
-        res.evaluate(self.scorefunc, pout, ptimes)
+                     [ex.output for ex in exs])
+        res.evaluate(self.scorefunc, pout, ptimes, self.simulate)
         return res
 
     def run_approx(self, configs, test=False):
@@ -940,13 +932,15 @@ class Evaluation(object):
         out = self.run_approx(configs)
         return out
 
-    def run(self, base_configs=None):
+    def run(self, base_configs=None, tuned=True, composite=True):
         """Execute the entire ACCEPT workflow, including all three
         phases:
 
         - Base (single-step) configurations.
-        - Tuned single-site configurations (parameter_search).
-        - Composite configurations (evaluate_composites).
+        - Tuned single-site configurations, if `tuned` is true (see
+          `parameter_search`).
+        - Composite configurations, if `composite` is true (see
+          `evaluate_composites`).
 
         The experiments can start either from the base configurations
         discovered during `setup` (`self.base_configs`) or the specified
@@ -964,19 +958,23 @@ class Evaluation(object):
         if base_configs is None:
             base_configs = self.base_configs
 
-        # The phases.
+        # Phase 1: base configurations.
         logging.info('evaluating {} base configurations'.format(
             len(base_configs)
         ))
         base_results = self.run_approx(base_configs)
-        if not self.inject:
+
+        # Phase 2: tuned single-site configs.
+        if tuned:
             logging.info('evaluating tuned parameters')
             tuned_results = self.parameter_search(base_results)
+
+        # Phase 3: composite (multi-site) configs.
+        if composite:
             logging.info('evaluating combined configs')
-            composite_results = self.evaluate_composites(tuned_results)
-        else:
-            tuned_results = []
-            composite_results = []
+            composite_results = self.evaluate_composites(
+                tuned_results if tuned else base_results
+            )
 
         # Uniquify the results based on their configs.
         results = {}

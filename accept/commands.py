@@ -19,7 +19,7 @@ RESULTS_JSON = 'results.json'
 
 
 GlobalConfig = namedtuple('GlobalConfig',
-                          'client reps test_reps keep_sandboxes inject')
+                          'client reps test_reps keep_sandboxes simulate')
 
 
 @click.group(help='the ACCEPT approximate compiler driver')
@@ -35,10 +35,11 @@ GlobalConfig = namedtuple('GlobalConfig',
               help='testing replication factor')
 @click.option('--keep-sandboxes', '-k', is_flag=True,
               help='do not delete sandbox dirs')
-@click.option('--error-injection', '-e', 'inject', is_flag=True,
-              help='run the error injection framework')
+@click.option('--simulate', '-s', is_flag=True,
+              help='simulation (untrusted performance) mode')
 @click.pass_context
-def cli(ctx, verbose, cluster, force, reps, test_reps, keep_sandboxes, inject):
+def cli(ctx, verbose, cluster, force, reps, test_reps, keep_sandboxes,
+        simulate):
     # Set up logging.
     logging.getLogger().addHandler(logging.StreamHandler(sys.stderr))
     if verbose >= 3:
@@ -54,7 +55,7 @@ def cli(ctx, verbose, cluster, force, reps, test_reps, keep_sandboxes, inject):
     # Testing reps fall back to training reps if unspecified.
     test_reps = test_reps or reps
 
-    ctx.obj = GlobalConfig(client, reps, test_reps, keep_sandboxes, inject)
+    ctx.obj = GlobalConfig(client, reps, test_reps, keep_sandboxes, simulate)
 
 
 # Utilities.
@@ -63,7 +64,7 @@ def get_eval(appdir, config):
     """Get an Evaluation object given the configured `GlobalConfig`.
     """
     return core.Evaluation(appdir, config.client, config.reps,
-                           config.test_reps, config.inject)
+                           config.test_reps, config.simulate)
 
 
 def dump_config(config):
@@ -134,14 +135,10 @@ def dump_results_human(results, pout, verbose):
                 yield line
 
 
-def dump_results_json(results, inject=False):
+def dump_results_json(results):
     """Return a JSON-like representation of the results.
     """
-    if not inject:
-        results, _, _ = core.triage_results(results)
-    else:
-        opt, subopt, _ = core.triage_results(results)
-        results = opt + subopt
+    results, _, _ = core.triage_results(results)
     out = []
     for res in results:
         out.append({
@@ -190,16 +187,13 @@ def run_experiments(ev, only=None, test=True):
     stats['main'] = main_stats
 
     # "Testing" phase.
-    if test and not ev.inject:
+    if test:
         main_results = ev.test_results(main_results)
         main_stats.update(_triage_stats(main_results, True))
 
     # Experiments with only one optimization type at a time.
     kind_results = {}
     for kind, words in OPT_KINDS.items():
-        if ev.inject:
-            continue
-
         if only and kind not in only:
             continue
 
@@ -263,7 +257,7 @@ def exp(ctx, appdirs, verbose, as_json, include_time, only, notest):
         # Output as JSON to the results file.
         if as_json:
             out = {}
-            out['main'] = dump_results_json(main_results, exp.inject)
+            out['main'] = dump_results_json(main_results)
             isolated = {}
             for kind, results in kind_results.items():
                 isolated[kind] = dump_results_json(results)
