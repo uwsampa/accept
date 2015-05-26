@@ -85,3 +85,18 @@ You may find that ACCEPT commands don't produce files like you would expect. For
 ACCEPT commands hide these result files from you because they use [sandboxing](cli.md#sandboxing). You can use the ["keep sandboxes" flag][keep] to avoid automatically deleting the build products.
 
 [keep]: cli.md#-keep-sandboxes-k
+
+
+## Error Injection
+
+ACCEPT has a secondary mode where it can *simulate approximate hardware* instead of trying to optimize programs for today's hardware. This works by instrumenting the program's code to inject errors during execution. You get to define exactly how the errors work.
+
+To make this work, you first need to write a library called `liberror.cpp`. We will eventually document this interface.
+
+To build and run with error injection enabled, you need to turn it on explicitly. To do this, set the variable `OPTARGS` to `-accept-inject`, either in your program's Makefile or on the `make` command line. For example:
+
+    make build_orig OPTARGS=-accept-inject
+
+will generate an `accept_config.txt` file ready for simulated error injection. You'll notice a long list of `instruction` sites in that file.
+
+We also need to document how to use this feature with the ACCEPT driver (i.e., the `--simulate` flag).

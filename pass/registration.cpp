@@ -11,6 +11,7 @@ using namespace llvm;
 namespace llvm {
   bool acceptUseProfile;
   bool acceptEnableNPU;
+  bool acceptEnableInjection;
 }
 
 namespace {
@@ -24,6 +25,11 @@ namespace {
       cl::desc("ACCEPT: use NPU transformation"),
       cl::location(acceptEnableNPU));
 
+  // Error injection is also optional (it is for simulation experiments).
+  cl::opt<bool, true> optEnableInjection("accept-inject",
+      cl::desc("ACCEPT: instrument for error injection"),
+      cl::location(acceptEnableInjection));
+
   // Code transformations.
   static void registerACCEPT(const PassManagerBuilder &,
                              PassManagerBase &PM) {
@@ -36,7 +42,8 @@ namespace {
     */
     PM.add(new ApproxInfo());
     PM.add(createAcceptTransformPass());
-    PM.add(createErrorInjectionPass());
+    if (acceptEnableInjection)
+      PM.add(createErrorInjectionPass());
     PM.add(createLoopPerfPass());
     if (acceptEnableNPU)
       PM.add(createLoopNPUPass());
