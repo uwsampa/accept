@@ -64,7 +64,7 @@ namespace {
       }
       if (shouldSkip) continue;
   
-      if (auto *C = dyn_cast<Constant>(user)) {
+      if (Constant *C = dyn_cast<Constant>(user)) {
         if (!isa<GlobalValue>(C)) {
           int j;
           for (j = 0; j < user->getNumOperands(); ++j)
@@ -422,6 +422,7 @@ bool ErrorInjection::injectRegionHooks(Instruction* inst, int param) {
 
   CallInst* injection_call = builder.CreateCall(injectFn, injectFn_args);
   //ci->eraseFromParent();
+  return true;
 }
 
 bool ErrorInjection::injectErrorRegion(InstId iid) {
