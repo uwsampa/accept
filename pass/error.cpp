@@ -64,7 +64,7 @@ namespace {
       }
       if (shouldSkip) continue;
   
-      if (auto *C = dyn_cast<Constant>(user)) {
+      if (Constant *C = dyn_cast<Constant>(user)) {
         if (!isa<GlobalValue>(C)) {
           int j;
           for (j = 0; j < user->getNumOperands(); ++j)
