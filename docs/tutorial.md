@@ -130,3 +130,11 @@ The program is then run several times with approximation. These runs with approx
 * During an approximate run, the program writes approximate data values to an output file.
 * After the approximate run, the `load` function of the `eval.py` script stores those approximate data values in a data structure that is in the database.
 * Finally, the `score` function computes a correctness score for the approximate run. The correctness score is a metric of error between the values of the data structure filled by the precise run and the corresponding values of the data structure filled by the approximate run. A score of 0.0 indicates complete correctness, while a score of 1.0 indicates complete incorrectness.
+
+### Options
+
+The [reference page](cli.md) has more detail about how to invoke the `accept run` command. Here are a few options you'll want to be aware of:
+
+* Replication: Random variations in timing can make results seem unpredictable. ACCEPT can run your program multiple times and compute averages. Pass the `-r` flag to the command and specify the number of replicas: for example, `accept -r3 run` will use the average of three executions per configuration.
+* Detailed output: By default, ACCEPT only shows you the *optimal* configurations for your program. You can see the suboptimal (and broken) configurations by typing `accept run -v`.
+* Progress logging: For a long experiment, it can be helpful to know that ACCEPT is still making progress. Use the global verbose flag to see more logged messages: `accept -v run`.
