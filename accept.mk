@@ -29,12 +29,10 @@ EXTRABC += $(RTLIB)
 
 # Host platform specifics.
 ifeq ($(shell uname -s),Darwin)
-	ifeq ($(shell uname -r | sed -e 's/\..*//'),13) # OS X 10.9
-		XCODEINCLUDES = $(shell xcrun --show-sdk-path)/usr/include
-		ifeq ($(ARCH),default)
-			CFLAGS += -I$(XCODEINCLUDES)
-			CXXFLAGS += -I$(XCODEINCLUDES)
-		endif
+	XCODEINCLUDES = $(shell xcrun --show-sdk-path)/usr/include
+	ifeq ($(ARCH),default)
+		CFLAGS += -I$(XCODEINCLUDES)
+		CXXFLAGS += -I$(XCODEINCLUDES)
 	endif
 	LIBEXT := dylib
 else
