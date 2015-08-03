@@ -9,6 +9,7 @@
 #include "llvm/IntrinsicInst.h"
 #include "llvm/IRBuilder.h"
 #include "llvm/ValueSymbolTable.h"
+#include "llvm/Metadata.h"
 
 #include "accept.h"
 
@@ -176,6 +177,12 @@ bool ErrorInjection::instructionErrorInjection(Function& F) {
       InstId iid;
       iid.inst = inst; iid.bb_index = bbcounter; iid.i_index = icounter;
       all_insts.push_back(iid);
+      // metadata
+      LLVMContext& C = inst->getContext();
+      std::stringstream mss;
+      mss << "bb" << bbcounter << "i" << icounter;
+      MDNode* N = MDNode::get(C, MDString::get(C, "this tags the instruction id and block number"));
+      inst->setMetadata(mss.str(), N);
       ++icounter;
     }
     ++bbcounter;
@@ -462,32 +469,44 @@ bool ErrorInjection::injectErrorInst(InstId iid, Instruction* nextInst,
       return injectErrorRegion(iid);
   }
 
-  std::stringstream ss;
-  ss << "instruction " << inst->getParent()->getParent()->getName().str() <<
-      ":" << iid.bb_index << ":" << iid.i_index;
-  std::string instName = ss.str();
+  if (isa<BinaryOperator>(inst) || isa<StoreInst>(inst) || isa<LoadInst>(inst)) {
 
-  LogDescription *desc = AI->logAdd("Instruction", inst);
-  ACCEPT_LOG << instName << "\n";
+    std::stringstream ss;
+    Type* orig_type = inst->getType();
 
-  bool approx = isApprox(inst);
-
-  if (transformPass->relax && approx) { // we're injecting error
-    int param = transformPass->relaxConfig[instName];
-    if (param) {
-      ACCEPT_LOG << "injecting error " << param << "\n";
-      // param tells which error injection will be done e.g. bit flipping
-      return injectHooks(inst, nextInst, param, injectFn);
-    } else {
-      ACCEPT_LOG << "not injecting error\n";
-      return false;
+    if (isa<StoreInst>(inst)) {
+      orig_type = dyn_cast<StoreInst>(inst)->getValueOperand()->getType();
     }
-  } else { // we're just logging
-    if (approx) {
-      ACCEPT_LOG << "can inject error\n";
-      transformPass->relaxConfig[instName] = 0;
-    } else {
-      ACCEPT_LOG << "cannot inject error\n";
+
+    ss << "instruction " << inst->getParent()->getParent()->getName().str()
+       << ":" << iid.bb_index << ":" << iid.i_index
+       << ":" << inst->getOpcodeName()
+       << ":" << getTypeStr(orig_type, module);
+
+     std::string instName = ss.str();
+
+    LogDescription *desc = AI->logAdd("Instruction", inst);
+    ACCEPT_LOG << instName << "\n";
+
+    bool approx = isApprox(inst);
+
+    if (transformPass->relax && approx) { // we're injecting error
+      int param = transformPass->relaxConfig[instName];
+      if (param) {
+        ACCEPT_LOG << "injecting error " << param << "\n";
+        // param tells which error injection will be done e.g. bit flipping
+        return injectHooks(inst, nextInst, param, injectFn);
+      } else {
+        ACCEPT_LOG << "not injecting error\n";
+        return false;
+      }
+    } else { // we're just logging
+      if (approx) {
+        ACCEPT_LOG << "can inject error\n";
+        transformPass->relaxConfig[instName] = 0;
+      } else {
+        ACCEPT_LOG << "cannot inject error\n";
+      }
     }
   }
   return false;
