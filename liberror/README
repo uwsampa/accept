@@ -1,0 +1,33 @@
+This folder contains the error injection library code.
+
+liberror.cpp drives error injection, selecting which model to use
+and passes the user-specified parameter to the model.
+A 32-bit 'param' is passed to the error injection driver routine,
+'injectInst()'. This parameter is treated as two 16-bit values.
+The high order 16-bits specify which error model to use.
+The low order 16-bits are passed to the error model as a model
+specific parameter.
+
+An error model *must* be implemented using a .hpp/.cpp file pair,
+and the error model routines *must* be static functions within a
+C++ class.
+
+All headers except the liberrorarch.h and liberrorutil.h headers
+can be included normally in the .hpp error model files.
+To include the liberror*.h headers, we use an anonymous
+namespace within each error model's .cpp file.
+
+e.g.: yourmodel.cpp:
+
+#include "yourmodel.hpp"
+
+namespace {
+#include "liberrorarch.h"
+#include "liberrorutil.h"
+}
+
+// end of yourmodel.cpp
+
+This hack is used to work around the build system and method
+used by ACCEPT. Without this hack, linking fails due to multiple
+function definitions.

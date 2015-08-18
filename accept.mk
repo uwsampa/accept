@@ -21,11 +21,14 @@ LLVMOPT := $(BUILTDIR)/bin/opt
 LLVMLLC := $(BUILTDIR)/bin/llc
 LLVMLLI := $(BUILTDIR)/bin/lli
 RTDIR := $(ACCEPTDIR)/rt
+LEDIR := $(ACCEPTDIR)/liberror
 
 # Target platform specifics.
 ARCH ?= default
 RTLIB ?= $(RTDIR)/acceptrt.$(ARCH).bc
+LELIB := $(LEDIR)/liberror_all.bc
 EXTRABC += $(RTLIB)
+EXTRABC += $(LELIB)
 
 # Host platform specifics.
 ifeq ($(shell uname -s),Darwin)
@@ -116,6 +119,9 @@ $(BUILD_TARGETS): build_%: setup $(EXTRADEPS) $(TARGET).%
 # Make the ACCEPT runtime library for the target architecture.
 $(RTLIB):
 	make -C $(RTDIR) acceptrt.$(ARCH).bc CC="$(CC)" CFLAGS="$(CFLAGS)"
+
+$(LELIB):
+	make -C $(LEDIR) liberror_all.bc CXX="$(CXX)" LLVMLINK="$(LLVMLINK)" CXXFLAGS="$(CXXFLAGS)"
 
 # Link component bitcode files into a single file.
 $(LINKEDBC): $(BCFILES) $(EXTRABC)
