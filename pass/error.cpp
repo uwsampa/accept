@@ -19,6 +19,9 @@ using namespace llvm;
 //    cl::desc("ACCEPT: enable error injection"));
 
 namespace {
+  // Global bbIndex
+  static unsigned bbIndex;
+
   typedef struct {
     Instruction* inst;
     int bb_index;
@@ -142,6 +145,7 @@ const char *ErrorInjection::getPassName() const {
 bool ErrorInjection::doInitialization(Module &M) {
   module = &M;
   transformPass = (ACCEPTPass*)sharedAcceptTransformPass;
+  bbIndex = 0;
   return false;
 }
 
@@ -168,24 +172,23 @@ bool ErrorInjection::instructionErrorInjection(Function& F) {
 
   bool modified = false;
   std::vector<InstId> all_insts;
-  int bbcounter = 0;
   for (Function::iterator fi = F.begin(); fi != F.end(); ++fi) {
     BasicBlock *bb = fi;
     int icounter = 0;
     for (BasicBlock::iterator bi = bb->begin(); bi != bb->end(); ++bi) {
       Instruction *inst = bi;
       InstId iid;
-      iid.inst = inst; iid.bb_index = bbcounter; iid.i_index = icounter;
+      iid.inst = inst; iid.bb_index = bbIndex; iid.i_index = icounter;
       all_insts.push_back(iid);
       // metadata
       LLVMContext& C = inst->getContext();
       std::stringstream mss;
-      mss << "bb" << bbcounter << "i" << icounter;
+      mss << "bb" << bbIndex << "i" << icounter;
       MDNode* N = MDNode::get(C, MDString::get(C, "this tags the instruction id and block number"));
       inst->setMetadata(mss.str(), N);
       ++icounter;
     }
-    ++bbcounter;
+    ++bbIndex;
   }
 
   int n_insts = all_insts.size();
@@ -445,6 +448,7 @@ bool ErrorInjection::injectErrorRegion(InstId iid) {
     int param = transformPass->relaxConfig[instName];
     if (param) {
       ACCEPT_LOG << "injecting error " << param << "\n";
+      // inst->getParent()->getParent()->viewCFG();
       return injectRegionHooks(inst, param);
     } else {
       ACCEPT_LOG << "not injecting error\n";

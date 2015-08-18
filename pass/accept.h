@@ -35,6 +35,9 @@ namespace llvm {
   void initializeErrorInjectionPass(PassRegistry &Registry);
   void initializeApproxInfoPass(PassRegistry &Registry);
 
+  FunctionPass *createBBCountPass();
+  void initializeBBCountPass(PassRegistry &Registry);
+
   std::string srcPosDesc(const Module &mod, const DebugLoc &dl);
   std::string instDesc(const Module &mod, const Instruction *inst);
   std::string getFilename(const Module &mod, const DebugLoc &dl);

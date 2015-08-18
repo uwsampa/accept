@@ -7,7 +7,7 @@ ARCHES := default zynq msp430
 all: acceptrt.default.bc
 
 clean:
-	rm -rf $(ARCHES:%=acceptrt.%.bc)
+	rm -rf $(ARCHES:%=acceptrt.%.bc) *.txt
 
 acceptrt.%.bc: acceptrt.%.c
 	$(CC) $(CFLAGS) -g -O0 -c -emit-llvm -o $@ $<
