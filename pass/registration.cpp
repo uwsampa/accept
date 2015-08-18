@@ -25,7 +25,7 @@ namespace {
       cl::location(acceptEnableNPU));
 
   // Code transformations.
-  static void registerACCEPT(const PassManagerBuilder &,
+  static void registerEarlyACCEPT(const PassManagerBuilder &,
                              PassManagerBase &PM) {
     PM.add(new LoopInfo());
     PM.add(new DominatorTree());
@@ -34,16 +34,27 @@ namespace {
     if (acceptUseProfile)
       PM.add(createProfileLoaderPass());
     */
+    // PM.add(createBBCountPass());
+    // PM.add(createErrorInjectionPass());
+    // PM.add(createLoopPerfPass());
+    // if (acceptEnableNPU)
+    //   PM.add(createLoopNPUPass());
+  }
+  static void registerLateACCEPT(const PassManagerBuilder &,
+                             PassManagerBase &PM) {
     PM.add(new ApproxInfo());
     PM.add(createAcceptTransformPass());
+    PM.add(createBBCountPass());
     PM.add(createErrorInjectionPass());
-    PM.add(createLoopPerfPass());
-    if (acceptEnableNPU)
-      PM.add(createLoopNPUPass());
   }
   static RegisterStandardPasses
-      RegisterACCEPT(PassManagerBuilder::EP_EarlyAsPossible,
-                     registerACCEPT);
+      RegisterEarlyACCEPT(PassManagerBuilder::EP_EarlyAsPossible ,
+                     registerEarlyACCEPT);
+
+  static RegisterStandardPasses
+      RegisterLateACCEPT(PassManagerBuilder::EP_OptimizerLast,
+                     registerLateACCEPT);
+
 
   // Alias analysis.
   /*
