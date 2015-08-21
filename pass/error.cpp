@@ -156,11 +156,18 @@ bool ErrorInjection::doFinalization(Module &M) {
 bool ErrorInjection::runOnFunction(Function &F) {
   AI = &getAnalysis<ApproxInfo>();
 
-  // Skip optimizing functions that seem to be in standard libraries.
-  if (transformPass->shouldSkipFunc(F))
-    return false;
+  bool modified = false;
 
-  bool modified = instructionErrorInjection(F);
+  if (transformPass->relax) {
+    // When injecting error, make sure F is in the white list
+    if (transformPass->shouldInjectError(F))
+      modified = instructionErrorInjection(F);
+  } else {
+    // Skip optimizing functions that seem to be in standard libraries.
+    if (!transformPass->shouldSkipFunc(F))
+      modified = instructionErrorInjection(F);
+  }
+
   return modified;
 }
 
@@ -482,12 +489,13 @@ bool ErrorInjection::injectErrorInst(InstId iid, Instruction* nextInst,
       orig_type = dyn_cast<StoreInst>(inst)->getValueOperand()->getType();
     }
 
+
     ss << "instruction " << inst->getParent()->getParent()->getName().str()
        << ":" << iid.bb_index << ":" << iid.i_index
        << ":" << inst->getOpcodeName()
        << ":" << getTypeStr(orig_type, module);
 
-     std::string instName = ss.str();
+    std::string instName = ss.str();
 
     LogDescription *desc = AI->logAdd("Instruction", inst);
     ACCEPT_LOG << instName << "\n";

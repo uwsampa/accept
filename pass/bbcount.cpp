@@ -12,6 +12,7 @@ namespace {
 
   struct BBCount : public FunctionPass {
     static char ID;
+    ACCEPTPass *transformPass;
 
     BBCount();
     virtual const char *getPassName() const;
@@ -30,6 +31,9 @@ const char *BBCount::getPassName() const {
   return "Basic Block instrumentation";
 }
 bool BBCount::doInitialization(Module &M) {
+  // ACCEPT shared transform pass
+  transformPass = (ACCEPTPass*)sharedAcceptTransformPass;
+
   // We'll insert the initialization call in main
   Function *Main = M.getFunction("main");
   assert(Main && "Error: count-bb requires a main function");
@@ -50,8 +54,8 @@ bool BBCount::doInitialization(Module &M) {
   // Determine the number of basic blocks in the module
   for (Module::iterator mi = M.begin(); mi != M.end(); ++mi) {
     Function *F = mi;
-    assert(F && "Error, function pointer is NULL");
-    bbTotal += F->size();
+    if (transformPass->shouldInjectError(*F))
+      bbTotal += F->size();
   }
 
   Value* bbTotalVal = builder.getInt32(bbTotal);;
@@ -66,9 +70,12 @@ bool BBCount::doFinalization(Module &M) {
 }
 
 bool BBCount::runOnFunction(Function &F) {
-  assert (!llvm::verifyFunction(F) && "Verification failed before code alteration");
-  bool modified = instrumentBasicBlocks(F);
-  assert (!llvm::verifyFunction(F) && "Verification failed after code alteration");
+  bool modified = false;
+  if (transformPass->shouldInjectError(F)) {
+    assert (!llvm::verifyFunction(F) && "Verification failed before code alteration");
+    modified = instrumentBasicBlocks(F);
+    assert (!llvm::verifyFunction(F) && "Verification failed after code alteration");
+  }
 
   return modified;
 }

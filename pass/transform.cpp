@@ -74,6 +74,10 @@ bool ACCEPTPass::shouldSkipFunc(Function &F) {
   return false;
 }
 
+bool ACCEPTPass::shouldInjectError(Function &F) {
+  return (std::find(relaxFnList.begin(), relaxFnList.end(), F.getName().str()) != relaxFnList.end());
+}
+
 bool ACCEPTPass::runOnFunction(Function &F) {
   AI = &getAnalysis<ApproxInfo>();
 
@@ -170,6 +174,7 @@ void ACCEPTPass::loadRelaxConfig() {
 
   while (configFile.good()) {
     std::string ident;
+    // Update relaxConfig
     int param;
     configFile >> param;
     if (!configFile.good())
@@ -177,6 +182,14 @@ void ACCEPTPass::loadRelaxConfig() {
     configFile.ignore(); // Skip space.
     getline(configFile, ident);
     relaxConfig[ident] = param;
+    // Update the relaxFnList
+    std::size_t start = ident.find(" ")+1;
+    std::size_t end = ident.find(":", start);
+    assert((end > start || start!=std::string::npos) && "accept_config.txt format broken!");
+    std::string fnName = ident.substr(start,end-start);
+    if (std::find(relaxFnList.begin(), relaxFnList.end(), fnName) == relaxFnList.end()) {
+      relaxFnList.push_back(fnName);
+    }
   }
 
   configFile.close();

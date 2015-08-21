@@ -169,6 +169,7 @@ struct ACCEPTPass : public llvm::FunctionPass {
 
   llvm::Module *module;
   std::map<std::string, int> relaxConfig;  // ident -> param
+  std::vector<std::string> relaxFnList; // list of functions to approximate
   int opportunityId;
   std::map<llvm::Function*, llvm::DISubprogram> funcDebugInfo;
   ApproxInfo *AI;
@@ -182,6 +183,7 @@ struct ACCEPTPass : public llvm::FunctionPass {
   virtual bool doFinalization(llvm::Module &M);
 
   bool shouldSkipFunc(llvm::Function &F);
+  bool shouldInjectError(llvm::Function &F);
   std::string siteName(std::string kind, llvm::Instruction *at);
 
   void collectFuncDebug(llvm::Module &M);
