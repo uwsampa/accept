@@ -1,4 +1,4 @@
-BUILTDIR := $(ACCEPTDIR)/build/built
+BUILTDIR := $(ACCEPT_DIR)/build/built
 CXX := $(BUILTDIR)/bin/clang++
 LLVMLINK := $(BUILTDIR)/bin/llvm-link
 
