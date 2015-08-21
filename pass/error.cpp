@@ -158,13 +158,8 @@ bool ErrorInjection::runOnFunction(Function &F) {
 
   bool modified = false;
 
-  if (transformPass->relax) {
-    // When injecting error, make sure F is in the white list
-    if (transformPass->shouldInjectError(F))
-      modified = instructionErrorInjection(F);
-  } else {
-    // Skip optimizing functions that seem to be in standard libraries.
-    if (!transformPass->shouldSkipFunc(F))
+  // Skip optimizing functions that seem to be in standard libraries.
+  if (!transformPass->shouldSkipFunc(F)) {
       modified = instructionErrorInjection(F);
   }
 
@@ -198,10 +193,13 @@ bool ErrorInjection::instructionErrorInjection(Function& F) {
     ++bbIndex;
   }
 
-  int n_insts = all_insts.size();
-  for (int i = 0; i < n_insts; ++i) {
-    Instruction* nextInst = ((i == n_insts - 1) ? NULL : all_insts[i + 1].inst);
-    if (injectErrorInst(all_insts[i], nextInst, injectFn)) modified = true;
+  if (transformPass->relax && transformPass->shouldInjectError(F) || !transformPass->relax) {
+    // When injecting error during the relax phase, make sure F is in the white list
+    int n_insts = all_insts.size();
+    for (int i = 0; i < n_insts; ++i) {
+      Instruction* nextInst = ((i == n_insts - 1) ? NULL : all_insts[i + 1].inst);
+      if (injectErrorInst(all_insts[i], nextInst, injectFn)) modified = true;
+    }
   }
 
   return modified;
