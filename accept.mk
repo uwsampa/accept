@@ -23,10 +23,12 @@ LLVMLLI := $(BUILTDIR)/bin/lli
 RTDIR := $(ACCEPTDIR)/rt
 LEDIR := $(ACCEPTDIR)/liberror
 
+ERRLIBSOURCES := $(LEDIR)/dram.bc $(LEDIR)/flikker.bc $(LEDIR)/liberror.bc $(LEDIR)/lva.bc $(LEDIR)/npu.bc $(LEDIR)/overscaledalu.bc $(LEDIR)/reducedprecfp.bc $(LEDIR)/sram.bc
+
 # Target platform specifics.
 ARCH ?= default
 RTLIB ?= $(RTDIR)/acceptrt.$(ARCH).bc
-LELIB := $(LEDIR)/liberror_all.bc
+LELIB ?= $(LEDIR)/liberror_all.bc
 EXTRABC += $(RTLIB)
 EXTRABC += $(LELIB)
 
@@ -62,6 +64,7 @@ ENERCFLAGS :=  -Xclang -load -Xclang $(ENERCLIB) \
 
 # SOURCES is a list of source files, *.{c,cpp} by default.
 SOURCES ?= $(wildcard *.c) $(wildcard *.cpp)
+# SOURCES += $(ERRLIBSOURCES)
 
 # Build products.
 TARGET ?= app
@@ -70,12 +73,9 @@ BCFILES := $(BCFILES:.cpp=.bc)
 LINKEDBC := $(TARGET)_all.bc
 LLFILES := $(BCFILES:.bc=.ll)
 
-# Attempt to guess which linker to use.
-ifneq ($(filter %.cpp,$(SOURCES)),)
-	LINKER ?= $(CXX)
-else
-	LINKER ?= $(CC)
-endif
+# Use the c++ compiler since we are always
+# linking against the liberror source
+LINKER ?= $(CXX)
 
 # Determine which command-line arguments to use depending on whether we are
 # "training" (profiling/measuring) or "testing" (performing a final
