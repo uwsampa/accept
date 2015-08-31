@@ -521,7 +521,7 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
             maxed_insn = []
         # Now iterate over all instructions
         for idx in range(0, min(instlimit, len(base_config))):
-            logging.info ("Increasing lomask on {}".format(base_config[idx]['insn']))
+            logging.info ("Tuning lomask on {}".format(base_config[idx]['insn']))
             if (base_config[idx]['himask']+base_config[idx]['lomask']) == get_bitwidth_from_type(base_config[idx]['type']):
                 insn_errors[idx] = float('inf')
                 logging.info ("Skipping current instruction {} - bitmask max reached".format(idx))
@@ -575,7 +575,7 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
         logging.debug ("Zero-error instruction list: {}".format(zero_error))
         for idx in range(0, min(instlimit, len(base_config))):
             base_config[idx]['lomask'] += rate
-            logging.info ("Increasing lomask on instruction {} to {}".format(idx, tmp_config[idx]['lomask']))
+            logging.info ("Increasing lomask on instruction {} to {} (no additional error)".format(idx, tmp_config[idx]['lomask']))
         # Report savings
         if zero_error:
             report_error_and_savings(base_config, prev_minerror)
@@ -584,7 +584,7 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
         if minerror <= target_error:
             base_config[minidx]['lomask'] += rate
             prev_minerror = minerror
-            logging.info ("Increasing lomask on instruction {} to {}".format(minidx, tmp_config[minidx]['lomask']))
+            logging.info ("Increasing lomask on instruction {} to {} (best)".format(minidx, tmp_config[minidx]['lomask']))
             report_error_and_savings(base_config, minerror)
             # Copy file output
             src_path = tmpoutputsdir+'/out_'+str(tuning_pass)+'_'+str(minidx)+EXT
