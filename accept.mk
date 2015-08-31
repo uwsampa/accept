@@ -155,7 +155,7 @@ tune: tune_precision clean
 
 tune_precision:
 	cp $(BINDIR)/$(TUNER) .
-	python $(TUNER)
+	python $(TUNER) $(TUNER_ARGS)
 	rm -rf $(TUNER)
 
 clean:
