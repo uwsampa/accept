@@ -171,7 +171,7 @@ def read_dyn_stats(fname=DYNSTATS_FILE):
                 bb_info[int(bb_idx)] = int(bb_num)
     return bb_info
 
-def analyze(config, stats, BITWIDHTMAX=32, csv_fn=CDF_FILE):
+def analyze(config, stats, BITWIDHTMAX=64, csv_fn=CDF_FILE):
     """Analyze final bit-width settings obtained by the autotuner
     and produce aggregate statistics
     """
