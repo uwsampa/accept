@@ -573,7 +573,7 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
                 maxed_insn.append(idx)
         # Apply LSB masking to the instruction that are not impacted by it
         logging.debug ("Zero-error instruction list: {}".format(zero_error))
-        for idx in range(0, min(instlimit, len(base_config))):
+        for idx in zero_error:
             base_config[idx]['lomask'] += rate
             logging.info ("Increasing lomask on instruction {} to {} (no additional error)".format(idx, tmp_config[idx]['lomask']))
         # Report savings
