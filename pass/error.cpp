@@ -193,7 +193,7 @@ bool ErrorInjection::instructionErrorInjection(Function& F) {
     ++bbIndex;
   }
 
-  if (transformPass->relax && transformPass->shouldInjectError(F) || !transformPass->relax) {
+  if ((transformPass->relax && transformPass->shouldInjectError(F)) || !transformPass->relax) {
     // When injecting error during the relax phase, make sure F is in the white list
     int n_insts = all_insts.size();
     for (int i = 0; i < n_insts; ++i) {
@@ -437,6 +437,8 @@ bool ErrorInjection::injectRegionHooks(Instruction* inst, int param) {
 
   CallInst* injection_call = builder.CreateCall(injectFn, injectFn_args);
   //ci->eraseFromParent();
+
+  return true; //code has been modified
 }
 
 bool ErrorInjection::injectErrorRegion(InstId iid) {
