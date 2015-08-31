@@ -209,19 +209,23 @@ def analyze(config, stats, BITWIDHTMAX=32, csv_fn=CDF_FILE):
     cdf_stats = [["bitw", "baseline_mem", "precise_mem", "approx_mem", "baseline_exe", "precise_exe", "approx_exe"]]
     for i in range(0, (BITWIDHTMAX+1)):
         if i==0:
-            baseline_mem_cdf[0] = float(baseline_mem[0])/mem_total
-            precise_mem_cdf[0] = float(precise_mem[0])/mem_total
-            approx_mem_cdf[0] = float(approx_mem[0])/mem_total
-            baseline_exe_cdf[0] = float(baseline_exe[0])/exe_total
-            precise_exe_cdf[0] = float(precise_exe[0])/exe_total
-            approx_exe_cdf[0] = float(approx_exe[0])/exe_total
+            if (mem_total>0):
+                baseline_mem_cdf[0] = float(baseline_mem[0])/mem_total
+                precise_mem_cdf[0] = float(precise_mem[0])/mem_total
+                approx_mem_cdf[0] = float(approx_mem[0])/mem_total
+            if (exe_total>0):
+                baseline_exe_cdf[0] = float(baseline_exe[0])/exe_total
+                precise_exe_cdf[0] = float(precise_exe[0])/exe_total
+                approx_exe_cdf[0] = float(approx_exe[0])/exe_total
         else:
-            baseline_mem_cdf[i] = baseline_mem_cdf[i-1]+float(baseline_mem[i])/mem_total
-            precise_mem_cdf[i] = precise_mem_cdf[i-1]+float(precise_mem[i])/mem_total
-            approx_mem_cdf[i] = approx_mem_cdf[i-1]+float(approx_mem[i])/mem_total
-            baseline_exe_cdf[i] = baseline_exe_cdf[i-1]+float(baseline_exe[i])/exe_total
-            precise_exe_cdf[i] = precise_exe_cdf[i-1]+float(precise_exe[i])/exe_total
-            approx_exe_cdf[i] = approx_exe_cdf[i-1]+float(approx_exe[i])/exe_total
+            if (mem_total>0):
+                baseline_mem_cdf[i] = baseline_mem_cdf[i-1]+float(baseline_mem[i])/mem_total
+                precise_mem_cdf[i] = precise_mem_cdf[i-1]+float(precise_mem[i])/mem_total
+                approx_mem_cdf[i] = approx_mem_cdf[i-1]+float(approx_mem[i])/mem_total
+            if (exe_total>0):
+                baseline_exe_cdf[i] = baseline_exe_cdf[i-1]+float(baseline_exe[i])/exe_total
+                precise_exe_cdf[i] = precise_exe_cdf[i-1]+float(precise_exe[i])/exe_total
+                approx_exe_cdf[i] = approx_exe_cdf[i-1]+float(approx_exe[i])/exe_total
         cdf_stats.append([i, baseline_mem_cdf[i], precise_mem_cdf[i], approx_mem_cdf[i],
             baseline_exe_cdf[i], precise_exe_cdf[i], approx_exe_cdf[i]])
 
@@ -229,7 +233,7 @@ def analyze(config, stats, BITWIDHTMAX=32, csv_fn=CDF_FILE):
         csv.writer(fp, delimiter='\t').writerows(cdf_stats)
 
 
-def gen_default_config():
+def gen_default_config(instlimit):
     """Reads in the coarse error injection descriptor,
     generates the default config by running make run_orig.
     Returns a config object.
@@ -241,6 +245,10 @@ def gen_default_config():
 
     # Load ACCEPT config and adjust parameters.
     config = read_config(ACCEPT_CONFIG)
+
+    # Notify the user that the instruction limit is lower than the configuration length
+    if len(config) > instlimit:
+        logging.info('Instruction length exceeds the limit set by the user of {}'.format(instlimit))
 
     return config
 
@@ -377,7 +385,7 @@ def tune_himask_insn(base_config, idx):
     # Return the mask value, and type tuple
     return best_mask
 
-def tune_himask(base_config, clusterworkers, run_on_grappa):
+def tune_himask(base_config, instlimit, clusterworkers, run_on_grappa):
     """Tunes the most significant bit masking at an instruction
     granularity without affecting application error.
     """
@@ -414,8 +422,8 @@ def tune_himask(base_config, clusterworkers, run_on_grappa):
         client = cw.client.ClientThread(completion, cw.slurm.master_host())
         client.start()
 
-    for idx, conf in enumerate(base_config):
-        logging.info ("Tuning instruction: {}".format(conf['insn']))
+    for idx in range(0, min(instlimit, len(base_config))):
+        logging.info ("Tuning instruction: {}".format(base_config[idx]['insn']))
         if (clusterworkers>0):
             jobid = cw.randid()
             with jobs_lock:
@@ -432,13 +440,13 @@ def tune_himask(base_config, clusterworkers, run_on_grappa):
 
     # Post processing
     logging.debug ("Himasks: {}".format(insn_himasks))
-    for idx, conf in enumerate(base_config):
+    for idx in range(0, min(instlimit, len(base_config))):
         base_config[idx]['himask'] = insn_himasks[idx]
         logging.info ("Himask of instruction {} tuned to {}".format(idx, insn_himasks[idx]))
     report_error_and_savings(base_config, 0.0)
 
 
-def tune_lomask(base_config, target_error, passlimit, clusterworkers, run_on_grappa, rate=1):
+def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers, run_on_grappa, rate=1):
     """Tunes the least significant bits masking to meet the
     specified error requirements, given a passlimit.
     The tuning algorithm performs multiple passes over every
@@ -504,8 +512,8 @@ def tune_lomask(base_config, target_error, passlimit, clusterworkers, run_on_gra
         if tuning_pass % RESET_CYCLE == 0:
             maxed_insn = []
         # Now iterate over all instructions
-        for idx, conf in enumerate(base_config):
-            logging.info ("Increasing lomask on instruction {} to {}".format(idx, conf['insn']))
+        for idx in range(0, min(instlimit, len(base_config))):
+            logging.info ("Increasing lomask on instruction {} to {}".format(idx, base_config[idx]['insn']))
             if (base_config[idx]['himask']+base_config[idx]['lomask']) == get_bitwidth_from_type(base_config[idx]['type']):
                 insn_errors[idx] = float('inf')
                 logging.info ("Skipping current instruction {} - bitmask max reached".format(idx))
@@ -557,7 +565,7 @@ def tune_lomask(base_config, target_error, passlimit, clusterworkers, run_on_gra
                 maxed_insn.append(idx)
         # Apply LSB masking to the instruction that are not impacted by it
         logging.debug ("Zero-error instruction list: {}".format(zero_error))
-        for idx in zero_error:
+        for idx in range(0, min(instlimit, len(base_config))):
             base_config[idx]['lomask'] += rate
             logging.info ("Increasing lomask on instruction {} to {}".format(idx, tmp_config[idx]['lomask']))
         # Report savings
@@ -591,7 +599,7 @@ def tune_lomask(base_config, target_error, passlimit, clusterworkers, run_on_gra
 # Main Function
 #################################################
 
-def tune_width(accept_config_fn, target_error, passlimit, skip, clusterworkers, run_on_grappa):
+def tune_width(accept_config_fn, target_error, passlimit, instlimit, skip, clusterworkers, run_on_grappa):
     """Performs instruction masking tuning
     """
     # Generate default configuration
@@ -599,21 +607,24 @@ def tune_width(accept_config_fn, target_error, passlimit, skip, clusterworkers, 
         config = read_config(accept_config_fn)
         stats = read_dyn_stats()
         analyze(config, stats)
-        # print_config(config)
         exit()
     else:
-        config = gen_default_config()
+        config = gen_default_config(instlimit)
 
     # Initialize globals
     init_step_count()
 
     # Let's tune the high mask bits (0 performance degradation)
     if skip!='hi':
-        tune_himask(config, clusterworkers, run_on_grappa)
+        tune_himask(config, instlimit, clusterworkers, run_on_grappa)
 
     # Now let's tune the low mask bits (performance degradation allowed)
     if skip!='lo':
-        tune_lomask(config, target_error, passlimit, clusterworkers, run_on_grappa)
+        tune_lomask(config, target_error, passlimit, instlimit, clusterworkers, run_on_grappa)
+
+    # Do some post-processing
+    stats = read_dyn_stats()
+    analyze(config, stats)
 
     # Print the final conf object
     print_config(config)
@@ -638,8 +649,12 @@ def cli():
         default=0.1, help='target application error'
     )
     parser.add_argument(
-        '-p', dest='passlimit', action='store', type=int, required=False,
-        default=1000, help='maximum number of passes when masking off LSBs'
+        '-pl', dest='passlimit', action='store', type=int, required=False,
+        default=1000, help='limits the number of tuning passes (for quick testing)'
+    )
+    parser.add_argument(
+        '-il', dest='instlimit', action='store', type=int, required=False,
+        default=1000, help='limits the number of instructions that get tuned (for quick testing)'
     )
     parser.add_argument(
         '-skip', dest='skip', action='store', type=str, required=False,
@@ -686,6 +701,7 @@ def cli():
         args.accept_config_fn,
         args.target_error,
         args.passlimit,
+        args.instlimit,
         args.skip,
         args.clusterworkers,
         args.grappa)
