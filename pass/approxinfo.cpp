@@ -625,6 +625,12 @@ bool ApproxInfo::isWhitelistedPure(StringRef s) {
 // This function finds the file name and line number of each function.
 void ApproxInfo::findFunctionLocs(Module &mod) {
   NamedMDNode *namedMD = mod.getNamedMetadata("llvm.dbg.cu");
+
+  if (!namedMD) {
+    llvm::errs() << "ACCEPT: no CU debug info found\n";
+    return;
+  }
+
   for (unsigned i = 0, e = namedMD->getNumOperands(); i != e; ++i) {
     DICompileUnit cu(namedMD->getOperand(i));
     DIArray subps = cu.getSubprograms();
@@ -634,6 +640,12 @@ void ApproxInfo::findFunctionLocs(Module &mod) {
       int lineNumber = (int) subProg.getLineNumber();
       std::pair<std::string, int> functionLoc(fileName, lineNumber);
       functionLocs[subProg.getFunction()] = functionLoc;
+      // NB: Someday, it would be nice to collect the functions' demangled
+      // names too. But the debug info only contains (a) the mangled (linkage)
+      // name, and (b) the nice "base" name (as subProg.getDisplayName()) but
+      // not the fullly qualified name. Maybe we can use libcxxabi to demangle
+      // the name, or maybe the full name is stored somewhere I haven't found
+      // yet.
     }
   }
 }

@@ -16,8 +16,10 @@ customize this later if need be.)
 
 Next, add a `Makefile` for your experiment. Your Makefile should include at least these incantations to make everything work:
 
-    APP_MK := ../app.mk
-    include $(APP_MK)
+```makefile
+APP_MK := ../app.mk
+include $(APP_MK)
+```
 
 For simple programs, this is all you need; if you need more options (like specifying the source files to compile or the arguments to use during execution), see [the Makefile section of the tool documentation][makefile].
 
@@ -27,7 +29,9 @@ For simple programs, this is all you need; if you need more options (like specif
 
 You can now use the ACCEPT toolchain to try building your application. Just type:
 
-    $ accept -f build
+```sh
+$ accept -f build
+```
 
 (The `-f` flag avoids memoization—see the [tool documentation](cli.md).) This command shows the output of the build process, including any errors emitted by the compiler.
 
@@ -56,7 +60,9 @@ Remember that you will need to use `#include <enerc.h>` in files where use annot
 
 Now that you have an annotated application, you can ask ACCEPT to analyze the program for optimization opportunities. Type:
 
-    $ accept log
+```sh
+$ accept log
+```
 
 (Remember to add `-f` if you make any changes to your source files.) This will spit out a log of places where ACCEPT looked for—and found—possible relaxations. It will attempt to point you toward source locations that, given a bit more attention, could unlock to more opportunities. Again, the ACCEPT paper describes the purpose of this feedback log.
 
@@ -92,7 +98,9 @@ Here's an example `eval.py` written for a notional program whose output consists
 
 Because ACCEPT is a [profiling compiler][fdo], it needs to know how to *execute* your program. You need to provide the command-line arguments for your program in the Makefile using the `RUNARGS` variable. Add a line like this to your project's Makefile:
 
-    RUNARGS := --foo input.txt
+```makefile
+RUNARGS := --foo input.txt
+```
 
 indicating how you want your program to be executed. You can also specify a different invocation using the `TESTARGS` variable for a separate, final performance evaluation. See the [Makefile][] section for details.
 
@@ -102,7 +110,9 @@ indicating how you want your program to be executed. You can also specify a diff
 
 Once you're happy with your annotations, you can run the full toolchain to optimize your program. Run this command:
 
-    $ accept run
+```sh
+$ accept run
+```
 
 from the directory containing your application (and its Makefile).
 
@@ -120,3 +130,11 @@ The program is then run several times with approximation. These runs with approx
 * During an approximate run, the program writes approximate data values to an output file.
 * After the approximate run, the `load` function of the `eval.py` script stores those approximate data values in a data structure that is in the database.
 * Finally, the `score` function computes a correctness score for the approximate run. The correctness score is a metric of error between the values of the data structure filled by the precise run and the corresponding values of the data structure filled by the approximate run. A score of 0.0 indicates complete correctness, while a score of 1.0 indicates complete incorrectness.
+
+### Options
+
+The [reference page](cli.md) has more detail about how to invoke the `accept run` command. Here are a few options you'll want to be aware of:
+
+* Replication: Random variations in timing can make results seem unpredictable. ACCEPT can run your program multiple times and compute averages. Pass the `-r` flag to the command and specify the number of replicas: for example, `accept -r3 run` will use the average of three executions per configuration.
+* Detailed output: By default, ACCEPT only shows you the *optimal* configurations for your program. You can see the suboptimal (and broken) configurations by typing `accept run -v`.
+* Progress logging: For a long experiment, it can be helpful to know that ACCEPT is still making progress. Use the global verbose flag to see more logged messages: `accept -v run`.

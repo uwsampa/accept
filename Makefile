@@ -47,6 +47,10 @@ endif
 ifeq ($(shell which python2 >/dev/null 2>&1 ; echo $$?),0)
 	CMAKE_FLAGS += -DPYTHON_EXECUTABLE:PATH=$(shell which python2)
 endif
+# Same with the virtualenv program (the ACCEPT driver is 2-only).
+ifeq ($(shell which virtualenv2 >/dev/null 2>&1 ; echo $$?),0)
+	VIRTUALENV := virtualenv2
+endif
 
 
 # Actually building stuff.
@@ -71,7 +75,7 @@ llvm: llvm/CMakeLists.txt llvm/tools/clang check_cmake check_ninja
 setup: llvm accept driver
 
 test:
-	$(BUILT)/bin/llvm-lit -v test
+	$(BUILT)/bin/llvm-lit -v --filter='test_\w+\.' test
 
 clean:
 	rm -rf $(BUILD)
@@ -124,11 +128,11 @@ check_virtualenv:
 
 .PHONY: driver
 
+# Make a virtualenv and install all our dependencies there. This avoids
+# needing to clutter the system Python libraries (and possibly requiring
+# sudo).
 driver:
-	# Make a virtualenv and install all our dependencies there. This avoids
-	# needing to clutter the system Python libraries (and possibly requiring
-	# sudo).
-	[ -e $(VENV)/bin/pip ] || virtualenv $(VENV)
+	[ -e $(VENV)/bin/pip ] || $(VIRTUALENV) $(VENV)
 	./$(VENV)/bin/pip install -r requirements.txt
 
 

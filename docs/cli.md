@@ -22,9 +22,11 @@ Builds are performed in a temporary directory to avoid cluttering your filesyste
 
 If you need to inspect the results of a computation, supply the ["keep sandboxes" flag][keep]. By combining this with the [force][] and [verbose][] flags, you can see where your build products end up. For example:
 
-    $ accept -kfv build
-    building in directory: /private/var/folders/py/tyzbll7117l90mv29bnlrtl80000gn/T/tmpldzE8z 
-    [...]
+```sh
+$ accept -kfv build
+building in directory: /private/var/folders/py/tyzbll7117l90mv29bnlrtl80000gn/T/tmpldzE8z
+[...]
+```
 
 Now you can follow that long, garbled path to find your executable and intermediate files.
 
@@ -142,8 +144,10 @@ In this style, your `score()` function will need to parse both files (something 
 
 Applications tell ACCEPT how to build them using a standard Makefile. Your application's Makefile currently must contain at least these lines:
 
-    APP_MK := ../app.mk
-    include $(APP_MK)
+```makefile
+APP_MK := ../app.mk
+include $(APP_MK)
+```
 
 If necessary, you can change the `APP_MK` variable to point to where ACCEPT is installed. (This is only necessary if you placed your directory outside of ACCEPT's `apps` directory.)
 
@@ -153,26 +157,34 @@ There are a number of other options you can specify here:
 
 By default, the build system will compile any files ending in `.c` and `.cpp` into your executable. You can set the `SOURCES` variable to explicitly indicate which files should be compiled (rather than using `*.c *.cpp`). For example:
 
-    SOURCES := foo.cpp src/bar.cpp
+```makefile
+SOURCES := foo.cpp src/bar.cpp
+```
 
 ### Build Flags
 
 The usual `CFLAGS` and `LDFLAGS` can be used to customize the build process. For example, here's how you might enable pthreads in the compiler:
 
-    CXXFLAGS += -pthread
-    LDFLAGS := -lpthread
+```makefile
+CXXFLAGS += -pthread
+LDFLAGS := -lpthread
+```
 
 ### Execution Arguments
 
 The `RUNARGS` variable is used to specify command-line arguments to be used when executing your program. You might, for example, need to specify the input file. Here's an example from the fluidanimate program:
 
-    RUNARGS := 4 5 in_300K.fluid out.fluid
+```makefile
+RUNARGS := 4 5 in_300K.fluid out.fluid
+```
 
 It is also a good idea to provide a separate input for ACCEPT's *testing* phase, which automatically evaluates the final impact of ACCEPT's optimizations. Providing a separate input avoids overfitting to one specific input set, so we take inspiration from the [training and testing sets](http://en.wikipedia.org/wiki/Test_set) used in machine learning.
 
 Use the `TESTARGS` variable to provide a second, potentially slower-running, invocation of your program. Again, here's an example from fluidanimate:
 
-    TESTARGS := 4 5 in_300K.fluid out.fluid
+```makefile
+TESTARGS := 4 5 in_300K.fluid out.fluid
+```
 
 ### Setup Tasks
 

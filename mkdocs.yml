@@ -9,4 +9,4 @@ pages:
     - [cli.md, Reference]
     - [hack.md, Hacking]
 repo_url: https://github.com/uwsampa/accept/
-markdown_extensions: [smartypants]
+markdown_extensions: [smarty]

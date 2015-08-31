@@ -2,12 +2,14 @@
 
 This is the documentation for ACCEPT, an *approximate compiler* for C and C++ programs based on [Clang][]. Think of it as your assistant in breaking your program in small ways to trade off correctness for performance.
 
-[Clang]: http://clang.llvm.org/
+This is also the home for ACCEPT's [benchmark suite of approximate C/C++ applications][accept-apps].
 
 Please direct comments or questions to [Adrian Sampson][adrian] or to a [GitHub issue][ghi].
 
 [adrian]: http://homes.cs.washington.edu/~asampson/
 [ghi]: https://github.com/uwsampa/accept/issues/new
+[accept-apps]: https://github.com/uwsampa/accept-apps
+[Clang]: http://clang.llvm.org/
 
 
 ## Building
@@ -19,7 +21,9 @@ Here's how to build the ACCEPT toolchain in four easy steps.
 Clone [the repository][gh] to your Unix-like system. Use the submodules flag to grab
 the project's dependencies:
 
-    $ git clone --recurse-submodules https://github.com/uwsampa/accept.git
+```sh
+$ git clone --recurse-submodules https://github.com/uwsampa/accept.git
+```
 
 [gh]: https://github.com/uwsampa/accept
 
@@ -57,8 +61,10 @@ You should now be able to use the `bin/enerclang` and `bin/enerclang++` programs
 The main entry point to the ACCEPT toolchain is the `bin/accept` script. For
 convenience, you can put this on your `$PATH` by running `source activate.sh`. Or you can add something like this to your [shell profile (.profile or .bashrc file)][dotprofile]:
 
-    accept=~/path/to/your/git/checkout
-    export PATH=$accept/bin:$PATH
+```sh
+accept=~/path/to/your/git/checkout
+export PATH=$accept/bin:$PATH
+```
 
 [dotprofile]: http://askubuntu.com/questions/148337/adding-a-directory-to-a-path-in-profile
 
