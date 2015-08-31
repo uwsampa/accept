@@ -122,4 +122,6 @@ You can of course enable injection permanently for a benchmark project by puttin
 
     OPTARGS := -accept-inject
 
-The ACCEPT frontend---that is, the auto-tuner and quality evaluator infrastructure---does not yet support error injection. There is a `--simulate` flag to the `accept` command, which disables some aspects of performance measurement that are irrelevant for error injection, but there's more to come.
+The ACCEPT frontend---that is, the auto-tuner and quality evaluator infrastructure---does not yet support error injection. There is a `--simulate` flag to the `accept` command, which disables some aspects of performance measurement that are irrelevant for error injection, but there's more to come. See [issue #41][injectbug].
+
+[injectbug]: https://github.com/uwsampa/accept/issues/41
