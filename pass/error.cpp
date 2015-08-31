@@ -51,7 +51,7 @@ namespace {
     for (Value::use_iterator ui = oldInst->use_begin();
         ui != oldInst->use_end(); ++ui)
       users.push_back(*ui);
-  
+
     for (int i = 0; i < users.size(); ++i) {
       User* user = users[i];
 
@@ -63,7 +63,7 @@ namespace {
         }
       }
       if (shouldSkip) continue;
-  
+
       if (Constant *C = dyn_cast<Constant>(user)) {
         if (!isa<GlobalValue>(C)) {
           int j;
@@ -75,10 +75,10 @@ namespace {
           continue;
         }
       }
-  
+
       user->replaceUsesOfWith(oldInst, newInst);
     }
-  
+
     if (BasicBlock *BB = dyn_cast<BasicBlock>(oldInst))
       BB->replaceSuccessorsPhiUsesWith(cast<BasicBlock>(newInst));
   }
@@ -91,7 +91,8 @@ namespace {
       std::string fn_name = fn->getName().str();
       if (fn_name.find(unmangled_fn_name) != std::string::npos) return fn_name;
     }
-    return "Error: did not find the error injection function";
+    llvm_unreachable("did not find the error injection function");
+    return "";
   }
 }
 
@@ -310,7 +311,7 @@ bool ErrorInjection::injectHooksStore(Instruction* inst, Instruction* nextInst,
 bool ErrorInjection::injectHooksBinOp(Instruction* inst, Instruction* nextInst,
     int param, Function* injectFn) {
   if (dyn_cast<Constant>(inst)) return false;
-  
+
   Type* orig_type = inst->getType();
   std::string orig_type_str = getTypeStr(orig_type, module);
   if (orig_type_str == "") return false;
