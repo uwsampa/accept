@@ -116,6 +116,10 @@ To build and run with error injection enabled, you need to turn it on explicitly
 
     make build_orig OPTARGS=-accept-inject
 
-will generate an `accept_config.txt` file ready for simulated error injection. You'll notice a long list of `instruction` sites in that file.
+will generate an `accept_config.txt` file ready for simulated error injection. You'll notice a long list of `instruction` sites in that file. The parameter for each such site is an unsigned 64-bit integer that will be passed to an `injectInst` function at run time to determine how to inject error.
 
-We also need to document how to use this feature with the ACCEPT driver (i.e., the `--simulate` flag).
+You can of course enable injection permanently for a benchmark project by putting this in its Makefile:
+
+    OPTARGS := -accept-inject
+
+The ACCEPT frontend---that is, the auto-tuner and quality evaluator infrastructure---does not yet support error injection. There is a `--simulate` flag to the `accept` command, which disables some aspects of performance measurement that are irrelevant for error injection, but there's more to come.
