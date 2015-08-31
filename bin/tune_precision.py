@@ -4,7 +4,6 @@ import tempfile
 import os
 import shutil
 import shlex
-import eval
 import math
 import copy
 import argparse
@@ -13,21 +12,22 @@ import cw.client
 import threading
 import collections
 import csv
+import eval
+from eval import EXT
 
 # FILE NAMES
 ACCEPT_CONFIG = 'accept_config.txt'
 LOG_FILE = 'tune_precision.log'
 ERROR_LOG_FILE = 'error.log'
 DYNSTATS_FILE = 'accept_bbstats.txt'
-CDF_FILE = 'cdfstats.txt'
+CDF_FILE = 'cdf_stats.txt'
 
 # DIR NAMES
 OUTPUT_DIR = 'outputs'
 
 # OUTPUT FILES
-OUTPUT_FILE_EXT = '.pgm'
-PRECISE_OUTPUT = 'orig'+OUTPUT_FILE_EXT
-APPROX_OUTPUT = 'out'+OUTPUT_FILE_EXT
+PRECISE_OUTPUT = 'orig'+EXT
+APPROX_OUTPUT = 'out'+EXT
 
 # PARAMETERS
 RESET_CYCLE = 1
@@ -251,6 +251,14 @@ def gen_default_config(instlimit):
         logging.info('Instruction length exceeds the limit set by the user of {}'.format(instlimit))
 
     return config
+
+def test_curr_config():
+    """Tests the current configuration file locally.
+    """
+    curdir = os.getcwd()
+
+    logging.info('Testing local configuration: {}'.format(ACCEPT_CONFIG))
+    shell(shlex.split('make run_opt'), cwd=curdir)
 
 def dump_relax_config(config, fname):
     """Write a relaxation configuration to a file-like object. The
@@ -524,7 +532,7 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
                 # Generate temporary configuration
                 tmp_config = copy.deepcopy(base_config)
                 # Derive the output path
-                output_path = tmpoutputsdir+'/'+'out_'+str(tuning_pass)+'_'+str(idx)+OUTPUT_FILE_EXT
+                output_path = tmpoutputsdir+'/'+'out_'+str(tuning_pass)+'_'+str(idx)+EXT
                 logging.debug ("File output path of instruction {}: {}".format(tmp_config[idx]['lomask'], output_path))
                 # Increment the LSB mask value
                 tmp_config[idx]['lomask'] += rate
@@ -579,8 +587,8 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
             logging.info ("Increasing lomask on instruction {} to {}".format(minidx, tmp_config[minidx]['lomask']))
             report_error_and_savings(base_config, minerror)
             # Copy file output
-            src_path = tmpoutputsdir+'/out_'+str(tuning_pass)+'_'+str(minidx)+OUTPUT_FILE_EXT
-            dst_path = outputsdir+'/out_{0:05d}'.format(step_count)+OUTPUT_FILE_EXT
+            src_path = tmpoutputsdir+'/out_'+str(tuning_pass)+'_'+str(minidx)+EXT
+            dst_path = outputsdir+'/out_{0:05d}'.format(step_count)+EXT
             shutil.copyfile(src_path, dst_path)
             create_overwrite_directory(tmpoutputsdir)
         # Empty list
@@ -626,11 +634,11 @@ def tune_width(accept_config_fn, target_error, passlimit, instlimit, skip, clust
     stats = read_dyn_stats()
     analyze(config, stats)
 
-    # Print the final conf object
-    print_config(config)
-
     # Dump back to the fine (ACCEPT) configuration file.
     dump_relax_config(config, ACCEPT_CONFIG)
+
+    # Generate the BB stats
+    test_curr_config()
 
 #################################################
 # Argument validation
@@ -717,7 +725,14 @@ def cli():
         shutil.move(ACCEPT_CONFIG, OUTPUT_DIR+'/'+ACCEPT_CONFIG)
         shutil.move(ERROR_LOG_FILE, OUTPUT_DIR+'/'+ERROR_LOG_FILE)
         shutil.move(DYNSTATS_FILE, OUTPUT_DIR+'/'+DYNSTATS_FILE)
+        shutil.move(CDF_FILE, OUTPUT_DIR+'/'+CDF_FILE)
         shutil.move(args.logpath, OUTPUT_DIR+'/'+args.logpath)
+
+    # Cleanup
+    curdir = os.getcwd()
+    dirname = os.path.basename(os.path.normpath(curdir))
+    tmpoutputsdir = curdir+'/../'+dirname+'_tmpoutputs'
+    shutil.rmtree(tmpoutputsdir)
 
 if __name__ == '__main__':
     cli()
