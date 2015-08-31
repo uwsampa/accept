@@ -13,6 +13,7 @@
 ACCEPTDIR := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 INCLUDEDIR := $(ACCEPTDIR)/include
 BUILTDIR := $(ACCEPTDIR)/build/built
+BINDIR := $(ACCEPTDIR)/bin
 CC := $(BUILTDIR)/bin/clang
 CXX := $(BUILTDIR)/bin/clang++
 LLVMDIS := $(BUILTDIR)/bin/llvm-dis
@@ -22,6 +23,7 @@ LLVMLLC := $(BUILTDIR)/bin/llc
 LLVMLLI := $(BUILTDIR)/bin/lli
 RTDIR := $(ACCEPTDIR)/rt
 LEDIR := $(ACCEPTDIR)/liberror
+TUNER := tune_precision.py
 
 ERRLIBSOURCES := $(LEDIR)/dram.bc $(LEDIR)/flikker.bc $(LEDIR)/liberror.bc $(LEDIR)/lva.bc $(LEDIR)/npu.bc $(LEDIR)/overscaledalu.bc $(LEDIR)/reducedprecfp.bc $(LEDIR)/sram.bc
 
@@ -148,10 +150,18 @@ $(TARGET).%.s: $(TARGET).%.bc
 $(TARGET).%: $(TARGET).%.s
 	$(LINKER) $(LDFLAGS) -o $@ $< $(LIBS)
 
+# Numerical Precision Autotuner
+tune: tune_precision clean
+
+tune_precision:
+	cp $(BINDIR)/$(TUNER) .
+	python $(TUNER)
+	rm -rf $(TUNER)
+
 clean:
 	$(RM) $(TARGET) $(TARGET).s $(BCFILES) $(LLFILES) $(LINKEDBC) \
 	accept-globals-info.txt accept_config.txt accept_config_desc.txt \
-	accept_log.txt accept_time.txt accept_bbstats.txt \
+	accept_log.txt accept_time.txt accept_bbstats.txt cdf_stats.txt \
 	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
 	accept-approxRetValueFunctions-info.txt accept-npuArrayArgs-info.txt \
 	$(CLEANMETOO)
