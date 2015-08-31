@@ -521,7 +521,7 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
             maxed_insn = []
         # Now iterate over all instructions
         for idx in range(0, min(instlimit, len(base_config))):
-            logging.info ("Increasing lomask on instruction {} to {}".format(idx, base_config[idx]['insn']))
+            logging.info ("Increasing lomask on {}".format(base_config[idx]['insn']))
             if (base_config[idx]['himask']+base_config[idx]['lomask']) == get_bitwidth_from_type(base_config[idx]['type']):
                 insn_errors[idx] = float('inf')
                 logging.info ("Skipping current instruction {} - bitmask max reached".format(idx))
