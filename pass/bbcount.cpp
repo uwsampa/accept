@@ -54,8 +54,8 @@ bool BBCount::doInitialization(Module &M) {
   // Determine the number of basic blocks in the module
   for (Module::iterator mi = M.begin(); mi != M.end(); ++mi) {
     Function *F = mi;
-    if (transformPass->shouldInjectError(*F))
-      bbTotal += F->size();
+    // if (!transformPass->shouldSkipFunc(*F))
+    bbTotal += F->size();
   }
 
   Value* bbTotalVal = builder.getInt32(bbTotal);;
@@ -71,7 +71,9 @@ bool BBCount::doFinalization(Module &M) {
 
 bool BBCount::runOnFunction(Function &F) {
   bool modified = false;
-  if (transformPass->shouldInjectError(F)) {
+
+  // Skip optimizing functions that seem to be in standard libraries.
+  if (!transformPass->shouldSkipFunc(F)) {
     assert (!llvm::verifyFunction(F) && "Verification failed before code alteration");
     modified = instrumentBasicBlocks(F);
     assert (!llvm::verifyFunction(F) && "Verification failed after code alteration");
@@ -89,10 +91,11 @@ bool BBCount::instrumentBasicBlocks(Function & F){
 
   bool modified = false;
 
-  // We don't want to instrument the instrumentation function
-  if (F.getName().str() != injectFn_name) {
+  for (Function::iterator fi = F.begin(); fi != F.end(); ++fi) {
 
-    for (Function::iterator fi = F.begin(); fi != F.end(); ++fi) {
+    // Only instrument if the function is white-listed
+    if (transformPass->shouldInjectError(F)) {
+
       BasicBlock *bb = fi;
 
       // Insert logbb call before the BB terminator
@@ -107,10 +110,9 @@ bool BBCount::instrumentBasicBlocks(Function & F){
       builder.CreateCall(logFunc, args);
 
       modified = true;
-
-      ++bbIndex;
     }
 
+    ++bbIndex;
   }
 
   return modified;
