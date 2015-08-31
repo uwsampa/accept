@@ -591,7 +591,7 @@ def tune_lomask(base_config, target_error, passlimit, clusterworkers, run_on_gra
 # Main Function
 #################################################
 
-def tune_width(accept_config_fn, target_error, passlimit, clusterworkers, run_on_grappa):
+def tune_width(accept_config_fn, target_error, passlimit, skip, clusterworkers, run_on_grappa):
     """Performs instruction masking tuning
     """
     # Generate default configuration
@@ -608,10 +608,12 @@ def tune_width(accept_config_fn, target_error, passlimit, clusterworkers, run_on
     init_step_count()
 
     # Let's tune the high mask bits (0 performance degradation)
-    tune_himask(config, clusterworkers, run_on_grappa)
+    if skip!='hi':
+        tune_himask(config, clusterworkers, run_on_grappa)
 
     # Now let's tune the low mask bits (performance degradation allowed)
-    tune_lomask(config, target_error, passlimit, clusterworkers, run_on_grappa)
+    if skip!='lo':
+        tune_lomask(config, target_error, passlimit, clusterworkers, run_on_grappa)
 
     # Print the final conf object
     print_config(config)
@@ -638,6 +640,10 @@ def cli():
     parser.add_argument(
         '-p', dest='passlimit', action='store', type=int, required=False,
         default=1000, help='maximum number of passes when masking off LSBs'
+    )
+    parser.add_argument(
+        '-skip', dest='skip', action='store', type=str, required=False,
+        default=None, help='skip a particular phase'
     )
     parser.add_argument(
         '-c', dest='clusterworkers', action='store', type=int, required=False,
@@ -676,7 +682,13 @@ def cli():
         rootLogger.setLevel(logging.INFO)
 
     # Tuning
-    tune_width(args.accept_config_fn, args.target_error, args.passlimit, args.clusterworkers, args.grappa)
+    tune_width(
+        args.accept_config_fn,
+        args.target_error,
+        args.passlimit,
+        args.skip,
+        args.clusterworkers,
+        args.grappa)
 
     # Close the log handlers
     handlers = rootLogger.handlers[:]
