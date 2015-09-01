@@ -22,6 +22,12 @@
 #define PARAM_MASK ((int64_t)0x0FFFF) // low 16-bits
 #define MODEL_MASK ((int64_t)0x0FFFF0000) // high 16-bits
 
+#define MASK_64 0xFFFFFFFFFFFFFFFFull
+#define MASK_32 0x00000000FFFFFFFFull
+#define MASK_16 0x000000000000FFFFull
+#define MASK_8  0x00000000000000FFull
+
+
 /*
  * injectInst drives all of the error injection routines
  * the injection routine(s) called depend on the param input
@@ -128,28 +134,54 @@ uint64_t injectInst(char* opcode, int64_t param, uint64_t ret, uint64_t op1,
     break;
 
   case 9: {
-    // Bitmasking
-    uint64_t mask = 0x00000000FFFFFFFFull;
     // Break down the model_param into a right and left mask
     uint32_t hishift = (model_param >> 8) & 0xFF;
     uint32_t loshift = (model_param & 0xFF);
-    // Now left shift the mask by model_param
-    uint32_t lomask = mask << loshift;
-    // Now right shift the mask by model_param
-    uint32_t himask = 0;
-    // Check if we are dealing with a signed negative
-    if (ret&0x80000000) {
-      himask = mask << (32-hishift);
-      return_value = ret&lomask|himask;
-    } else {
-      himask = mask >> hishift;
-      return_value = ret&lomask&himask;
+    // Now generate the LSB mask
+    uint64_t lomask = MASK_64 << loshift;
+    // Now generate the MSB mask
+    uint64_t himask = 0;
+
+    // Type dependent himask (only works with ints)
+    if (strcmp(type, "Int64")) {
+      if (ret&0x8000000000000000) {
+        himask = MASK_64 << (64-hishift);
+        return_value = ret&lomask|himask;
+      } else {
+        himask = MASK_64 >> hishift;
+        return_value = ret&lomask&himask;
+      }
     }
-    // std::cout << "[loshift,hishift] = [" << loshift << "," << hishift << "]" << std::endl;
-    // std::cout << "[loshift,hishift] = [" << loshift << "," << hishift << "]" << std::endl;
-    // std::cout << "[lomask,himask] = [" << std::hex << lomask << "," << himask << "]" << std::dec << std::endl;
-    // std::cout << "[before,after] = [" << ret << "," << return_value << "]" << std::endl;
-    // }
+    else if (strcmp(type, "Int32")) {
+      if (ret&0x80000000) {
+        himask = MASK_32 << (32-hishift);
+        return_value = ret&lomask|himask;
+      } else {
+        himask = MASK_32 >> hishift;
+        return_value = ret&lomask&himask;
+      }
+    }
+    else if (strcmp(type, "Int16")) {
+      if (ret&0x8000) {
+        himask = MASK_16 << (16-hishift);
+        return_value = ret&lomask|himask;
+      } else {
+        himask = MASK_16 >> hishift;
+        return_value = ret&lomask&himask;
+      }
+    }
+    else if (strcmp(type, "Int8")) {
+      if (ret&0x80) {
+        himask = MASK_8 << (8-hishift);
+        return_value = ret&lomask|himask;
+      } else {
+        himask = MASK_8 >> hishift;
+        return_value = ret&lomask&himask;
+      }
+    } else {
+      return_value = 0;
+      std::cerr << "Cannot apply MSB masking to non-int type\n" << std::endl;
+    }
     break;
   }
 
