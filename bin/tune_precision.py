@@ -166,7 +166,9 @@ def read_config(fname):
                     'bb': int(bb),
                     'line': int(line),
                     'opcode': opcode,
-                    'type': typ})
+                    'type': typ,
+                    'rate': get_bitwidth_from_type(typ)/8
+                    })
 
     return config
 
@@ -470,7 +472,7 @@ def tune_himask(base_config, instlimit, clusterworkers, run_on_grappa):
     report_error_and_savings(base_config, 0.0)
 
 
-def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers, run_on_grappa, rate=1):
+def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers, run_on_grappa):
     """Tunes the least significant bits masking to meet the
     specified error requirements, given a passlimit.
     The tuning algorithm performs multiple passes over every
@@ -551,7 +553,7 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
                 output_path = tmpoutputsdir+'/'+'out_'+str(tuning_pass)+'_'+str(idx)+EXT
                 logging.debug ("File output path of instruction {}: {}".format(tmp_config[idx]['lomask'], output_path))
                 # Increment the LSB mask value
-                tmp_config[idx]['lomask'] += rate
+                tmp_config[idx]['lomask'] += tmp_config[idx]['rate']
                 logging.info ("Testing lomask of value {} on instruction {}".format(tmp_config[idx]['lomask'], idx))
                 # Test the config
                 if (clusterworkers):
@@ -587,10 +589,11 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
                 # The error is too large, so let's tell the autotuner
                 # not to revisit this instruction during later passes
                 maxed_insn.append(idx)
+                tmp_config[idx]['rate'] = max(tmp_config[idx]['rate']/2, 1)
         # Apply LSB masking to the instruction that are not impacted by it
         logging.debug ("Zero-error instruction list: {}".format(zero_error))
         for idx in zero_error:
-            base_config[idx]['lomask'] += rate
+            base_config[idx]['lomask'] += tmp_config[idx]['rate']
             logging.info ("Increasing lomask on instruction {} to {} (no additional error)".format(idx, tmp_config[idx]['lomask']))
         # Report savings
         if zero_error:
@@ -598,7 +601,7 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
         # Apply LSB masking to the instruction that minimizes positive error
         logging.debug ("[minerror, target_error] = [{}, {}]".format(minerror, target_error))
         if minerror <= target_error:
-            base_config[minidx]['lomask'] += rate
+            base_config[minidx]['lomask'] += tmp_config[idx]['rate']
             prev_minerror = minerror
             logging.info ("Increasing lomask on instruction {} to {} (best)".format(minidx, tmp_config[minidx]['lomask']))
             report_error_and_savings(base_config, minerror)
