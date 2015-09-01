@@ -167,7 +167,7 @@ def read_config(fname):
                     'line': int(line),
                     'opcode': opcode,
                     'type': typ,
-                    'rate': get_bitwidth_from_type(typ)/4
+                    'rate': get_bitwidth_from_type(typ)/8
                     })
 
     return config
