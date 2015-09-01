@@ -106,6 +106,18 @@ def get_bitwidth_from_type(typeStr):
         logging.error('Unrecognized type: {}'.format(typeStr))
         exit()
 
+def is_float_type(typeStr):
+    """Returns the true if type is a Float
+    """
+    if (typeStr=="Half"):
+        return True
+    elif(typeStr=="Float"):
+        return True
+    elif(typeStr=="Double"):
+        return True
+    else:
+        return False
+
 def get_param_from_masks(himask, lomask):
     """Returns parameter from width settings
     """
@@ -432,13 +444,17 @@ def tune_himask(base_config, instlimit, clusterworkers, run_on_grappa):
 
     for idx in range(0, min(instlimit, len(base_config))):
         logging.info ("Tuning instruction: {}".format(base_config[idx]['insn']))
-        if (clusterworkers>0):
-            jobid = cw.randid()
-            with jobs_lock:
-                jobs[jobid] = idx
-            client.submit(jobid, tune_himask_insn, base_config, idx)
+        if (is_float_type(base_config[idx]['type'])):
+            logging.info ("Skipping tuning because instruction type is a Float")
+            insn_himasks[idx] = 0
         else:
-            insn_himasks[idx] = tune_himask_insn(base_config, idx)
+            if (clusterworkers>0):
+                jobid = cw.randid()
+                with jobs_lock:
+                    jobs[jobid] = idx
+                client.submit(jobid, tune_himask_insn, base_config, idx)
+            else:
+                insn_himasks[idx] = tune_himask_insn(base_config, idx)
 
     if (clusterworkers):
         logging.info('All jobs submitted for himaks tuning')
