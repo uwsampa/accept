@@ -540,9 +540,18 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
         # Now iterate over all instructions
         for idx in range(0, min(instlimit, len(base_config))):
             logging.info ("Tuning lomask on {}".format(base_config[idx]['insn']))
+
+            # Initial adjustments
+            if (base_config[idx]['rate'] > get_bitwidth_from_type(base_config[idx]['type'])-(base_config[idx]['himask']+base_config[idx]['lomask'])):
+                base_config[idx]['rate'] = get_bitwidth_from_type(base_config[idx]['type'])-(base_config[idx]['himask']+base_config[idx]['lomask'])
+                base_config[idx]['rate'] = pow(2, log(base_config[idx]['rate']))
+                logging.info ("Updated the mask increment of instruction {} to ".format(idx, base_config[idx]['rate']))
+
+            # Check if we've reached the bitwidth limit
             if (base_config[idx]['himask']+base_config[idx]['lomask']) == get_bitwidth_from_type(base_config[idx]['type']):
                 insn_errors[idx] = float('inf')
                 logging.info ("Skipping current instruction {} - bitmask max reached".format(idx))
+            # Check if we've maxed that instruction out (already reached the max error)
             elif idx in maxed_insn:
                 insn_errors[idx] = float('inf')
                 logging.info ("Skipping current instruction {} - will degrade quality too much".format(idx))
@@ -553,7 +562,6 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
                 output_path = tmpoutputsdir+'/'+'out_'+str(tuning_pass)+'_'+str(idx)+EXT
                 logging.debug ("File output path of instruction {}: {}".format(tmp_config[idx]['lomask'], output_path))
                 # Increment the LSB mask value
-                tmp_config[idx]['rate'] = min(tmp_config[idx]['rate'], get_bitwidth_from_type(base_config[idx]['type'])-(base_config[idx]['himask']+base_config[idx]['lomask']))
                 tmp_config[idx]['lomask'] += tmp_config[idx]['rate']
                 logging.info ("Testing lomask of value {} on instruction {}".format(tmp_config[idx]['lomask'], idx))
                 # Test the config
