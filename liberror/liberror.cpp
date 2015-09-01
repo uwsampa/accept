@@ -22,10 +22,10 @@
 #define PARAM_MASK ((int64_t)0x0FFFF) // low 16-bits
 #define MODEL_MASK ((int64_t)0x0FFFF0000) // high 16-bits
 
-#define MASK_64 0xFFFFFFFFFFFFFFFFull
-#define MASK_32 0x00000000FFFFFFFFull
-#define MASK_16 0x000000000000FFFFull
-#define MASK_8  0x00000000000000FFull
+#define MASK_64 0xFFFFFFFFFFFFFFFFULL
+#define MASK_32 0x00000000FFFFFFFFULL
+#define MASK_16 0x000000000000FFFFULL
+#define MASK_8  0x00000000000000FFULL
 
 
 /*
@@ -143,7 +143,7 @@ uint64_t injectInst(char* opcode, int64_t param, uint64_t ret, uint64_t op1,
     uint64_t himask = 0;
 
     // Type dependent himask (only works with ints)
-    if (strcmp(type, "Int64")) {
+    if (!strcmp(type, "Int64")) {
       if (ret&0x8000000000000000) {
         himask = MASK_64 << (64-hishift);
         return_value = ret&lomask|himask;
@@ -152,7 +152,7 @@ uint64_t injectInst(char* opcode, int64_t param, uint64_t ret, uint64_t op1,
         return_value = ret&lomask&himask;
       }
     }
-    else if (strcmp(type, "Int32")) {
+    else if (!strcmp(type, "Int32")) {
       if (ret&0x80000000) {
         himask = MASK_32 << (32-hishift);
         return_value = ret&lomask|himask;
@@ -161,7 +161,7 @@ uint64_t injectInst(char* opcode, int64_t param, uint64_t ret, uint64_t op1,
         return_value = ret&lomask&himask;
       }
     }
-    else if (strcmp(type, "Int16")) {
+    else if (!strcmp(type, "Int16")) {
       if (ret&0x8000) {
         himask = MASK_16 << (16-hishift);
         return_value = ret&lomask|himask;
@@ -170,7 +170,7 @@ uint64_t injectInst(char* opcode, int64_t param, uint64_t ret, uint64_t op1,
         return_value = ret&lomask&himask;
       }
     }
-    else if (strcmp(type, "Int8")) {
+    else if (!strcmp(type, "Int8")) {
       if (ret&0x80) {
         himask = MASK_8 << (8-hishift);
         return_value = ret&lomask|himask;
@@ -181,6 +181,8 @@ uint64_t injectInst(char* opcode, int64_t param, uint64_t ret, uint64_t op1,
     } else {
       return_value = ret&lomask;
     }
+    // if (ret!=return_value)
+    //   std::cout << "[before, after]: [" << std::hex << ret << ", " << return_value << std::dec << "]" << std::endl;
     break;
   }
 
