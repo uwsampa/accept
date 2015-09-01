@@ -87,11 +87,11 @@ def get_bitwidth_from_type(typeStr):
     """Returns the bit-width of a given LLVM type
     """
     if (typeStr=="Half"):
-        return 16
+        return 10
     elif(typeStr=="Float"):
-        return 32
+        return 23
     elif(typeStr=="Double"):
-        return 64
+        return 52
     elif (typeStr=="Int1"):
         return 1
     elif (typeStr=="Int8"):
@@ -544,8 +544,8 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
             # Initial adjustments
             if (base_config[idx]['rate'] > get_bitwidth_from_type(base_config[idx]['type'])-(base_config[idx]['himask']+base_config[idx]['lomask'])):
                 base_config[idx]['rate'] = get_bitwidth_from_type(base_config[idx]['type'])-(base_config[idx]['himask']+base_config[idx]['lomask'])
-                base_config[idx]['rate'] = pow(2, log(base_config[idx]['rate']))
-                logging.info ("Updated the mask increment of instruction {} to ".format(idx, base_config[idx]['rate']))
+                # base_config[idx]['rate'] = math.pow(2, math.log(base_config[idx]['rate'], 2))
+                logging.debug("Updated the mask increment of instruction {} to ".format(idx, base_config[idx]['rate']))
 
             # Check if we've reached the bitwidth limit
             if (base_config[idx]['himask']+base_config[idx]['lomask']) == get_bitwidth_from_type(base_config[idx]['type']):
@@ -586,7 +586,7 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
         minerror, minidx = float("inf"), -1
         # Keep track of the instructions that results zero error
         zero_error = []
-        for idx, conf in enumerate(base_config):
+        for idx in range(0, min(instlimit, len(base_config))):
             error = insn_errors[idx]
             # Update min error accordingly
             if error == prev_minerror:
@@ -600,6 +600,7 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
                 maxed_insn.append(idx)
                 # Also decrement the masking rate
                 base_config[idx]['rate'] = max(tmp_config[idx]['rate']/2, 1)
+                logging.debug("Updated the mask increment of instruction {} to ".format(idx, base_config[idx]['rate']))
         # Apply LSB masking to the instruction that are not impacted by it
         logging.debug ("Zero-error instruction list: {}".format(zero_error))
         for idx in zero_error:
