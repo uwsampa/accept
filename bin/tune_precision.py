@@ -544,8 +544,7 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
             # Initial adjustments
             if (base_config[idx]['rate'] > get_bitwidth_from_type(base_config[idx]['type'])-(base_config[idx]['himask']+base_config[idx]['lomask'])):
                 base_config[idx]['rate'] = get_bitwidth_from_type(base_config[idx]['type'])-(base_config[idx]['himask']+base_config[idx]['lomask'])
-                # base_config[idx]['rate'] = math.pow(2, math.log(base_config[idx]['rate'], 2))
-                logging.debug("Updated the mask increment of instruction {} to ".format(idx, base_config[idx]['rate']))
+                logging.debug("Updated the mask increment of instruction {} to {}".format(idx, base_config[idx]['rate']))
 
             # Check if we've reached the bitwidth limit
             if (base_config[idx]['himask']+base_config[idx]['lomask']) == get_bitwidth_from_type(base_config[idx]['type']):
@@ -599,8 +598,8 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
                 # not to revisit this instruction during later passes
                 maxed_insn.append(idx)
                 # Also decrement the masking rate
-                base_config[idx]['rate'] = max(tmp_config[idx]['rate']/2, 1)
-                logging.debug("Updated the mask increment of instruction {} to ".format(idx, base_config[idx]['rate']))
+                base_config[idx]['rate'] = max(int(tmp_config[idx]['rate']/2), 1)
+                logging.debug("Updated the mask increment of instruction {} to {}".format(idx, base_config[idx]['rate']))
         # Apply LSB masking to the instruction that are not impacted by it
         logging.debug ("Zero-error instruction list: {}".format(zero_error))
         for idx in zero_error:
@@ -625,8 +624,8 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
         elif not zero_error:
             # Ensure before we finish that all masking rates are now down to 1 (equilibrium reached)
             equilibrium = True
-            for conf in tmp_config:
-                if tmp_config[idx]['rate'] > 1:
+            for idx in range(0, min(instlimit, len(base_config))):
+                if base_config[idx]['rate'] > 1:
                     equilibrium = False
             if equilibrium:
                 break
