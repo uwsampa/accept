@@ -589,7 +589,8 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
                 # The error is too large, so let's tell the autotuner
                 # not to revisit this instruction during later passes
                 maxed_insn.append(idx)
-                tmp_config[idx]['rate'] = max(tmp_config[idx]['rate']/2, 1)
+                # Also decrement the masking rate
+                base_config[idx]['rate'] = max(tmp_config[idx]['rate']/2, 1)
         # Apply LSB masking to the instruction that are not impacted by it
         logging.debug ("Zero-error instruction list: {}".format(zero_error))
         for idx in zero_error:
@@ -610,9 +611,15 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
             dst_path = outputsdir+'/out_{0:05d}'.format(step_count)+EXT
             shutil.copyfile(src_path, dst_path)
             create_overwrite_directory(tmpoutputsdir)
-        # Empty list
+        # Empty zero list
         elif not zero_error:
-            break
+            # Ensure before we finish that all masking rates are now down to 1 (equilibrium reached)
+            equilibrium = True
+            for conf in tmp_config:
+                if tmp_config[idx]['rate'] > 1:
+                    equilibrium = False
+            if equilibrium:
+                break
         logging.info ("Bit tuning pass #{} done!\n".format(tuning_pass))
 
     if(clusterworkers):
