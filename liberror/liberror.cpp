@@ -179,8 +179,7 @@ uint64_t injectInst(char* opcode, int64_t param, uint64_t ret, uint64_t op1,
         return_value = ret&lomask&himask;
       }
     } else {
-      return_value = 0;
-      std::cerr << "Cannot apply MSB masking to non-int type\n" << std::endl;
+      return_value = ret&lomask;
     }
     break;
   }
