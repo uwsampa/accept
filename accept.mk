@@ -164,5 +164,6 @@ clean:
 	accept_log.txt accept_time.txt accept_bbstats.txt cdf_stats.txt \
 	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
 	accept-approxRetValueFunctions-info.txt accept-npuArrayArgs-info.txt \
+	$(TUNER) \
 	$(CLEANMETOO)
 	for SUBDIR in $(SUBDIRS); do make -C "$$SUBDIR" clean; done
