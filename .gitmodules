@@ -1,3 +1,6 @@
 [submodule "clang"]
 	path = clang
 	url = https://github.com/uwsampa/accept-clang.git
+[submodule "cluster-workers"]
+	path = cluster-workers
+	url = https://github.com/sampsyo/cluster-workers
