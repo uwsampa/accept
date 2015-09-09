@@ -44,10 +44,12 @@ endif
 # On platforms that ship Python 3 as `python`, force Python 2 to be used in
 # CMake. I don't think CMake itself has a problem with py3k, but LLVM's
 # scripts do.
+# Additionally, make virtualenv use python2.
 ifeq ($(shell which python2 >/dev/null 2>&1 ; echo $$?),0)
 	CMAKE_FLAGS += -DPYTHON_EXECUTABLE:PATH=$(shell which python2)
+	VIRTUALENV += -p $(shell which python2)
 endif
-# Same with the virtualenv program (the ACCEPT driver is 2-only).
+# If python2-virtualenv is installed, use that instead.
 ifeq ($(shell which virtualenv2 >/dev/null 2>&1 ; echo $$?),0)
 	VIRTUALENV := virtualenv2
 endif
