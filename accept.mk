@@ -21,6 +21,7 @@ LLVMLINK := $(BUILTDIR)/bin/llvm-link
 LLVMOPT := $(BUILTDIR)/bin/opt
 LLVMLLC := $(BUILTDIR)/bin/llc
 LLVMLLI := $(BUILTDIR)/bin/lli
+VEDIR := $(ACCEPTDIR)/venv
 RTDIR := $(ACCEPTDIR)/rt
 LEDIR := $(ACCEPTDIR)/liberror
 TUNER := tune_precision.py
@@ -33,6 +34,9 @@ RTLIB ?= $(RTDIR)/acceptrt.$(ARCH).bc
 LELIB ?= $(LEDIR)/liberror_all.bc
 EXTRABC += $(RTLIB)
 EXTRABC += $(LELIB)
+
+# Target platform specifics
+VEPYTHON := $(VEDIR)/bin/python2.7
 
 # Host platform specifics.
 ifeq ($(shell uname -s),Darwin)
@@ -155,7 +159,7 @@ tune: tune_precision clean
 
 tune_precision:
 	cp $(BINDIR)/$(TUNER) .
-	python $(TUNER) $(TUNER_ARGS)
+	$(VEPYTHON) $(TUNER) $(TUNER_ARGS)
 	rm -rf $(TUNER)
 
 clean:

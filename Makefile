@@ -9,6 +9,9 @@ VIRTUALENV := virtualenv
 # Location of the Python virtual environment.
 VENV := venv
 
+# Location of the Cluster-Workers library
+CWDIR := cluster-workers
+
 # CMake options for building LLVM and the ACCEPT pass.
 CMAKE_FLAGS := -G Ninja -DCMAKE_INSTALL_PREFIX:PATH=$(shell pwd)/$(BUILT)
 ifeq ($(RELEASE),1)
@@ -130,7 +133,7 @@ driver:
 	# sudo).
 	[ -e $(VENV)/bin/pip ] || virtualenv $(VENV)
 	./$(VENV)/bin/pip install -r requirements.txt
-
+	cd $(CWDIR) ; ./../$(VENV)/bin/python2.7 setup.py install
 
 # Documentation.
 
