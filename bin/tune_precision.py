@@ -622,17 +622,17 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
         equilibrium = True
         for idx in range(0, min(instlimit, len(base_config))):
             # The error is too large so let's reduce the masking rate
-            insn_errors[idx] > minerror:
-            if (base_config[idx]['rate']>1):
-                # This means we haven't reached equilibrium
-                equilibrium = False
-                # Let's half reduce the masking rate
-                base_config[idx]['rate'] = max(int(tmp_config[idx]['rate']/2), 1)
-                logging.debug("Updated the mask increment of instruction {} to {}".format(idx, base_config[idx]['rate']))
-            else:
-                # The rate is already set to 1 so let's tell the autotuner
-                # not to revisit this instruction during later passes
-                maxed_insn.append(idx)
+            if insn_errors[idx] > minerror:
+                if (base_config[idx]['rate']>1):
+                    # This means we haven't reached equilibrium
+                    equilibrium = False
+                    # Let's half reduce the masking rate
+                    base_config[idx]['rate'] = max(int(base_config[idx]['rate']/2), 1)
+                    logging.debug("Updated the mask increment of instruction {} to {}".format(idx, base_config[idx]['rate']))
+                else:
+                    # The rate is already set to 1 so let's tell the autotuner
+                    # not to revisit this instruction during later passes
+                    maxed_insn.append(idx)
 
         logging.info ("Bit tuning pass #{} done!\n".format(tuning_pass))
 
