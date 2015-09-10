@@ -583,7 +583,8 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
         logging.debug ("Errors: {}".format(insn_errors))
         # Keep track of the instruction that results in the least postive error
         minerror, minidx = float("inf"), -1
-        # Keep track of the instructions that results zero error
+        # Keep track of the instructions that results in zero additional error
+        # and record the instruction that results in minimal error
         zero_error = []
         for idx in range(0, min(instlimit, len(base_config))):
             error = insn_errors[idx]
@@ -593,43 +594,54 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
             elif error<minerror:
                 minerror = error
                 minidx = idx
-            else:
-                # The error is too large, so let's tell the autotuner
-                # not to revisit this instruction during later passes
-                maxed_insn.append(idx)
-                # Also decrement the masking rate
-                base_config[idx]['rate'] = max(int(tmp_config[idx]['rate']/2), 1)
-                logging.debug("Updated the mask increment of instruction {} to {}".format(idx, base_config[idx]['rate']))
+
         # Apply LSB masking to the instruction that are not impacted by it
         logging.debug ("Zero-error instruction list: {}".format(zero_error))
         for idx in zero_error:
-            base_config[idx]['lomask'] += tmp_config[idx]['rate']
-            logging.info ("Increasing lomask on instruction {} to {} (no additional error)".format(idx, tmp_config[idx]['lomask']))
-        # Report savings
+            base_config[idx]['lomask'] += base_config[idx]['rate']
+            logging.info ("Increasing lomask on instruction {} to {} (no additional error)".format(idx, base_config[idx]['lomask']))
+        # Report savings if we got free bit-width reduction
         if zero_error:
             report_error_and_savings(base_config, prev_minerror)
         # Apply LSB masking to the instruction that minimizes positive error
         logging.debug ("[minerror, target_error] = [{}, {}]".format(minerror, target_error))
         if minerror <= target_error:
-            base_config[minidx]['lomask'] += tmp_config[idx]['rate']
+            base_config[minidx]['lomask'] += base_config[idx]['rate']
             prev_minerror = minerror
-            logging.info ("Increasing lomask on instruction {} to {} (best)".format(minidx, tmp_config[minidx]['lomask']))
+            logging.info ("Increasing lomask on instruction {} to {} (best)".format(minidx, base_config[minidx]['lomask']))
             report_error_and_savings(base_config, minerror)
             # Copy file output
             src_path = tmpoutputsdir+'/out_'+str(tuning_pass)+'_'+str(minidx)+EXT
             dst_path = outputsdir+'/out_{0:05d}'.format(step_count)+EXT
             shutil.copyfile(src_path, dst_path)
             create_overwrite_directory(tmpoutputsdir)
-        # Empty zero list
-        elif not zero_error:
-            # Ensure before we finish that all masking rates are now down to 1 (equilibrium reached)
-            equilibrium = True
-            for idx in range(0, min(instlimit, len(base_config))):
-                if base_config[idx]['rate'] > 1:
-                    equilibrium = False
-            if equilibrium:
-                break
+
+        # Update the masking rates for the instructions which error degradations
+        # exceed the threshold. Also set equilibrium to True if all rates have
+        # converged to 1.
+        equilibrium = True
+        for idx in range(0, min(instlimit, len(base_config))):
+            # The error is too large so let's reduce the masking rate
+            insn_errors[idx] > minerror:
+            if (base_config[idx]['rate']>1):
+                # This means we haven't reached equilibrium
+                equilibrium = False
+                # Let's half reduce the masking rate
+                base_config[idx]['rate'] = max(int(tmp_config[idx]['rate']/2), 1)
+                logging.debug("Updated the mask increment of instruction {} to {}".format(idx, base_config[idx]['rate']))
+            else:
+                # The rate is already set to 1 so let's tell the autotuner
+                # not to revisit this instruction during later passes
+                maxed_insn.append(idx)
+
         logging.info ("Bit tuning pass #{} done!\n".format(tuning_pass))
+
+        # Termination conditions:
+        # 1 - min error exceeds target_error
+        # 2 - empty zero_error
+        # 3 - reached equilibrium
+        if (minerror>target_error) and (not zero_error) and equilibrium:
+            break
 
     if(clusterworkers):
         cw.slurm.stop()
