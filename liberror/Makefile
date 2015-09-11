@@ -16,3 +16,4 @@ clean:
 
 liberror_all.bc: $(LIBERROR_BCS)
 	$(LLVMLINK) $^ > $@
+	rm *.txt
