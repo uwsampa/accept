@@ -143,7 +143,7 @@ def parse_relax_config(f):
             param, ident = line.split(None, 1)
             yield ident, int(param)
 
-def read_config(fname):
+def read_config(fname, fixedrate):
     """Reads in a fine error injection descriptor.
     Returns a config object.
     """
@@ -157,6 +157,9 @@ def read_config(fname):
                 func, bb, line, opcode, typ = i_ident.split(':')
                 himask, lomask = get_masks_from_param(param)
 
+                # Derive the masking rate
+                maskingRate = 1 if fixedrate else get_bitwidth_from_type(typ)/8
+
                 # Add the config entry for the instruction
                 config.append({
                     'insn': ident,
@@ -167,7 +170,7 @@ def read_config(fname):
                     'line': int(line),
                     'opcode': opcode,
                     'type': typ,
-                    'rate': get_bitwidth_from_type(typ)/8
+                    'rate': maskingRate
                     })
 
     return config
@@ -247,7 +250,7 @@ def analyze(config, stats, BITWIDHTMAX=64, csv_fn=CDF_FILE):
         csv.writer(fp, delimiter='\t').writerows(cdf_stats)
 
 
-def gen_default_config(instlimit):
+def gen_default_config(instlimit, fixedrate):
     """Reads in the coarse error injection descriptor,
     generates the default config by running make run_orig.
     Returns a config object.
@@ -258,7 +261,7 @@ def gen_default_config(instlimit):
     shell(shlex.split('make run_orig'), cwd=curdir)
 
     # Load ACCEPT config and adjust parameters.
-    config = read_config(ACCEPT_CONFIG)
+    config = read_config(ACCEPT_CONFIG, fixedrate)
 
     # Notify the user that the instruction limit is lower than the configuration length
     if len(config) > instlimit:
@@ -654,17 +657,17 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
 # Main Function
 #################################################
 
-def tune_width(accept_config_fn, target_error, passlimit, instlimit, skip, clusterworkers, run_on_grappa):
+def tune_width(accept_config_fn, target_error, fixedrate, passlimit, instlimit, skip, clusterworkers, run_on_grappa):
     """Performs instruction masking tuning
     """
     # Generate default configuration
     if (accept_config_fn):
-        config = read_config(accept_config_fn)
+        config = read_config(accept_config_fn, fixedrate)
         stats = read_dyn_stats()
         analyze(config, stats)
         exit()
     else:
-        config = gen_default_config(instlimit)
+        config = gen_default_config(instlimit, fixedrate)
 
     # Initialize globals
     init_step_count()
@@ -711,6 +714,9 @@ def cli():
         '-il', dest='instlimit', action='store', type=int, required=False,
         default=1000, help='limits the number of instructions that get tuned (for quick testing)'
     )
+    paser.add_argument(
+        '-fixedrate', dest='fixedrate', action='store_true', required=False,
+        default=False, help='sets the masking rate to 1 from the start (may run slower)')
     parser.add_argument(
         '-skip', dest='skip', action='store', type=str, required=False,
         default=None, help='skip a particular phase'
@@ -755,6 +761,7 @@ def cli():
     tune_width(
         args.accept_config_fn,
         args.target_error,
+        args.fixedrate,
         args.passlimit,
         args.instlimit,
         args.skip,
