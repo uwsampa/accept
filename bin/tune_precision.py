@@ -688,6 +688,7 @@ def tune_width(accept_config_fn, target_error, target_snr, fixedrate, passlimit,
     # If in SNR mode, measure initial SNR
     if (target_snr>0):
         init_snr = test_config(config)
+        logging.info ("Initial SNR = {}\n".format(init_snr))
     else:
         init_snr = 0
 
