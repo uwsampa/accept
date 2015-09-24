@@ -370,7 +370,7 @@ def report_error_and_savings(base_config, error, recompute=False, error_fn=ERROR
 # Parameterisation testing
 #################################################
 
-def tune_himask_insn(base_config, idx):
+def tune_himask_insn(base_config, idx, init_snr):
     """Tunes the most significant bit masking of
     an instruction given its index without affecting
     application error.
@@ -390,7 +390,7 @@ def tune_himask_insn(base_config, idx):
         # Test the config
         error = test_config(tmp_config)
         # Check the error, and modify mask_val accordingly
-        if error==0:
+        if (init_snr==0 and error==0) or abs(init_snr-error)<0.1:
             logging.debug ("New best mask!")
             best_mask = mask_val
             mask_val += bitwidth>>(i+2)
@@ -404,13 +404,13 @@ def tune_himask_insn(base_config, idx):
         tmp_config[idx]['himask'] = bitwidth
         # Test the config
         error = test_config(tmp_config)
-        if error==0:
+        if (init_snr==0 and error==0) or abs(init_snr-error)<0.1:
             logging.debug ("New best mask!")
             best_mask = mask_val
     # Return the mask value, and type tuple
     return best_mask
 
-def tune_himask(base_config, instlimit, clusterworkers, run_on_grappa):
+def tune_himask(base_config, init_snr, instlimit, clusterworkers, run_on_grappa):
     """Tunes the most significant bit masking at an instruction
     granularity without affecting application error.
     """
@@ -457,9 +457,9 @@ def tune_himask(base_config, instlimit, clusterworkers, run_on_grappa):
                 jobid = cw.randid()
                 with jobs_lock:
                     jobs[jobid] = idx
-                client.submit(jobid, tune_himask_insn, base_config, idx)
+                client.submit(jobid, tune_himask_insn, base_config, idx, init_snr)
             else:
-                insn_himasks[idx] = tune_himask_insn(base_config, idx)
+                insn_himasks[idx] = tune_himask_insn(base_config, idx, init_snr)
 
     if (clusterworkers):
         logging.info('All jobs submitted for himaks tuning')
@@ -677,12 +677,18 @@ def tune_width(accept_config_fn, target_error, target_snr, fixedrate, passlimit,
     else:
         config = gen_default_config(instlimit, fixedrate)
 
+    # If in SNR mode, measure initial SNR
+    if (target_snr>0):
+        init_snr = test_config(config)
+    else:
+        init_snr = 0
+
     # Initialize globals
     init_step_count()
 
     # Let's tune the high mask bits (0 performance degradation)
     if skip!='hi':
-        tune_himask(config, instlimit, clusterworkers, run_on_grappa)
+        tune_himask(config, init_snr, instlimit, clusterworkers, run_on_grappa)
 
     # Now let's tune the low mask bits (performance degradation allowed)
     if skip!='lo':
