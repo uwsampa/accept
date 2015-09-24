@@ -475,7 +475,7 @@ def tune_himask(base_config, instlimit, clusterworkers, run_on_grappa):
     report_error_and_savings(base_config, 0.0)
 
 
-def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers, run_on_grappa):
+def tune_lomask(base_config, target_error, target_snr, passlimit, instlimit, clusterworkers, run_on_grappa):
     """Tunes the least significant bits masking to meet the
     specified error requirements, given a passlimit.
     The tuning algorithm performs multiple passes over every
@@ -495,6 +495,9 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
 
     # Map instructions to errors
     insn_errors = collections.defaultdict(list)
+
+    # Are we measuring SNR or error?
+    snr_mode = True if target_snr > 0 else False
 
     def completion(jobid, output):
         with jobs_lock:
@@ -531,7 +534,7 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
     logging.debug('Tmp output directory created: {}'.format(tmpoutputsdir))
 
     # Previous min error (to keep track of instructions that don't impact error)
-    prev_minerror = 0.0
+    prev_besterror = test_config(base_config) if snr_mode else 0.0
     # List of instructions that are tuned optimally
     maxed_insn = []
     # Passes
@@ -584,19 +587,21 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
 
         # Report all errors
         logging.debug ("Errors: {}".format(insn_errors))
-        # Keep track of the instruction that results in the least postive error
-        minerror, minidx = float("inf"), -1
+        # Keep track of the instruction that results in the least postive error, or the max SNR
+        besterror = 0.0 if snr_mode else float("inf")
+        bestidx = -1
+
         # Keep track of the instructions that results in zero additional error
         # and record the instruction that results in minimal error
         zero_error = []
         for idx in range(0, min(instlimit, len(base_config))):
             error = insn_errors[idx]
             # Update min error accordingly
-            if error == prev_minerror:
+            if error == prev_besterror:
                 zero_error.append(idx)
-            elif error<minerror:
-                minerror = error
-                minidx = idx
+            elif (not snr_mode and error<besterror) or (snr_mode and error>besterror):
+                    besterror = error
+                    bestidx = idx
 
         # Apply LSB masking to the instruction that are not impacted by it
         logging.debug ("Zero-error instruction list: {}".format(zero_error))
@@ -605,16 +610,16 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
             logging.info ("Increasing lomask on instruction {} to {} (no additional error)".format(idx, base_config[idx]['lomask']))
         # Report savings if we got free bit-width reduction
         if zero_error:
-            report_error_and_savings(base_config, prev_minerror)
+            report_error_and_savings(base_config, prev_besterror)
         # Apply LSB masking to the instruction that minimizes positive error
-        logging.debug ("[minerror, target_error] = [{}, {}]".format(minerror, target_error))
-        if minerror <= target_error:
-            base_config[minidx]['lomask'] += base_config[idx]['rate']
-            prev_minerror = minerror
-            logging.info ("Increasing lomask on instruction {} to {} (best)".format(minidx, base_config[minidx]['lomask']))
-            report_error_and_savings(base_config, minerror)
+        logging.debug ("[besterror, target_error] = [{}, {}]".format(besterror, target_error))
+        if (not snr_mode and besterror <= target_error) or (snr_mode and besterror >= target_error):
+            base_config[bestidx]['lomask'] += base_config[idx]['rate']
+            prev_besterror = besterror
+            logging.info ("Increasing lomask on instruction {} to {} (best)".format(bestidx, base_config[bestidx]['lomask']))
+            report_error_and_savings(base_config, besterror)
             # Copy file output
-            src_path = tmpoutputsdir+'/out_'+str(tuning_pass)+'_'+str(minidx)+EXT
+            src_path = tmpoutputsdir+'/out_'+str(tuning_pass)+'_'+str(bestidx)+EXT
             dst_path = outputsdir+'/out_{0:05d}'.format(step_count)+EXT
             shutil.copyfile(src_path, dst_path)
             create_overwrite_directory(tmpoutputsdir)
@@ -625,7 +630,7 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
         equilibrium = True
         for idx in range(0, min(instlimit, len(base_config))):
             # The error is too large so let's reduce the masking rate
-            if insn_errors[idx] > minerror:
+            if (not snr_mode and insn_errors[idx] > besterror) or (snr_mode and insn_errors[idx] < besterror):
                 if (base_config[idx]['rate']>1):
                     # This means we haven't reached equilibrium
                     equilibrium = False
@@ -640,10 +645,10 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
         logging.info ("Bit tuning pass #{} done!\n".format(tuning_pass))
 
         # Termination conditions:
-        # 1 - min error exceeds target_error
+        # 1 - min error exceeds target_error / max snr is below target snr
         # 2 - empty zero_error
         # 3 - reached equilibrium
-        if (minerror>target_error) and (not zero_error) and equilibrium:
+        if (not snr_mode and besterror>target_error) or (snr_mode and besterror<target_snr) and (not zero_error) and equilibrium:
             break
 
     if(clusterworkers):
@@ -657,7 +662,7 @@ def tune_lomask(base_config, target_error, passlimit, instlimit, clusterworkers,
 # Main Function
 #################################################
 
-def tune_width(accept_config_fn, target_error, fixedrate, passlimit, instlimit, skip, clusterworkers, run_on_grappa):
+def tune_width(accept_config_fn, target_error, target_snr, fixedrate, passlimit, instlimit, skip, clusterworkers, run_on_grappa):
     """Performs instruction masking tuning
     """
     # Generate default configuration
@@ -678,7 +683,7 @@ def tune_width(accept_config_fn, target_error, fixedrate, passlimit, instlimit, 
 
     # Now let's tune the low mask bits (performance degradation allowed)
     if skip!='lo':
-        tune_lomask(config, target_error, passlimit, instlimit, clusterworkers, run_on_grappa)
+        tune_lomask(config, target_error, target_snr, passlimit, instlimit, clusterworkers, run_on_grappa)
 
     # Do some post-processing
     stats = read_dyn_stats()
@@ -704,7 +709,11 @@ def cli():
     )
     parser.add_argument(
         '-t', dest='target_error', action='store', type=float, required=False,
-        default=0.1, help='target application error'
+        default=0.1, help='target relative application error'
+    )
+    parser.add_argument(
+        '-snr', dest='target_snr', action='store', type=float, required=False,
+        default=0, help='target signal to noise ratio (if set, error is ignored)'
     )
     parser.add_argument(
         '-pl', dest='passlimit', action='store', type=int, required=False,
@@ -714,9 +723,10 @@ def cli():
         '-il', dest='instlimit', action='store', type=int, required=False,
         default=1000, help='limits the number of instructions that get tuned (for quick testing)'
     )
-    paser.add_argument(
+    parser.add_argument(
         '-fixedrate', dest='fixedrate', action='store_true', required=False,
-        default=False, help='sets the masking rate to 1 from the start (may run slower)')
+        default=False, help='sets the masking rate to 1 from the start (may run slower)'
+    )
     parser.add_argument(
         '-skip', dest='skip', action='store', type=str, required=False,
         default=None, help='skip a particular phase'
@@ -761,6 +771,7 @@ def cli():
     tune_width(
         args.accept_config_fn,
         args.target_error,
+        args.target_snr,
         args.fixedrate,
         args.passlimit,
         args.instlimit,
