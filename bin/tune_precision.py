@@ -32,6 +32,9 @@ APPROX_OUTPUT = 'out'+EXT
 # PARAMETERS
 RESET_CYCLE = 1
 
+# Value to indicate a program crash
+CRASH = 0
+
 # Globals
 step_count = 0
 
@@ -346,7 +349,7 @@ def test_config(config, dstpath=None):
         # Program crashed, set the error to an arbitratily high number
         logging.warning('Program crashed!')
         print_config(config)
-        error = float('inf')
+        error = CRASH
     # Remove the temporary directory
     shutil.rmtree(tmpdir)
     # Return the error
@@ -472,10 +475,11 @@ def tune_himask(base_config, init_snr, instlimit, clusterworkers, run_on_grappa)
     for idx in range(0, min(instlimit, len(base_config))):
         base_config[idx]['himask'] = insn_himasks[idx]
         logging.info ("Himask of instruction {} tuned to {}".format(idx, insn_himasks[idx]))
-    report_error_and_savings(base_config, 0.0)
+
+    report_error_and_savings(base_config, init_snr)
 
 
-def tune_lomask(base_config, target_error, target_snr, passlimit, instlimit, clusterworkers, run_on_grappa):
+def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, instlimit, clusterworkers, run_on_grappa):
     """Tunes the least significant bits masking to meet the
     specified error requirements, given a passlimit.
     The tuning algorithm performs multiple passes over every
@@ -534,7 +538,8 @@ def tune_lomask(base_config, target_error, target_snr, passlimit, instlimit, clu
     logging.debug('Tmp output directory created: {}'.format(tmpoutputsdir))
 
     # Previous min error (to keep track of instructions that don't impact error)
-    prev_besterror = test_config(base_config) if snr_mode else 0.0
+    prev_besterror = init_snr if snr_mode else 0.0
+    max_error = 0.0 if snr_mode else float('inf') # worste case error/snr
     # List of instructions that are tuned optimally
     maxed_insn = []
     # Passes
@@ -554,11 +559,11 @@ def tune_lomask(base_config, target_error, target_snr, passlimit, instlimit, clu
 
             # Check if we've reached the bitwidth limit
             if (base_config[idx]['himask']+base_config[idx]['lomask']) == get_bitwidth_from_type(base_config[idx]['type']):
-                insn_errors[idx] = float('inf')
+                insn_errors[idx] = max_error
                 logging.info ("Skipping current instruction {} - bitmask max reached".format(idx))
             # Check if we've maxed that instruction out (already reached the max error)
             elif idx in maxed_insn:
-                insn_errors[idx] = float('inf')
+                insn_errors[idx] = max_error
                 logging.info ("Skipping current instruction {} - will degrade quality too much".format(idx))
             else:
                 # Generate temporary configuration
@@ -588,7 +593,7 @@ def tune_lomask(base_config, target_error, target_snr, passlimit, instlimit, clu
         # Report all errors
         logging.debug ("Errors: {}".format(insn_errors))
         # Keep track of the instruction that results in the least postive error, or the max SNR
-        besterror = 0.0 if snr_mode else float("inf")
+        besterror = 0.0 if snr_mode else max_error
         bestidx = -1
 
         # Keep track of the instructions that results in zero additional error
@@ -596,6 +601,9 @@ def tune_lomask(base_config, target_error, target_snr, passlimit, instlimit, clu
         zero_error = []
         for idx in range(0, min(instlimit, len(base_config))):
             error = insn_errors[idx]
+            # Check if programme crashed
+            if error==CRASH:
+                error=max_error
             # Update min error accordingly
             if error == prev_besterror:
                 zero_error.append(idx)
@@ -692,7 +700,15 @@ def tune_width(accept_config_fn, target_error, target_snr, fixedrate, passlimit,
 
     # Now let's tune the low mask bits (performance degradation allowed)
     if skip!='lo':
-        tune_lomask(config, target_error, target_snr, passlimit, instlimit, clusterworkers, run_on_grappa)
+        tune_lomask(
+            config,
+            target_error,
+            target_snr,
+            init_snr,
+            passlimit,
+            instlimit,
+            clusterworkers,
+            run_on_grappa)
 
     # Do some post-processing
     stats = read_dyn_stats()
