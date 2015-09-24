@@ -611,9 +611,12 @@ def tune_lomask(base_config, target_error, target_snr, passlimit, instlimit, clu
         # Report savings if we got free bit-width reduction
         if zero_error:
             report_error_and_savings(base_config, prev_besterror)
+        if snr_mode:
+            logging.debug ("[besterror, target_error] = [{}, {}]".format(besterror, target_error))
+        else:
+            logging.debug ("[besterror, target_snr] = [{}, {}]".format(besterror, target_snr))
         # Apply LSB masking to the instruction that minimizes positive error
-        logging.debug ("[besterror, target_error] = [{}, {}]".format(besterror, target_error))
-        if (not snr_mode and besterror <= target_error) or (snr_mode and besterror >= target_error):
+        if (not snr_mode and besterror <= target_error) or (snr_mode and besterror >= target_snr):
             base_config[bestidx]['lomask'] += base_config[idx]['rate']
             prev_besterror = besterror
             logging.info ("Increasing lomask on instruction {} to {} (best)".format(bestidx, base_config[bestidx]['lomask']))
