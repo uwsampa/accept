@@ -353,7 +353,7 @@ def test_config(config, dstpath=None):
     # Remove the temporary directory
     shutil.rmtree(tmpdir)
     # Return the error
-    return error
+    return float(error)
 
 def report_error_and_savings(base_config, error, recompute=False, error_fn=ERROR_LOG_FILE):
     """Reports the error of the current config,
