@@ -393,7 +393,7 @@ def tune_himask_insn(base_config, idx, init_snr):
         # Test the config
         error = test_config(tmp_config)
         # Check the error, and modify mask_val accordingly
-        if (init_snr==0 and error==0) or abs(init_snr-error)<0.1:
+        if (init_snr==0 and error==0) or (init_snr>0 and abs(init_snr-error)<0.1):
             logging.debug ("New best mask!")
             best_mask = mask_val
             mask_val += bitwidth>>(i+2)
@@ -407,7 +407,7 @@ def tune_himask_insn(base_config, idx, init_snr):
         tmp_config[idx]['himask'] = bitwidth
         # Test the config
         error = test_config(tmp_config)
-        if (init_snr==0 and error==0) or abs(init_snr-error)<0.1:
+        if (init_snr==0 and error==0) or (init_snr>0 and abs(init_snr-error)<0.1):
             logging.debug ("New best mask!")
             best_mask = mask_val
     # Return the mask value, and type tuple
@@ -620,9 +620,9 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
         if zero_error:
             report_error_and_savings(base_config, prev_besterror)
         if snr_mode:
-            logging.debug ("[besterror, target_error] = [{}, {}]".format(besterror, target_error))
-        else:
             logging.debug ("[besterror, target_snr] = [{}, {}]".format(besterror, target_snr))
+        else:
+            logging.debug ("[besterror, target_error] = [{}, {}]".format(besterror, target_error))
         # Apply LSB masking to the instruction that minimizes positive error
         if (not snr_mode and besterror <= target_error) or (snr_mode and besterror >= target_snr):
             base_config[bestidx]['lomask'] += base_config[idx]['rate']
