@@ -293,23 +293,20 @@ def process_dyn_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
             with open(dest, 'w') as fp:
                 csv.writer(fp, delimiter='\t').writerows(cdf_stats[typ])
 
-        # Now plot the data!
-        sns.set_style("white")
-        # sns.set_style("ticks")
+        # Formatting
         palette = sns.color_palette("Set2")
-
         cat_format = {
             "mem": "mem",
             "exe": "alu",
             "all": "mem+alu"
         }
-
         typ_format = {
             "int": "(int only)",
             "fp": "(fp only)",
             "all": ""
         }
 
+        # Now plot the data!
         f, axarr = plt.subplots(len(op_categories), len(op_types), sharex='col', sharey='row')
         for i,opcat in enumerate(op_categories):
             for j,typ in enumerate(op_types):
