@@ -14,7 +14,6 @@ import collections
 import csv
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 import eval
 from eval import EXT
 
@@ -294,7 +293,7 @@ def process_dyn_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
                 csv.writer(fp, delimiter='\t').writerows(cdf_stats[typ])
 
         # Formatting
-        palette = sns.color_palette("Set2")
+        palette = [ '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
         cat_format = {
             "mem": "mem",
             "exe": "alu",
@@ -854,6 +853,10 @@ def cli():
         default=None, help='skip a particular phase'
     )
     parser.add_argument(
+        '-seaborn', dest='seaborn', action='store_true', required=False,
+        default=False, help='use seaborn formatting'
+    )
+    parser.add_argument(
         '-c', dest='clusterworkers', action='store', type=int, required=False,
         default=0, help='max number of machines to allocate on the cluster'
     )
@@ -888,6 +891,9 @@ def cli():
         rootLogger.setLevel(logging.DEBUG)
     else:
         rootLogger.setLevel(logging.INFO)
+
+    if(args.seaborn):
+        import seaborn
 
     # Tuning
     tune_width(
