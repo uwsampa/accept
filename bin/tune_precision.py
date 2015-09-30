@@ -12,6 +12,9 @@ import cw.client
 import threading
 import collections
 import csv
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
 import eval
 from eval import EXT
 
@@ -20,7 +23,7 @@ ACCEPT_CONFIG = 'accept_config.txt'
 LOG_FILE = 'tune_precision.log'
 ERROR_LOG_FILE = 'error.log'
 DYNSTATS_FILE = 'accept_bbstats.txt'
-CDF_FILE = 'cdf_stats.txt'
+CDF_FILE = 'cdf_stats'
 
 # DIR NAMES
 OUTPUT_DIR = 'outputs'
@@ -33,7 +36,7 @@ APPROX_OUTPUT = 'out'+EXT
 RESET_CYCLE = 1
 
 # Value to indicate a program crash
-CRASH = 0
+CRASH = -1
 
 # Globals
 step_count = 0
@@ -109,6 +112,18 @@ def get_bitwidth_from_type(typeStr):
         logging.error('Unrecognized type: {}'.format(typeStr))
         exit()
 
+def is_fp_type(typeStr):
+    """Returns True if string passed in is of floating point type
+    """
+    if (typeStr=="Half"):
+        return True
+    elif(typeStr=="Float"):
+        return True
+    elif(typeStr=="Double"):
+        return True
+    else:
+        return False
+
 def is_float_type(typeStr):
     """Returns the true if type is a Float
     """
@@ -146,7 +161,7 @@ def parse_relax_config(f):
             param, ident = line.split(None, 1)
             yield ident, int(param)
 
-def read_config(fname, fixedrate):
+def read_config(fname, adaptiverate):
     """Reads in a fine error injection descriptor.
     Returns a config object.
     """
@@ -161,7 +176,7 @@ def read_config(fname, fixedrate):
                 himask, lomask = get_masks_from_param(param)
 
                 # Derive the masking rate
-                maskingRate = 1 if fixedrate else get_bitwidth_from_type(typ)/8
+                maskingRate = get_bitwidth_from_type(typ)/8 if adaptiverate else 1
 
                 # Add the config entry for the instruction
                 config.append({
@@ -178,82 +193,155 @@ def read_config(fname, fixedrate):
 
     return config
 
-def read_dyn_stats(fname=DYNSTATS_FILE):
-    """Read and the dynamic BB count stats into a list
+def process_dyn_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
+    """Processes the dynamic BB count file to produce stats
     """
     bb_info = {}
-    with open(fname) as f:
+    with open(stats_fn) as f:
         for l in f:
             line = l.strip()
             bb_idx = line.split('\t')[0]
             bb_num = line.split('\t')[1]
             if (bb_idx.isdigit() and bb_num.isdigit()):
                 bb_info[int(bb_idx)] = int(bb_num)
-    return bb_info
 
-def analyze(config, stats, BITWIDHTMAX=64, csv_fn=CDF_FILE):
-    """Analyze final bit-width settings obtained by the autotuner
-    and produce aggregate statistics
-    """
-    baseline_mem = [0]*(BITWIDHTMAX+1)
-    precise_mem = [0]*(BITWIDHTMAX+1)
-    approx_mem = [0]*(BITWIDHTMAX+1)
-    baseline_exe = [0]*(BITWIDHTMAX+1)
-    precise_exe = [0]*(BITWIDHTMAX+1)
-    approx_exe = [0]*(BITWIDHTMAX+1)
+    # Program versions
+    categories = ['baseline', 'precise', 'approx']
+    # Op categories
+    op_categories = ['mem', 'exe', 'all']
+    # Op types
+    op_types = ['int', 'fp', 'all']
+
+    # Initialize statistics
+    histograms = {}
+    for cat in categories:
+        cat_hist = {}
+        for opcat in op_categories:
+            op_hist = {}
+            for typ in op_types:
+                hist = [0]*(BITWIDHTMAX+1)
+                op_hist[typ] = hist
+            cat_hist[opcat] = op_hist
+        histograms[cat] = cat_hist
+
+    # Populate histogram
     for conf in config:
-        baseline_width = get_bitwidth_from_type(conf['type'])
-        precise_width = get_bitwidth_from_type(conf['type'])-conf['himask']
-        approx_width = get_bitwidth_from_type(conf['type'])-conf['himask']-conf['lomask']
-        execs = stats[conf['bb']]
-        if conf['opcode']=='store' or conf['opcode']=='load':
-            baseline_mem[baseline_width]+=execs
-            precise_mem[precise_width]+=execs
-            approx_mem[approx_width]+=execs
-        else:
-            baseline_exe[baseline_width]+=execs
-            precise_exe[precise_width]+=execs
-            approx_exe[approx_width]+=execs
+        # Compute precision requirements
+        widths = {}
+        widths['baseline'] = get_bitwidth_from_type(conf['type'])
+        widths['precise'] = widths['baseline']-conf['himask']
+        widths['approx'] = widths['precise']-conf['lomask']
+        # Derive dynamic execution count
+        execs = bb_info[conf['bb']]
+        # Derive op category
+        opcat = 'mem' if (conf['opcode']=='store' or conf['opcode']=='load') else 'exe'
+        # Derive op type
+        typ = 'fp' if is_float_type(conf['type']) else 'int'
+        # Update stats
+        for cat in categories:
+            for oc in [opcat, 'all']:
+                for t in [typ, 'all']:
+                    histograms[cat][oc][t][widths[cat]]+=execs
 
-    # Now produce the CDF
-    mem_total = sum(baseline_mem)
-    exe_total = sum(baseline_exe)
-    baseline_mem_cdf = [0]*(BITWIDHTMAX+1)
-    precise_mem_cdf = [0]*(BITWIDHTMAX+1)
-    approx_mem_cdf = [0]*(BITWIDHTMAX+1)
-    baseline_exe_cdf = [0]*(BITWIDHTMAX+1)
-    precise_exe_cdf = [0]*(BITWIDHTMAX+1)
-    approx_exe_cdf = [0]*(BITWIDHTMAX+1)
+    # Compute dynamic savings from baseline to approx
+    savings = {}
+    for opcat in op_categories:
+        op_sav = {}
+        for typ in op_types:
+            baseline_count = 0
+            approx_count = 0
+            for bitw in range(0, BITWIDHTMAX+1):
+                baseline_count += bitw*histograms['baseline'][opcat][typ][bitw]
+                approx_count += bitw*histograms['approx'][opcat][typ][bitw]
+            sav = float(baseline_count - approx_count)/baseline_count if baseline_count>0 else 0.0
+            op_sav[typ] = sav
+        savings[opcat] = op_sav
 
-    # CSV file that gets outputted
-    cdf_stats = [["bitw", "baseline_mem", "precise_mem", "approx_mem", "baseline_exe", "precise_exe", "approx_exe"]]
-    for i in range(0, (BITWIDHTMAX+1)):
-        if i==0:
-            if (mem_total>0):
-                baseline_mem_cdf[0] = float(baseline_mem[0])/mem_total
-                precise_mem_cdf[0] = float(precise_mem[0])/mem_total
-                approx_mem_cdf[0] = float(approx_mem[0])/mem_total
-            if (exe_total>0):
-                baseline_exe_cdf[0] = float(baseline_exe[0])/exe_total
-                precise_exe_cdf[0] = float(precise_exe[0])/exe_total
-                approx_exe_cdf[0] = float(approx_exe[0])/exe_total
-        else:
-            if (mem_total>0):
-                baseline_mem_cdf[i] = baseline_mem_cdf[i-1]+float(baseline_mem[i])/mem_total
-                precise_mem_cdf[i] = precise_mem_cdf[i-1]+float(precise_mem[i])/mem_total
-                approx_mem_cdf[i] = approx_mem_cdf[i-1]+float(approx_mem[i])/mem_total
-            if (exe_total>0):
-                baseline_exe_cdf[i] = baseline_exe_cdf[i-1]+float(baseline_exe[i])/exe_total
-                precise_exe_cdf[i] = precise_exe_cdf[i-1]+float(precise_exe[i])/exe_total
-                approx_exe_cdf[i] = approx_exe_cdf[i-1]+float(approx_exe[i])/exe_total
-        cdf_stats.append([i, baseline_mem_cdf[i], precise_mem_cdf[i], approx_mem_cdf[i],
-            baseline_exe_cdf[i], precise_exe_cdf[i], approx_exe_cdf[i]])
+    if (cdf_fn):
 
-    with open(csv_fn, 'w') as fp:
-        csv.writer(fp, delimiter='\t').writerows(cdf_stats)
+        # Now produce the CDF
+        cdfs = {}
+        for cat in categories:
+            cat_cdf = {}
+            for opcat in op_categories:
+                op_cdf = {}
+                for typ in op_types:
+                    cdf = [0]*(BITWIDHTMAX+1)
+                    op_cdf[typ] = cdf
+                cat_cdf[opcat] = op_cdf
+            cdfs[cat] = cat_cdf
+
+        # CSV file that gets outputted
+        cdf_stats = {}
+        for opcat in op_types:
+            cdf_stats[opcat] = [["bitw", "baseline_mem", "precise_mem", "approx_mem", "baseline_exe", "precise_exe", "approx_exe"]]
+        for i in range(0, (BITWIDHTMAX+1)):
+            for cat in categories:
+                for opcat in op_categories:
+                    for typ in op_types:
+                        total = sum(histograms[cat][opcat][typ])
+                        prev = 0 if i==0 else cdfs[cat][opcat][typ][i-1]
+                        if total>0:
+                            cdfs[cat][opcat][typ][i] = prev+float(histograms[cat][opcat][typ][i])/total
+            for typ in op_types:
+                cdf_stats[typ].append([i,
+                    cdfs['baseline']['mem'][typ][i], cdfs['precise']['mem'][typ][i], cdfs['approx']['mem'][typ][i],
+                    cdfs['baseline']['exe'][typ][i], cdfs['precise']['exe'][typ][i], cdfs['approx']['exe'][typ][i]])
+
+        for typ in op_types:
+            dest = cdf_fn+'_'+typ+'.csv'
+            with open(dest, 'w') as fp:
+                csv.writer(fp, delimiter='\t').writerows(cdf_stats[typ])
+
+        # Now plot the data!
+        sns.set_style("white")
+        # sns.set_style("ticks")
+        palette = sns.color_palette("Set2")
+
+        cat_format = {
+            "mem": "mem",
+            "exe": "alu",
+            "all": "mem+alu"
+        }
+
+        typ_format = {
+            "int": "(int only)",
+            "fp": "(fp only)",
+            "all": ""
+        }
+
+        f, axarr = plt.subplots(len(op_categories), len(op_types), sharex='col', sharey='row')
+        for i,opcat in enumerate(op_categories):
+            for j,typ in enumerate(op_types):
+                plots=[None] * len(categories)
+                legend=[None] * len(categories)
+                for k,cat in enumerate(categories):
+                    x = np.array(range(0, (BITWIDHTMAX+1)))
+                    y = np.array(cdfs[cat][opcat][typ])
+                    axarr[i, j].set_title(cat_format[opcat]+' '+typ_format[typ])
+                    x1,x2,y1,y2 = plt.axis()
+                    axarr[i][j].axis((x1,BITWIDHTMAX,y1,y2))
+
+                    plots[k], = axarr[i, j].plot(x, y, c=palette[k%len(palette)])
+                    legend[k] = cat
+
+                axarr[2][j].set_xlabel("Bit-width")
+            axarr[i][0].set_ylabel("Percentage")
+
+        # Plot legend
+        f.legend(plots,
+               legend,
+               loc='upper center',
+               ncol=3,
+               fontsize=8)
+
+        # Plot
+        plt.savefig(cdf_fn+'.pdf', bbox_inches='tight')
+
+    return savings
 
 
-def gen_default_config(instlimit, fixedrate):
+def gen_default_config(instlimit, adaptiverate):
     """Reads in the coarse error injection descriptor,
     generates the default config by running make run_orig.
     Returns a config object.
@@ -264,21 +352,13 @@ def gen_default_config(instlimit, fixedrate):
     shell(shlex.split('make run_orig'), cwd=curdir)
 
     # Load ACCEPT config and adjust parameters.
-    config = read_config(ACCEPT_CONFIG, fixedrate)
+    config = read_config(ACCEPT_CONFIG, adaptiverate)
 
     # Notify the user that the instruction limit is lower than the configuration length
     if len(config) > instlimit:
         logging.info('Instruction length exceeds the limit set by the user of {}'.format(instlimit))
 
     return config
-
-def test_curr_config():
-    """Tests the current configuration file locally.
-    """
-    curdir = os.getcwd()
-
-    logging.info('Testing local configuration: {}'.format(ACCEPT_CONFIG))
-    shell(shlex.split('make run_opt'), cwd=curdir)
 
 def dump_relax_config(config, fname):
     """Write a relaxation configuration to a file-like object. The
@@ -299,10 +379,10 @@ def dump_relax_config(config, fname):
 def print_config(config):
     """Prints out the configuration.
     """
-    logging.info("-----------CONFIG DUMP BEGIN-----------")
+    logging.debug("-----------CONFIG DUMP BEGIN-----------")
     for conf in config:
-        logging.info(conf)
-    logging.info("----------- CONFIG DUMP END -----------")
+        logging.debug(conf)
+    logging.debug("----------- CONFIG DUMP END -----------")
 
 def eval_compression_factor(config):
     """Evaluate number of bits saved from compression.
@@ -313,7 +393,7 @@ def eval_compression_factor(config):
         total += get_bitwidth_from_type(conf['type'])
     return float(bits)/total
 
-def test_config(config, dstpath=None):
+def test_config(config, statspath=None, dstpath=None):
     """Creates a temporary directory to run ACCEPT with
     the passed in config object for precision relaxation.
     """
@@ -337,35 +417,63 @@ def test_config(config, dstpath=None):
     except:
         logging.warning('Make error!')
         print_config(config)
+        return float(CRASH)
 
     # Now that we're done with the compilation, evaluate results
     output_fp = os.path.join(tmpdir,APPROX_OUTPUT)
+    trace_fp = os.path.join(tmpdir,DYNSTATS_FILE)
     if os.path.isfile(output_fp):
         error = eval.score(PRECISE_OUTPUT,os.path.join(tmpdir,APPROX_OUTPUT))
         logging.debug('Reported application error: {}'.format(error))
         if(dstpath):
-            shutil.copyfile(os.path.join(tmpdir,APPROX_OUTPUT), dstpath)
+            shutil.copyfile(output_fp, dstpath)
+        if(statspath):
+            shutil.copyfile(trace_fp, statspath)
     else:
         # Program crashed, set the error to an arbitratily high number
         logging.warning('Program crashed!')
         print_config(config)
-        error = CRASH
+        return float(CRASH)
+
     # Remove the temporary directory
     shutil.rmtree(tmpdir)
     # Return the error
     return float(error)
 
-def report_error_and_savings(base_config, error, recompute=False, error_fn=ERROR_LOG_FILE):
+def report_error_and_savings(base_config, error=0, stats_fn=None, cdf_fn=None, accept_fn=None, error_fn=ERROR_LOG_FILE):
     """Reports the error of the current config,
     and the savings from minimizing Bit-width.
     """
     global step_count
-    if recompute:
-        error = test_config(config)
-    logging.info ("[step, error, savings]: [{}, {}, {}]\n".format(step_count, error, eval_compression_factor(base_config)))
+
+    if step_count==0:
+        with open(error_fn, 'a') as f:
+            f.write("step\terror\tmem\tmem_int\tmem_fp\texe\texe_int\texe_fp\n")
+
+    # Re-run approximate program (pass error as 0)
+    if error==0:
+        stats_fn = "tmp_stats.txt"
+        error = test_config(base_config, stats_fn)
+        if error==CRASH:
+            logging.info("Configuration is faulty - exiting program")
+            exit()
+
+    # Collect dynamic statistics
+    if (stats_fn):
+        savings = process_dyn_stats(base_config, stats_fn, cdf_fn)
+
+    # Dump the ACCEPT configuration file.
+    if (accept_fn):
+        dump_relax_config(base_config, accept_fn)
+
     # Also log to file:
+    logging.info ("[step, error, static savings]: [{}, {}, {}]".format(step_count, error, eval_compression_factor(base_config)))
+    logging.debug ("Dynamic savings at step {}: {}".format(step_count, savings))
     with open(error_fn, 'a') as f:
-        f.write("{}\t{}\t{}\n".format(step_count, error, eval_compression_factor(base_config)))
+        f.write("{}\t{}\t".format(step_count, error))
+        f.write("{}\t{}\t{}\t".format(savings["mem"]["all"], savings["mem"]["int"], savings["mem"]["fp"]))
+        f.write("{}\t{}\t{}\n".format(savings["exe"]["all"], savings["exe"]["int"], savings["exe"]["fp"]))
+
     # Increment global
     step_count+=1
 
@@ -393,7 +501,7 @@ def tune_himask_insn(base_config, idx, init_snr):
         # Test the config
         error = test_config(tmp_config)
         # Check the error, and modify mask_val accordingly
-        if (init_snr==0 and error==0) or (init_snr>0 and abs(init_snr-error)<0.1):
+        if (init_snr==0 and error==0) or (init_snr>0 and abs(init_snr-error)<0.001):
             logging.debug ("New best mask!")
             best_mask = mask_val
             mask_val += bitwidth>>(i+2)
@@ -407,9 +515,10 @@ def tune_himask_insn(base_config, idx, init_snr):
         tmp_config[idx]['himask'] = bitwidth
         # Test the config
         error = test_config(tmp_config)
-        if (init_snr==0 and error==0) or (init_snr>0 and abs(init_snr-error)<0.1):
+        if (init_snr==0 and error==0) or (init_snr>0 and abs(init_snr-error)<0.001):
             logging.debug ("New best mask!")
             best_mask = mask_val
+    logging.info ("Himask on instruction {} set to {}".format(idx, mask_val))
     # Return the mask value, and type tuple
     return best_mask
 
@@ -476,8 +585,7 @@ def tune_himask(base_config, init_snr, instlimit, clusterworkers, run_on_grappa)
         base_config[idx]['himask'] = insn_himasks[idx]
         logging.info ("Himask of instruction {} tuned to {}".format(idx, insn_himasks[idx]))
 
-    report_error_and_savings(base_config, init_snr)
-
+    report_error_and_savings(base_config)
 
 def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, instlimit, clusterworkers, run_on_grappa):
     """Tunes the least significant bits masking to meet the
@@ -545,6 +653,8 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
     # Passes
     for tuning_pass in range(0, passlimit):
         logging.info ("Bit tuning pass #{}".format(tuning_pass))
+        # Cleanup tmp results dir
+        create_overwrite_directory(tmpoutputsdir)
         # Every RESET_CYCLE reset the maxed_insn
         if tuning_pass % RESET_CYCLE == 0:
             maxed_insn = []
@@ -568,8 +678,9 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
             else:
                 # Generate temporary configuration
                 tmp_config = copy.deepcopy(base_config)
-                # Derive the output path
+                # Derive the destination file paths
                 output_path = tmpoutputsdir+'/'+'out_'+str(tuning_pass)+'_'+str(idx)+EXT
+                stats_path = tmpoutputsdir+'/stats_'+str(tuning_pass)+'_'+str(idx)+'.txt'
                 logging.debug ("File output path of instruction {}: {}".format(tmp_config[idx]['lomask'], output_path))
                 # Increment the LSB mask value
                 tmp_config[idx]['lomask'] += tmp_config[idx]['rate']
@@ -579,18 +690,16 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
                     jobid = cw.randid()
                     with jobs_lock:
                         jobs[jobid] = idx
-                    client.submit(jobid, test_config, tmp_config, output_path)
+                    client.submit(jobid, test_config, tmp_config, stats_path, output_path)
                 else:
-                    error = test_config(tmp_config, output_path)
+                    error = test_config(tmp_config, stats_path, output_path)
                     insn_errors[idx] = error
         if (clusterworkers):
             logging.info('All jobs submitted for pass #{}'.format(tuning_pass))
             client.wait()
             logging.info('All jobs finished for pass #{}'.format(tuning_pass))
 
-        # Post Processing
-
-        # Report all errors
+        # Report all raw errors
         logging.debug ("Errors: {}".format(insn_errors))
         # Keep track of the instruction that results in the least postive error, or the max SNR
         besterror = 0.0 if snr_mode else max_error
@@ -616,9 +725,7 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
         for idx in zero_error:
             base_config[idx]['lomask'] += base_config[idx]['rate']
             logging.info ("Increasing lomask on instruction {} to {} (no additional error)".format(idx, base_config[idx]['lomask']))
-        # Report savings if we got free bit-width reduction
-        if zero_error:
-            report_error_and_savings(base_config, prev_besterror)
+        # Report best error achieved
         if snr_mode:
             logging.debug ("[besterror, target_snr] = [{}, {}]".format(besterror, target_snr))
         else:
@@ -628,12 +735,15 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
             base_config[bestidx]['lomask'] += base_config[idx]['rate']
             prev_besterror = besterror
             logging.info ("Increasing lomask on instruction {} to {} (best)".format(bestidx, base_config[bestidx]['lomask']))
-            report_error_and_savings(base_config, besterror)
             # Copy file output
             src_path = tmpoutputsdir+'/out_'+str(tuning_pass)+'_'+str(bestidx)+EXT
             dst_path = outputsdir+'/out_{0:05d}'.format(step_count)+EXT
             shutil.copyfile(src_path, dst_path)
-            create_overwrite_directory(tmpoutputsdir)
+            # Report Error and Savings stats
+            stats_path = tmpoutputsdir+'/stats_'+str(tuning_pass)+'_'+str(bestidx)+'.txt'
+            cdf_path = outputsdir+'/cdf_{0:05d}'.format(step_count)
+            accept_path = outputsdir+'/accept_conf_{0:05d}'.format(step_count)+'.txt'
+            report_error_and_savings(base_config, besterror, stats_path, cdf_path, accept_path)
 
         # Update the masking rates for the instructions which error degradations
         # exceed the threshold. Also set equilibrium to True if all rates have
@@ -641,7 +751,7 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
         equilibrium = True
         for idx in range(0, min(instlimit, len(base_config))):
             # The error is too large so let's reduce the masking rate
-            if (not snr_mode and insn_errors[idx] > besterror) or (snr_mode and insn_errors[idx] < besterror):
+            if (not snr_mode and insn_errors[idx] > target_error) or (snr_mode and insn_errors[idx] < target_snr):
                 if (base_config[idx]['rate']>1):
                     # This means we haven't reached equilibrium
                     equilibrium = False
@@ -659,7 +769,7 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
         # 1 - min error exceeds target_error / max snr is below target snr
         # 2 - empty zero_error
         # 3 - reached equilibrium
-        if (not snr_mode and besterror>target_error) or (snr_mode and besterror<target_snr) and (not zero_error) and equilibrium:
+        if ((not snr_mode and besterror>target_error) or (snr_mode and besterror<target_snr)) and (not zero_error) and equilibrium:
             break
 
     if(clusterworkers):
@@ -673,17 +783,15 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
 # Main Function
 #################################################
 
-def tune_width(accept_config_fn, target_error, target_snr, fixedrate, passlimit, instlimit, skip, clusterworkers, run_on_grappa):
+def tune_width(accept_config_fn, target_error, target_snr, adaptiverate, passlimit, instlimit, skip, clusterworkers, run_on_grappa):
     """Performs instruction masking tuning
     """
     # Generate default configuration
     if (accept_config_fn):
-        config = read_config(accept_config_fn, fixedrate)
-        stats = read_dyn_stats()
-        analyze(config, stats)
+        config = read_config(accept_config_fn, adaptiverate)
         exit()
     else:
-        config = gen_default_config(instlimit, fixedrate)
+        config = gen_default_config(instlimit, adaptiverate)
 
     # If in SNR mode, measure initial SNR
     if (target_snr>0):
@@ -711,15 +819,6 @@ def tune_width(accept_config_fn, target_error, target_snr, fixedrate, passlimit,
             clusterworkers,
             run_on_grappa)
 
-    # Do some post-processing
-    stats = read_dyn_stats()
-    analyze(config, stats)
-
-    # Dump back to the fine (ACCEPT) configuration file.
-    dump_relax_config(config, ACCEPT_CONFIG)
-
-    # Generate the BB stats
-    test_curr_config()
 
 #################################################
 # Argument validation
@@ -750,8 +849,8 @@ def cli():
         default=1000, help='limits the number of instructions that get tuned (for quick testing)'
     )
     parser.add_argument(
-        '-fixedrate', dest='fixedrate', action='store_true', required=False,
-        default=False, help='sets the masking rate to 1 from the start (may run slower)'
+        '-adaptiverate', dest='adaptiverate', action='store_true', required=False,
+        default=False, help='enables adaptive masking rate (speeds up autotuner)'
     )
     parser.add_argument(
         '-skip', dest='skip', action='store', type=str, required=False,
@@ -798,7 +897,7 @@ def cli():
         args.accept_config_fn,
         args.target_error,
         args.target_snr,
-        args.fixedrate,
+        args.adaptiverate,
         args.passlimit,
         args.instlimit,
         args.skip,
@@ -813,10 +912,10 @@ def cli():
 
     # Finally, transfer all files in the outputs dir
     if (os.path.isdir(OUTPUT_DIR)):
-        shutil.move(ACCEPT_CONFIG, OUTPUT_DIR+'/'+ACCEPT_CONFIG)
-        shutil.move(ERROR_LOG_FILE, OUTPUT_DIR+'/'+ERROR_LOG_FILE)
-        shutil.move(DYNSTATS_FILE, OUTPUT_DIR+'/'+DYNSTATS_FILE)
-        shutil.move(CDF_FILE, OUTPUT_DIR+'/'+CDF_FILE)
+        if os.path.exists(ACCEPT_CONFIG):
+            shutil.move(ACCEPT_CONFIG, OUTPUT_DIR+'/'+ACCEPT_CONFIG)
+        if os.path.exists(ERROR_LOG_FILE):
+            shutil.move(ERROR_LOG_FILE, OUTPUT_DIR+'/'+ERROR_LOG_FILE)
         shutil.move(args.logpath, OUTPUT_DIR+'/'+args.logpath)
 
     # Cleanup
