@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import subprocess
+import subprocess32 as subprocess
 import tempfile
 import os
 import shutil
@@ -34,8 +34,10 @@ APPROX_OUTPUT = 'out'+EXT
 # PARAMETERS
 RESET_CYCLE = 1
 
-# Value to indicate a program crash
+# Error codes
 CRASH = -1
+TIMEOUT = -2
+NOOUTPUT = -3
 
 # Globals
 step_count = 0
@@ -51,7 +53,7 @@ def init_step_count():
 # General OS function helpers
 #################################################
 
-def shell(command, cwd=None, shell=False):
+def shell(command, timeout=600, cwd=None, shell=False):
     """Execute a command (via a shell or directly). Capture the stdout
     and stderr streams as a string.
     """
@@ -60,6 +62,7 @@ def shell(command, cwd=None, shell=False):
         cwd=cwd,
         stderr=subprocess.STDOUT,
         shell=shell,
+        timeout=timeout
     )
 
 # Taken from Python Central
@@ -337,7 +340,7 @@ def process_dyn_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
     return savings
 
 
-def gen_default_config(instlimit, adaptiverate):
+def gen_default_config(instlimit, adaptiverate, timeout):
     """Reads in the coarse error injection descriptor,
     generates the default config by running make run_orig.
     Returns a config object.
@@ -345,7 +348,11 @@ def gen_default_config(instlimit, adaptiverate):
     curdir = os.getcwd()
 
     logging.info('Generating the fine config file: {}'.format(ACCEPT_CONFIG))
-    shell(shlex.split('make run_orig'), cwd=curdir)
+    try:
+        shell(shlex.split('make run_orig'), cwd=curdir, timeout=timeout)
+    except:
+        logging.error('Something went wrong generating default config.')
+        exit()
 
     # Load ACCEPT config and adjust parameters.
     config = read_config(ACCEPT_CONFIG, adaptiverate)
@@ -389,7 +396,7 @@ def eval_compression_factor(config):
         total += get_bitwidth_from_type(conf['type'])
     return float(bits)/total
 
-def test_config(config, statspath=None, dstpath=None):
+def test_config(config, timeout, statspath=None, dstpath=None):
     """Creates a temporary directory to run ACCEPT with
     the passed in config object for precision relaxation.
     """
@@ -403,13 +410,20 @@ def test_config(config, statspath=None, dstpath=None):
     # Transfer files over
     copy_directory(curdir, tmpdir)
     # Cleanup
-    shell(shlex.split('make clean'), cwd=tmpdir)
+    try:
+        shell(shlex.split('make clean'), cwd=tmpdir, timeout=timeout)
+    except:
+        logging.error('Something went wrong generating during cleanup.')
     # Dump config
     dump_relax_config(config, tmpdir+'/'+ACCEPT_CONFIG)
     # Full compile and program run
     logging.debug('Lanching compile and run...')
     try:
-        shell(shlex.split('make run_opt'), cwd=tmpdir)
+        shell(shlex.split('make run_opt'), cwd=tmpdir, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        logging.warning('Timed out!')
+        print_config(config)
+        return float(TIMEOUT)
     except:
         logging.warning('Make error!')
         print_config(config)
@@ -426,17 +440,17 @@ def test_config(config, statspath=None, dstpath=None):
         if(statspath):
             shutil.copyfile(trace_fp, statspath)
     else:
-        # Program crashed, set the error to an arbitratily high number
-        logging.warning('Program crashed!')
+        # Something went wrong - no output!
+        logging.warning('Missing output!')
         print_config(config)
-        return float(CRASH)
+        return float(NOOUTPUT)
 
     # Remove the temporary directory
     shutil.rmtree(tmpdir)
     # Return the error
     return float(error)
 
-def report_error_and_savings(base_config, error=0, stats_fn=None, cdf_fn=None, accept_fn=None, error_fn=ERROR_LOG_FILE):
+def report_error_and_savings(base_config, timeout, error=0, stats_fn=None, cdf_fn=None, accept_fn=None, error_fn=ERROR_LOG_FILE):
     """Reports the error of the current config,
     and the savings from minimizing Bit-width.
     """
@@ -449,9 +463,9 @@ def report_error_and_savings(base_config, error=0, stats_fn=None, cdf_fn=None, a
     # Re-run approximate program (pass error as 0)
     if error==0:
         stats_fn = "tmp_stats.txt"
-        error = test_config(base_config, stats_fn)
-        if error==CRASH:
-            logging.info("Configuration is faulty - exiting program")
+        error = test_config(base_config, timeout, stats_fn)
+        if error==CRASH or error==TIMEOUT or error==NOOUTPUT:
+            logging.error("Configuration is faulty - exiting program")
             exit()
 
     # Collect dynamic statistics
@@ -477,7 +491,7 @@ def report_error_and_savings(base_config, error=0, stats_fn=None, cdf_fn=None, a
 # Parameterisation testing
 #################################################
 
-def tune_himask_insn(base_config, idx, init_snr):
+def tune_himask_insn(base_config, idx, init_snr, timeout):
     """Tunes the most significant bit masking of
     an instruction given its index without affecting
     application error.
@@ -495,7 +509,7 @@ def tune_himask_insn(base_config, idx, init_snr):
         # Set the mask in the temporary config
         tmp_config[idx]['himask'] = mask_val
         # Test the config
-        error = test_config(tmp_config)
+        error = test_config(tmp_config, timeout)
         # Check the error, and modify mask_val accordingly
         if (init_snr==0 and error==0) or (init_snr>0 and abs(init_snr-error)<0.001):
             logging.debug ("New best mask!")
@@ -510,7 +524,7 @@ def tune_himask_insn(base_config, idx, init_snr):
         # Set the mask in the temporary config
         tmp_config[idx]['himask'] = bitwidth
         # Test the config
-        error = test_config(tmp_config)
+        error = test_config(tmp_config, timeout)
         if (init_snr==0 and error==0) or (init_snr>0 and abs(init_snr-error)<0.001):
             logging.debug ("New best mask!")
             best_mask = mask_val
@@ -518,7 +532,7 @@ def tune_himask_insn(base_config, idx, init_snr):
     # Return the mask value, and type tuple
     return best_mask
 
-def tune_himask(base_config, init_snr, instlimit, clusterworkers, run_on_grappa):
+def tune_himask(base_config, init_snr, instlimit, timeout, clusterworkers, run_on_grappa):
     """Tunes the most significant bit masking at an instruction
     granularity without affecting application error.
     """
@@ -565,9 +579,9 @@ def tune_himask(base_config, init_snr, instlimit, clusterworkers, run_on_grappa)
                 jobid = cw.randid()
                 with jobs_lock:
                     jobs[jobid] = idx
-                client.submit(jobid, tune_himask_insn, base_config, idx, init_snr)
+                client.submit(jobid, tune_himask_insn, base_config, idx, init_snr, timeout)
             else:
-                insn_himasks[idx] = tune_himask_insn(base_config, idx, init_snr)
+                insn_himasks[idx] = tune_himask_insn(base_config, idx, init_snr, timeout)
 
     if (clusterworkers):
         logging.info('All jobs submitted for himaks tuning')
@@ -581,9 +595,9 @@ def tune_himask(base_config, init_snr, instlimit, clusterworkers, run_on_grappa)
         base_config[idx]['himask'] = insn_himasks[idx]
         logging.info ("Himask of instruction {} tuned to {}".format(idx, insn_himasks[idx]))
 
-    report_error_and_savings(base_config)
+    report_error_and_savings(base_config, timeout)
 
-def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, instlimit, clusterworkers, run_on_grappa):
+def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, instlimit, timeout, clusterworkers, run_on_grappa):
     """Tunes the least significant bits masking to meet the
     specified error requirements, given a passlimit.
     The tuning algorithm performs multiple passes over every
@@ -646,6 +660,8 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
     max_error = 0.0 if snr_mode else float('inf') # worste case error/snr
     # List of instructions that are tuned optimally
     maxed_insn = []
+    # List of instructions that cause a timeout
+    timeout_insn = []
     # Passes
     for tuning_pass in range(0, passlimit):
         logging.info ("Bit tuning pass #{}".format(tuning_pass))
@@ -671,6 +687,10 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
             elif idx in maxed_insn:
                 insn_errors[idx] = max_error
                 logging.info ("Skipping current instruction {} - will degrade quality too much".format(idx))
+            # Check if decreasing numerical accuracy of instruction causes a timeout
+            elif idx in timeout_insn:
+                insn_errors[idx] = max_error
+                logging.info ("Skipping current instruction {} - has caused a timeout".format(idx))
             else:
                 # Generate temporary configuration
                 tmp_config = copy.deepcopy(base_config)
@@ -686,9 +706,9 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
                     jobid = cw.randid()
                     with jobs_lock:
                         jobs[jobid] = idx
-                    client.submit(jobid, test_config, tmp_config, stats_path, output_path)
+                    client.submit(jobid, test_config, tmp_config, timeout, stats_path, output_path)
                 else:
-                    error = test_config(tmp_config, stats_path, output_path)
+                    error = test_config(tmp_config, timeout, stats_path, output_path)
                     insn_errors[idx] = error
         if (clusterworkers):
             logging.info('All jobs submitted for pass #{}'.format(tuning_pass))
@@ -706,12 +726,16 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
         zero_error = []
         for idx in range(0, min(instlimit, len(base_config))):
             error = insn_errors[idx]
-            # Check if programme crashed
-            if error==CRASH:
+            # Check if something went wrong
+            if error==CRASH or error==TIMEOUT or error==NOOUTPUT:
                 error=max_error
-            # Update min error accordingly
+            # If the config cause a timeout, do not revisit the instruction
+            if error==TIMEOUT:
+                timeout_insn.append(idx)
+            # If relaxing the instruction does not add to the error, add to zero error list
             if error == prev_besterror:
                 zero_error.append(idx)
+            # Update min error accordingly
             elif (not snr_mode and error<besterror) or (snr_mode and error>besterror):
                     besterror = error
                     bestidx = idx
@@ -739,7 +763,7 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
             stats_path = tmpoutputsdir+'/stats_'+str(tuning_pass)+'_'+str(bestidx)+'.txt'
             cdf_path = outputsdir+'/cdf_{0:05d}'.format(step_count)
             accept_path = outputsdir+'/accept_conf_{0:05d}'.format(step_count)+'.txt'
-            report_error_and_savings(base_config, besterror, stats_path, cdf_path, accept_path)
+            report_error_and_savings(base_config, timeout, besterror, stats_path, cdf_path, accept_path)
 
         # Update the masking rates for the instructions which error degradations
         # exceed the threshold. Also set equilibrium to True if all rates have
@@ -779,18 +803,18 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
 # Main Function
 #################################################
 
-def tune_width(accept_config_fn, target_error, target_snr, adaptiverate, passlimit, instlimit, skip, clusterworkers, run_on_grappa):
+def tune_width(accept_config_fn, target_error, target_snr, adaptiverate, passlimit, instlimit, skip, timeout, clusterworkers, run_on_grappa):
     """Performs instruction masking tuning
     """
     # Generate default configuration
     if (accept_config_fn):
         config = read_config(accept_config_fn, adaptiverate)
     else:
-        config = gen_default_config(instlimit, adaptiverate)
+        config = gen_default_config(instlimit, adaptiverate, timeout)
 
     # If in SNR mode, measure initial SNR
     if (target_snr>0):
-        init_snr = test_config(config)
+        init_snr = test_config(config, timeout)
         logging.info ("Initial SNR = {}\n".format(init_snr))
     else:
         init_snr = 0
@@ -800,7 +824,7 @@ def tune_width(accept_config_fn, target_error, target_snr, adaptiverate, passlim
 
     # Let's tune the high mask bits (0 performance degradation)
     if skip!='hi':
-        tune_himask(config, init_snr, instlimit, clusterworkers, run_on_grappa)
+        tune_himask(config, init_snr, instlimit, timeout, clusterworkers, run_on_grappa)
 
     # Now let's tune the low mask bits (performance degradation allowed)
     if skip!='lo':
@@ -811,6 +835,7 @@ def tune_width(accept_config_fn, target_error, target_snr, adaptiverate, passlim
             init_snr,
             passlimit,
             instlimit,
+            timeout,
             clusterworkers,
             run_on_grappa)
 
@@ -850,6 +875,10 @@ def cli():
     parser.add_argument(
         '-skip', dest='skip', action='store', type=str, required=False,
         default=None, help='skip a particular phase'
+    )
+    parser.add_argument(
+        '-timeout', dest='timeout', action='store', type=int, required=False,
+        default=600, help='timeout of an experiment in minutes'
     )
     parser.add_argument(
         '-seaborn', dest='seaborn', action='store_true', required=False,
@@ -903,6 +932,7 @@ def cli():
         args.passlimit,
         args.instlimit,
         args.skip,
+        args.timeout,
         args.clusterworkers,
         args.grappa)
 

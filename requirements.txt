@@ -1,5 +1,6 @@
 click>=2.1
 sqlite3dbm==0.1.4
 Pillow>=2.0.0
+subprocess32
 matplotlib
 numpy
