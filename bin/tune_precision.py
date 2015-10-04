@@ -785,7 +785,6 @@ def tune_width(accept_config_fn, target_error, target_snr, adaptiverate, passlim
     # Generate default configuration
     if (accept_config_fn):
         config = read_config(accept_config_fn, adaptiverate)
-        exit()
     else:
         config = gen_default_config(instlimit, adaptiverate)
 
