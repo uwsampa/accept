@@ -716,6 +716,7 @@ class Evaluation(object):
 
         self.reps = reps
         self.test_reps = test_reps
+        self.timeout_factor = timeout_factor
 
         self.appname = os.path.basename(self.appdir)
 
