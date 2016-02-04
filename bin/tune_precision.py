@@ -163,10 +163,16 @@ def parse_relax_config(f):
             param, ident = line.split(None, 1)
             yield ident, int(param)
 
-def read_config(fname, adaptiverate):
+def read_config(fname, adaptiverate, stats_fn=None):
     """Reads in a fine error injection descriptor.
     Returns a config object.
     """
+    # Filter out the instructions that don't execute dynamically
+    if stats_fn:
+        # Read dynamic statistics
+        bb_info = read_dyn_stats(stats_fn)
+
+    # Configuration object
     config = []
     with open(fname) as f:
         for ident, param in parse_relax_config(f):
@@ -180,23 +186,25 @@ def read_config(fname, adaptiverate):
                 # Derive the masking rate
                 maskingRate = get_bitwidth_from_type(typ)/8 if adaptiverate else 1
 
-                # Add the config entry for the instruction
-                config.append({
-                    'insn': ident,
-                    'relax': param,
-                    'himask': himask,
-                    'lomask': lomask,
-                    'bb': int(bb),
-                    'line': int(line),
-                    'opcode': opcode,
-                    'type': typ,
-                    'rate': maskingRate
-                    })
+                # Filter the instruction if it doesn't execute
+                if not stats_fn or bb_info[int(bb)]>0:
+                    # Add the config entry for the instruction
+                    config.append({
+                        'insn': ident,
+                        'relax': param,
+                        'himask': himask,
+                        'lomask': lomask,
+                        'bb': int(bb),
+                        'line': int(line),
+                        'opcode': opcode,
+                        'type': typ,
+                        'rate': maskingRate
+                        })
 
     return config
 
-def process_dyn_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
-    """Processes the dynamic BB count file to produce stats
+def read_dyn_stats(stats_fn):
+    """Reads in the dynamic statistics file that ACCEPT spits out
     """
     bb_info = {}
     with open(stats_fn) as f:
@@ -206,6 +214,12 @@ def process_dyn_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
             bb_num = line.split('\t')[1]
             if (bb_idx.isdigit() and bb_num.isdigit()):
                 bb_info[int(bb_idx)] = int(bb_num)
+    return bb_info
+
+def process_dyn_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
+    """Processes the dynamic BB count file to produce stats
+    """
+    bb_info = read_dyn_stats(stats_fn)
 
     # Program versions
     categories = ['baseline', 'precise', 'approx']
@@ -350,12 +364,13 @@ def gen_default_config(instlimit, adaptiverate, timeout):
     logging.info('Generating the fine config file: {}'.format(ACCEPT_CONFIG))
     try:
         shell(shlex.split('make run_orig'), cwd=curdir, timeout=timeout)
+        shell(shlex.split('make run_opt'), cwd=curdir, timeout=timeout)
     except:
         logging.error('Something went wrong generating default config.')
         exit()
 
     # Load ACCEPT config and adjust parameters.
-    config = read_config(ACCEPT_CONFIG, adaptiverate)
+    config = read_config(ACCEPT_CONFIG, adaptiverate, DYNSTATS_FILE)
 
     # Notify the user that the instruction limit is lower than the configuration length
     if len(config) > instlimit:
