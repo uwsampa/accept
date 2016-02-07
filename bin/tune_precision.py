@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import division
 import subprocess32 as subprocess
 import tempfile
 import os
@@ -12,6 +13,7 @@ import cw.client
 import threading
 import collections
 import csv
+import re
 import numpy as np
 import matplotlib.pyplot as plt
 import eval
@@ -41,6 +43,71 @@ NOOUTPUT = -3
 
 # Globals
 step_count = 0
+
+# LLVM instruction categories
+# We ignore phi nodes since those are required
+# because of the SSA style of the LLVM IR
+controlInsn = ['br','switch','indirectbr','ret']
+terminatorInsn = ['invoke','resume','catchswitch','catchret','cleanupret','unreachable']
+binaryInsn = ['add','fadd','sub','fsub','mul','fmul','udiv','sdiv','fdiv','urem','srem','frem']
+bitbinInsn = ['shl','lshr','ashr','and','or','xor']
+vectorInsn = ['extractelement','insertelement','shufflevector']
+aggregateInsn = ['extractvalue','insertvalue']
+loadstoreInsn = ['load','store']
+getelementptrInsn = ['getelementptr']
+memoryInsn = ['alloca','fence','cmpxchg','atomicrmw']
+conversionInsn = ['trunc','zext','sext','fptrunc','fpext','fptoui','fptosi','uitofp','sitofp','ptrtoint','inttoptr','bitcast','addrspacecast']
+cmpInsn = ['icmp','fcmp']
+callInsn = ['call']
+ignoreInsn = ['phi']
+otherInsn = ['select','va_arg','landingpad','catchpad','cleanuppad']
+
+# C standard library function calls (non-exhaustive)
+cMathFunc = ['@acos','@asin','@atan','@atan2','@cos','@cosh','@sin','@sinh','@tanh','@exp','@frexp','@ldexp','@log','@log10','@modf','@pow','@sqrt','@ceil','@fabs','@floor','@fmod']
+cStdFunc = ['@__memcpy_chk','@__memset_chk','@calloc','@free','@printf']
+
+# List of LLVM instruction lists
+llvmInsnList = [
+    { "cat": "control", "iList": controlInsn},
+    { "cat": "terminator", "iList": terminatorInsn},
+    { "cat": "binary", "iList": binaryInsn+bitbinInsn},
+    { "cat": "vector", "iList": vectorInsn},
+    { "cat": "aggregate", "iList": aggregateInsn},
+    { "cat": "loadstore", "iList": loadstoreInsn},
+    { "cat": "getelementptr", "iList": getelementptrInsn},
+    { "cat": "memory", "iList": memoryInsn},
+    { "cat": "conversion", "iList": conversionInsn},
+    { "cat": "compare", "iList": cmpInsn},
+    { "cat": "call", "iList": callInsn},
+    { "cat": "ignore", "iList": ignoreInsn},
+    { "cat": "other", "iList": otherInsn}
+]
+
+# List of standard C functions
+stdCList = [
+    { "cat": "cmath", "iList": cMathFunc},
+    { "cat": "cstd", "iList": cStdFunc}
+]
+
+# BB IR Category Dictionary
+bbIrCatDict = {
+    "total": 0,
+    "control": 0,
+    "terminator": 0,
+    "binary": 0,
+    "vector": 0,
+    "aggregate": 0,
+    "loadstore": 0,
+    "getelementptr": 0,
+    "memory": 0,
+    "conversion": 0,
+    "compare": 0,
+    "call": 0,
+    "ignore": 0,
+    "other": 0,
+    "cmath": 0,
+    "cstd": 0
+}
 
 #################################################
 # Global handling
@@ -88,7 +155,7 @@ def create_overwrite_directory(dirpath):
     os.makedirs(dirpath)
 
 #################################################
-# Configuration file reading/processing
+# LLVM Type Analysis Helper Functions
 #################################################
 
 def get_bitwidth_from_type(typeStr):
@@ -114,18 +181,6 @@ def get_bitwidth_from_type(typeStr):
         logging.error('Unrecognized type: {}'.format(typeStr))
         exit()
 
-def is_fp_type(typeStr):
-    """Returns True if string passed in is of floating point type
-    """
-    if (typeStr=="Half"):
-        return True
-    elif(typeStr=="Float"):
-        return True
-    elif(typeStr=="Double"):
-        return True
-    else:
-        return False
-
 def is_float_type(typeStr):
     """Returns the true if type is a Float
     """
@@ -137,6 +192,110 @@ def is_float_type(typeStr):
         return True
     else:
         return False
+
+
+
+#################################################
+# LLVM LL IR parsing
+#################################################
+
+def checkIRCat(l, opList, strict):
+    """ Performs simple regular expression matching
+    of an LLVM IR line against a list of instructions
+    """
+    for s in opList:
+        if strict:
+            if re.search(r"\A" + re.escape(s) + r"\b", l):
+                return 1
+        else:
+            if s in l:
+                return 1
+    return 0
+
+def determineIRCat(l, dictionary, strict=True):
+    """ Determines the instruction category of an LLVM
+    IR line and returns a category vector
+    """
+    wordList = l.split()
+    matchVector = [0]*len(dictionary)
+    for w in wordList:
+        for idx, iList in enumerate(dictionary):
+            found = checkIRCat(w, iList["iList"], strict)
+            matchVector[idx] += found
+            if found:
+                return matchVector
+    # Extra checks
+    if (sum(matchVector)==0 and strict):
+        print "Error - no match!"
+        print l
+        print matchVector
+        exit()
+    if (sum(matchVector)>1):
+        print "Error - multiple matches!"
+        print l
+        print matchVector
+        exit()
+    return matchVector
+
+def read_static_stats(llFile):
+    """ Processes an LLVM IR file (.ll) and produces
+    a static profile of the instructions
+    """
+
+    bbInfo = {}
+
+    with open(llFile) as f:
+        content = f.readlines()
+        prevInsnIdx = 0
+
+        for idx,l in enumerate(content):
+            matchObj = re.match(r'(.*)(!bb\d+i\d+)(.*)', l, re.M|re.I)
+            if matchObj:
+                instrId = matchObj.group(2)
+                (bbId, inId) = [int(x) for x in instrId[3:].split('i')]
+
+                # Add the BB category info dictionary
+                if bbId not in bbInfo:
+                    bbInfo[bbId] = dict(bbIrCatDict)
+
+                # Switch statements are over multiple lines
+                if l.strip()[0]==']':
+                    for i in range(idx, prevInsnIdx, -1):
+                        if content[i].strip()[-1]=='[':
+                            l = ''.join(content[i:idx+1])
+                            break
+
+
+                # Apply instruction filters
+                skip = False
+                if "@llvm.dbg" in l:
+                    skip = True
+
+                if not skip:
+                    bbInfo[bbId]["total"] += 1
+
+                    insnCatVector = determineIRCat(l, llvmInsnList)
+                    insnCat = llvmInsnList[insnCatVector.index(1)]["cat"]
+                    if insnCat in bbInfo[bbId]:
+                        if insnCat=="call":
+                            # Special case, check for cMath functions we care about
+                            stdcCatVector = determineIRCat(l, stdCList, strict=False)
+                            if 1 not in stdcCatVector:
+                                bbInfo[bbId][insnCat] += 1
+                            else:
+                                stdcCat = stdCList[stdcCatVector.index(1)]["cat"]
+                                bbInfo[bbId][stdcCat] += 1
+                        else:
+                            bbInfo[bbId][insnCat] += 1
+
+                prevInsnIdx = idx
+
+    return bbInfo
+
+
+#################################################
+# Bit mask setting to conf file param conversion
+#################################################
 
 def get_param_from_masks(himask, lomask):
     """Returns parameter from width settings
@@ -152,6 +311,11 @@ def get_masks_from_param(param):
     himask = (param >> 8) & 0xFF;
     lomask = (param & 0xFF);
     return himask, lomask
+
+
+#################################################
+# Configuration file reading/processing
+#################################################
 
 def parse_relax_config(f):
     """Parse a relaxation configuration from a file-like object.
@@ -202,6 +366,164 @@ def read_config(fname, adaptiverate, stats_fn=None):
                         })
 
     return config
+
+def gen_default_config(instlimit, adaptiverate, timeout):
+    """Reads in the coarse error injection descriptor,
+    generates the default config by running make run_orig.
+    Returns a config object.
+    """
+    curdir = os.getcwd()
+
+    # Generate the default configuration file, generate dynamic stats file
+    logging.info('Generating the fine config file: {}'.format(ACCEPT_CONFIG))
+    try:
+        shell(shlex.split('make run_orig'), cwd=curdir, timeout=timeout)
+        shell(shlex.split('make run_opt'), cwd=curdir, timeout=timeout)
+    except:
+        logging.error('Something went wrong generating default config.')
+        exit()
+
+    # Generate the LLVM IR file of the orig program
+    llFn = os.getcwd().split('/')[-1] + ".orig.ll"
+    logging.debug('Generating IR file (.ll): {}'.format(llFn))
+    try:
+        shell(shlex.split('make '+llFn), cwd=curdir, timeout=timeout)
+    except:
+        logging.error('Something went wrong generating the orig ll.')
+        exit()
+
+    # Obtain static information
+    staticStats = read_static_stats(llFn)
+
+    # Obtain dynamic information
+    dynamicStats = read_dyn_stats(DYNSTATS_FILE)
+
+    # Cross-reference static and dynamic profiles
+    totalStats = dict(bbIrCatDict)
+    for bbIdx in dynamicStats:
+        execCount = dynamicStats[bbIdx]
+        if execCount>0:
+            # logging.debug("BB{} executed {} times".format(bbIdx, execCount))
+            # if (staticStats[bbIdx]["call"]>0):
+            #     logging.debug("{}".format(staticStats[bbIdx]))
+            for cat in staticStats[bbIdx]:
+                totalStats[cat] += staticStats[bbIdx][cat]*execCount
+
+    # Print out statistics
+    csvHeader = []
+    csvRow = []
+    for cat in sorted(totalStats):
+        if cat!="total" and cat!="ignore":
+            perc = totalStats[cat]/(totalStats["total"]-totalStats["ignore"])
+            csvHeader.append(cat)
+            csvRow.append(str(perc))
+            # Set the threshold at 0.1%
+            if perc > 0.001:
+                logging.debug('Dynamic category mix breakdown: {} = {:.1%}'.format(cat, perc))
+    logging.debug('CSV Header: {}'.format(('\t').join(csvHeader)))
+    logging.debug('CSV Row: {}'.format(('\t').join(csvRow)))
+
+    # Load ACCEPT config file
+    config = read_config(ACCEPT_CONFIG, adaptiverate, DYNSTATS_FILE)
+
+    # Notify the user that the instruction limit is lower than the configuration length
+    if len(config) > instlimit:
+        logging.info('Instruction length exceeds the limit set by the user of {}'.format(instlimit))
+
+    return config
+
+def dump_relax_config(config, fname):
+    """Write a relaxation configuration to a file-like object. The
+    configuration should be a sequence of tuples.
+    """
+    logging.debug("-----------FILE DUMP BEGIN-----------")
+    with open(fname, 'w') as f:
+        for conf in config:
+            mode = get_param_from_masks(conf['himask'], conf['lomask'])
+            f.write(str(mode)+ ' ' + conf['insn'] + '\n')
+            logging.debug(str(mode)+ ' ' + conf['insn'])
+    logging.debug("----------- FILE DUMP END -----------")
+
+def print_config(config):
+    """Prints out the configuration.
+    """
+    logging.debug("-----------CONFIG DUMP BEGIN-----------")
+    for conf in config:
+        logging.debug(conf)
+    logging.debug("----------- CONFIG DUMP END -----------")
+
+def eval_compression_factor(config):
+    """Evaluate number of bits saved from compression.
+    """
+    bits, total = 0, 0
+    for conf in config:
+        bits += conf['himask']+conf['lomask']
+        total += get_bitwidth_from_type(conf['type'])
+    return float(bits)/total
+
+
+#################################################
+# Configuration function testing
+#################################################
+
+def test_config(config, timeout, statspath=None, dstpath=None):
+    """Creates a temporary directory to run ACCEPT with
+    the passed in config object for precision relaxation.
+    """
+    # Get the current working directory
+    curdir = os.getcwd()
+    # Get the last level directory name (the one we're in)
+    dirname = os.path.basename(os.path.normpath(curdir))
+    # Create a temporary directory
+    tmpdir = tempfile.mkdtemp()+'/'+dirname
+    logging.debug('New directory created: {}'.format(tmpdir))
+    # Transfer files over
+    copy_directory(curdir, tmpdir)
+    # Cleanup
+    try:
+        shell(shlex.split('make clean'), cwd=tmpdir, timeout=timeout)
+    except:
+        logging.error('Something went wrong generating during cleanup.')
+    # Dump config
+    dump_relax_config(config, tmpdir+'/'+ACCEPT_CONFIG)
+    # Full compile and program run
+    logging.debug('Lanching compile and run...')
+    try:
+        shell(shlex.split('make run_opt'), cwd=tmpdir, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        logging.warning('Timed out!')
+        print_config(config)
+        return float(TIMEOUT)
+    except:
+        logging.warning('Make error!')
+        print_config(config)
+        return float(CRASH)
+
+    # Now that we're done with the compilation, evaluate results
+    output_fp = os.path.join(tmpdir,APPROX_OUTPUT)
+    trace_fp = os.path.join(tmpdir,DYNSTATS_FILE)
+    if os.path.isfile(output_fp):
+        error = eval.score(PRECISE_OUTPUT,os.path.join(tmpdir,APPROX_OUTPUT))
+        logging.debug('Reported application error: {}'.format(error))
+        if(dstpath):
+            shutil.copyfile(output_fp, dstpath)
+        if(statspath):
+            shutil.copyfile(trace_fp, statspath)
+    else:
+        # Something went wrong - no output!
+        logging.warning('Missing output!')
+        print_config(config)
+        return float(NOOUTPUT)
+
+    # Remove the temporary directory
+    shutil.rmtree(tmpdir)
+    # Return the error
+    return float(error)
+
+
+#################################################
+# Dynamic statistics file reading/processing
+#################################################
 
 def read_dyn_stats(stats_fn):
     """Reads in the dynamic statistics file that ACCEPT spits out
@@ -353,118 +675,6 @@ def process_dyn_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
 
     return savings
 
-
-def gen_default_config(instlimit, adaptiverate, timeout):
-    """Reads in the coarse error injection descriptor,
-    generates the default config by running make run_orig.
-    Returns a config object.
-    """
-    curdir = os.getcwd()
-
-    logging.info('Generating the fine config file: {}'.format(ACCEPT_CONFIG))
-    try:
-        shell(shlex.split('make run_orig'), cwd=curdir, timeout=timeout)
-        shell(shlex.split('make run_opt'), cwd=curdir, timeout=timeout)
-    except:
-        logging.error('Something went wrong generating default config.')
-        exit()
-
-    # Load ACCEPT config and adjust parameters.
-    config = read_config(ACCEPT_CONFIG, adaptiverate, DYNSTATS_FILE)
-
-    # Notify the user that the instruction limit is lower than the configuration length
-    if len(config) > instlimit:
-        logging.info('Instruction length exceeds the limit set by the user of {}'.format(instlimit))
-
-    return config
-
-def dump_relax_config(config, fname):
-    """Write a relaxation configuration to a file-like object. The
-    configuration should be a sequence of tuples.
-    """
-    logging.debug("-----------FILE DUMP BEGIN-----------")
-    with open(fname, 'w') as f:
-        for conf in config:
-            mode = get_param_from_masks(conf['himask'], conf['lomask'])
-            f.write(str(mode)+ ' ' + conf['insn'] + '\n')
-            logging.debug(str(mode)+ ' ' + conf['insn'])
-    logging.debug("----------- FILE DUMP END -----------")
-
-#################################################
-# Configuration function
-#################################################
-
-def print_config(config):
-    """Prints out the configuration.
-    """
-    logging.debug("-----------CONFIG DUMP BEGIN-----------")
-    for conf in config:
-        logging.debug(conf)
-    logging.debug("----------- CONFIG DUMP END -----------")
-
-def eval_compression_factor(config):
-    """Evaluate number of bits saved from compression.
-    """
-    bits, total = 0, 0
-    for conf in config:
-        bits += conf['himask']+conf['lomask']
-        total += get_bitwidth_from_type(conf['type'])
-    return float(bits)/total
-
-def test_config(config, timeout, statspath=None, dstpath=None):
-    """Creates a temporary directory to run ACCEPT with
-    the passed in config object for precision relaxation.
-    """
-    # Get the current working directory
-    curdir = os.getcwd()
-    # Get the last level directory name (the one we're in)
-    dirname = os.path.basename(os.path.normpath(curdir))
-    # Create a temporary directory
-    tmpdir = tempfile.mkdtemp()+'/'+dirname
-    logging.debug('New directory created: {}'.format(tmpdir))
-    # Transfer files over
-    copy_directory(curdir, tmpdir)
-    # Cleanup
-    try:
-        shell(shlex.split('make clean'), cwd=tmpdir, timeout=timeout)
-    except:
-        logging.error('Something went wrong generating during cleanup.')
-    # Dump config
-    dump_relax_config(config, tmpdir+'/'+ACCEPT_CONFIG)
-    # Full compile and program run
-    logging.debug('Lanching compile and run...')
-    try:
-        shell(shlex.split('make run_opt'), cwd=tmpdir, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        logging.warning('Timed out!')
-        print_config(config)
-        return float(TIMEOUT)
-    except:
-        logging.warning('Make error!')
-        print_config(config)
-        return float(CRASH)
-
-    # Now that we're done with the compilation, evaluate results
-    output_fp = os.path.join(tmpdir,APPROX_OUTPUT)
-    trace_fp = os.path.join(tmpdir,DYNSTATS_FILE)
-    if os.path.isfile(output_fp):
-        error = eval.score(PRECISE_OUTPUT,os.path.join(tmpdir,APPROX_OUTPUT))
-        logging.debug('Reported application error: {}'.format(error))
-        if(dstpath):
-            shutil.copyfile(output_fp, dstpath)
-        if(statspath):
-            shutil.copyfile(trace_fp, statspath)
-    else:
-        # Something went wrong - no output!
-        logging.warning('Missing output!')
-        print_config(config)
-        return float(NOOUTPUT)
-
-    # Remove the temporary directory
-    shutil.rmtree(tmpdir)
-    # Return the error
-    return float(error)
-
 def report_error_and_savings(base_config, timeout, error=0, stats_fn=None, cdf_fn=None, accept_fn=None, error_fn=ERROR_LOG_FILE):
     """Reports the error of the current config,
     and the savings from minimizing Bit-width.
@@ -501,6 +711,7 @@ def report_error_and_savings(base_config, timeout, error=0, stats_fn=None, cdf_f
 
     # Increment global
     step_count+=1
+
 
 #################################################
 # Parameterisation testing
