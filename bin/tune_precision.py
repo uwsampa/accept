@@ -463,8 +463,6 @@ def gen_default_config(instlimit, adaptiverate, timeout):
     # Finally report the number of knobs
     logging.info('There are {} static safe to approximate instructions'.format(len(config)))
 
-    exit()
-
     # Notify the user that the instruction limit is lower than the configuration length
     if len(config) > instlimit:
         logging.info('Instruction length exceeds the limit set by the user of {}'.format(instlimit))
@@ -1028,7 +1026,8 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
             stats_path = tmpoutputsdir+'/stats_'+str(tuning_pass)+'_'+str(bestidx)+'.txt'
             cdf_path = outputsdir+'/cdf_{0:05d}'.format(step_count)
             accept_path = outputsdir+'/accept_conf_{0:05d}'.format(step_count)+'.txt'
-            report_error_and_savings(base_config, timeout, besterror, stats_path, cdf_path, accept_path)
+            # report_error_and_savings(base_config, timeout, besterror, stats_path, cdf_path, accept_path)
+            report_error_and_savings(base_config, timeout, besterror, stats_path, None, accept_path)
 
         # Update the masking rates for the instructions which error degradations
         # exceed the threshold. Also set equilibrium to True if all rates have
