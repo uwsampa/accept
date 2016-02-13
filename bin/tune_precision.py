@@ -59,12 +59,21 @@ memoryInsn = ['alloca','fence','cmpxchg','atomicrmw']
 conversionInsn = ['trunc','zext','sext','fptrunc','fpext','fptoui','fptosi','uitofp','sitofp','ptrtoint','inttoptr','bitcast','addrspacecast']
 cmpInsn = ['icmp','fcmp']
 callInsn = ['call']
-ignoreInsn = ['phi']
+phiInsn = ['phi']
 otherInsn = ['select','va_arg','landingpad','catchpad','cleanuppad']
 
 # C standard library function calls (non-exhaustive)
-cMathFunc = ['@acos','@asin','@atan','@atan2','@cos','@cosh','@sin','@sinh','@tanh','@exp','@frexp','@ldexp','@log','@log10','@modf','@pow','@sqrt','@ceil','@fabs','@floor','@fmod']
-cStdFunc = ['@__memcpy_chk','@__memset_chk','@calloc','@free','@printf']
+cMathFunc = ['acos','asin','atan','atan2','cos','cosh','sin','sinh','tanh','exp','frexp','ldexp','log','log10','modf','pow','sqrt','ceil','fabs','floor','fmod']
+cStdFunc = ['__memcpy_chk','__memset_chk','calloc','free','printf']
+
+
+# LLVM instruction category to be ignored
+ignoreList = [
+    "phi",              # phi instructions are used by LLVM for dependence analysis
+    "getelementptr",    # this is implicitly performed with load instructions
+    "vector",           # same here
+    "compare"           # this is implicitly performed with conditional jumps
+]
 
 # List of LLVM instruction lists
 llvmInsnList = [
@@ -79,7 +88,7 @@ llvmInsnList = [
     { "cat": "conversion", "iList": conversionInsn},
     { "cat": "compare", "iList": cmpInsn},
     { "cat": "call", "iList": callInsn},
-    { "cat": "ignore", "iList": ignoreInsn},
+    { "cat": "phi", "iList": phiInsn},
     { "cat": "other", "iList": otherInsn}
 ]
 
@@ -103,7 +112,7 @@ bbIrCatDict = {
     "conversion": 0,
     "compare": 0,
     "call": 0,
-    "ignore": 0,
+    "phi": 0,
     "other": 0,
     "cmath": 0,
     "cstd": 0
@@ -383,8 +392,11 @@ def gen_default_config(instlimit, adaptiverate, timeout):
         logging.error('Something went wrong generating default config.')
         exit()
 
+    # Analyze instruction mix
+    # instructionMix = analyzeInstructionMix(curdir)
+
     # Generate the LLVM IR file of the orig program
-    llFn = os.getcwd().split('/')[-1] + ".orig.ll"
+    llFn = curdir.split('/')[-1] + ".orig.ll"
     logging.debug('Generating IR file (.ll): {}'.format(llFn))
     try:
         shell(shlex.split('make '+llFn), cwd=curdir, timeout=timeout)
@@ -403,28 +415,55 @@ def gen_default_config(instlimit, adaptiverate, timeout):
     for bbIdx in dynamicStats:
         execCount = dynamicStats[bbIdx]
         if execCount>0:
-            # logging.debug("BB{} executed {} times".format(bbIdx, execCount))
-            # if (staticStats[bbIdx]["call"]>0):
-            #     logging.debug("{}".format(staticStats[bbIdx]))
             for cat in staticStats[bbIdx]:
                 totalStats[cat] += staticStats[bbIdx][cat]*execCount
+                # some debug code commented out for convenience
+                # if cat=="cmath" and staticStats[bbIdx][cat]>0:
+                #     print "BB {} executes {} times".format(bbIdx, execCount)
+                #     print staticStats[bbIdx]
 
-    # Print out statistics
+    # Print out statistics (in debug mode only)
     csvHeader = []
     csvRow = []
     for cat in sorted(totalStats):
-        if cat!="total" and cat!="ignore":
-            perc = totalStats[cat]/(totalStats["total"]-totalStats["ignore"])
+        if cat!="total" and cat not in ignoreList:
+            ignorePerc = sum([totalStats[i] for i in ignoreList])
+            perc = totalStats[cat]/(totalStats["total"]-ignorePerc)
             csvHeader.append(cat)
             csvRow.append(str(perc))
             # Set the threshold at 0.1%
             if perc > 0.001:
-                logging.debug('Dynamic category mix breakdown: {} = {:.1%}'.format(cat, perc))
+                logging.info('Dynamic instruction mix breakdown: {} = {:.1%}'.format(cat, perc))
     logging.debug('CSV Header: {}'.format(('\t').join(csvHeader)))
     logging.debug('CSV Row: {}'.format(('\t').join(csvRow)))
 
     # Load ACCEPT config file
     config = read_config(ACCEPT_CONFIG, adaptiverate, DYNSTATS_FILE)
+
+    # Get the instruction breakdown from the config file
+    approxStats = dict(bbIrCatDict)
+    for approxInsn in config:
+        for l in [llvmInsnList, stdCList]:
+            for cat in l:
+                if approxInsn['opcode'] in cat["iList"]:
+                    approxStats[cat["cat"]] += dynamicStats[approxInsn['bb']]
+
+    # Print out the approximate instruction proportion
+    csvHeader = []
+    csvRow = []
+    for cat in sorted(approxStats):
+        if approxStats[cat] > 0:
+            perc = approxStats[cat]/totalStats[cat]
+            logging.info('Approx to precise instruction percentage: {} = {:.1%}'.format(cat, perc))
+            csvHeader.append(cat)
+            csvRow.append(str(perc))
+    logging.debug('CSV Header: {}'.format(('\t').join(csvHeader)))
+    logging.debug('CSV Row: {}'.format(('\t').join(csvRow)))
+
+    # Finally report the number of knobs
+    logging.info('There are {} static safe to approximate instructions'.format(len(config)))
+
+    exit()
 
     # Notify the user that the instruction limit is lower than the configuration length
     if len(config) > instlimit:
@@ -1035,6 +1074,8 @@ def tune_width(accept_config_fn, target_error, target_snr, adaptiverate, passlim
     # Generate default configuration
     if (accept_config_fn):
         config = read_config(accept_config_fn, adaptiverate)
+        print_config(config)
+        exit()
     else:
         config = gen_default_config(instlimit, adaptiverate, timeout)
 
