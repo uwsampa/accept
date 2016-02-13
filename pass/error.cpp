@@ -55,7 +55,7 @@ namespace {
     for (Value::use_iterator ui = oldInst->use_begin();
         ui != oldInst->use_end(); ++ui)
       users.push_back(*ui);
-  
+
     for (int i = 0; i < users.size(); ++i) {
       User* user = users[i];
 
@@ -67,7 +67,7 @@ namespace {
         }
       }
       if (shouldSkip) continue;
-  
+
       if (Constant *C = dyn_cast<Constant>(user)) {
         if (!isa<GlobalValue>(C)) {
           int j;
@@ -79,10 +79,10 @@ namespace {
           continue;
         }
       }
-  
+
       user->replaceUsesOfWith(oldInst, newInst);
     }
-  
+
     if (BasicBlock *BB = dyn_cast<BasicBlock>(oldInst))
       BB->replaceSuccessorsPhiUsesWith(cast<BasicBlock>(newInst));
   }
@@ -122,10 +122,15 @@ struct ErrorInjection : public FunctionPass {
       Function* injectFn);
   bool injectHooksBinOp(Instruction* inst, Instruction* nextInst, int param,
       Function* injectFn);
+  bool injectHooksCast(Instruction* inst, Instruction* nextInst, int param,
+      Function* injectFn);
   bool injectHooksStore(Instruction* inst, Instruction* nextInst, int param,
       Function* injectFn);
   bool injectHooksLoad(Instruction* inst, Instruction* nextInst, int param,
       Function* injectFn);
+  bool injectHooksCall(Instruction* inst, Instruction* nextInst, int param,
+      Function* injectFn);
+  Type* intify(Type* dst_type);
 };
 
 void ErrorInjection::getAnalysisUsage(AnalysisUsage &AU) const {
@@ -325,7 +330,7 @@ bool ErrorInjection::injectHooksStore(Instruction* inst, Instruction* nextInst,
 bool ErrorInjection::injectHooksBinOp(Instruction* inst, Instruction* nextInst,
     int param, Function* injectFn) {
   if (dyn_cast<Constant>(inst)) return false;
-  
+
   Type* orig_type = inst->getType();
   std::string orig_type_str = getTypeStr(orig_type, module);
   if (orig_type_str == "") return false;
@@ -393,14 +398,160 @@ bool ErrorInjection::injectHooksBinOp(Instruction* inst, Instruction* nextInst,
   return true;
 }
 
+Type* ErrorInjection::intify(Type* dst_type) {
+  if (dst_type == Type::getHalfTy(module->getContext()))
+    return Type::getInt16Ty(module->getContext());
+  else if (dst_type == Type::getFloatTy(module->getContext()))
+    return Type::getInt32Ty(module->getContext());
+  else if (dst_type == Type::getDoubleTy(module->getContext()))
+    return Type::getInt64Ty(module->getContext());
+  else
+    return dst_type;
+}
+
+bool ErrorInjection::injectHooksCast(Instruction* inst, Instruction* nextInst,
+    int param, Function* injectFn) {
+  if (dyn_cast<Constant>(inst)) return false;
+
+  // Useful types
+  Type* int64ty = Type::getInt64Ty(module->getContext());
+  Type* stringty = Type::getInt8PtrTy(module->getContext());
+
+  // Derive the source and destination types
+  CastInst* cast_inst = dyn_cast<CastInst>(inst);
+  Type* dst_type = cast_inst->getDestTy();
+  Type* src_type = cast_inst->getSrcTy();
+  std::string dst_type_str = getTypeStr(dst_type, module);
+  std::string src_type_str = getTypeStr(src_type, module);
+  if (dst_type_str == "" || src_type_str == "") return false;
+
+  IRBuilder<> builder(module->getContext());
+  builder.SetInsertPoint(nextInst);
+
+  // Produce the opcode string parameter
+  Value* opcode_global_str = builder.CreateGlobalString(inst->getOpcodeName());
+  Value* param_opcode = builder.CreateBitCast(opcode_global_str, stringty);
+
+  // Knob parameter for error injection
+  Value* param_knob = ConstantInt::get(int64ty, param, false);
+
+  // Procuce the parameter values (ret & op)
+  Type* ret_type = intify(dst_type);
+  Type* op_type = intify(src_type);
+  Value* ret_to_be_casted = builder.CreateBitCast(cast_inst, ret_type);
+  Value* op_to_be_casted = builder.CreateBitCast(cast_inst->getOperand(0), op_type);
+  Value* param_ret = builder.CreateZExtOrBitCast(ret_to_be_casted, int64ty);
+  Value* param_op = builder.CreateZExtOrBitCast(op_to_be_casted, int64ty);
+
+  // Produce the type string parameter (destination)
+  Value* type_global_str = builder.CreateGlobalString(dst_type_str.c_str());
+  Value* param_orig_type = builder.CreateBitCast(type_global_str, stringty);
+
+
+  SmallVector<Value *, 6> Args;
+  Args.push_back(param_opcode);
+  Args.push_back(param_knob);
+  Args.push_back(param_ret);
+  Args.push_back(param_op);
+  Args.push_back(param_op); // Let's just push this twice in there
+  Args.push_back(param_orig_type);
+  CallInst* call = builder.CreateCall(injectFn, Args);
+
+  Value* final_result;
+  if (dst_type && dst_type != int64ty) {
+    Value* trunc = builder.CreateTrunc(call, ret_type);
+    final_result = builder.CreateBitCast(trunc, dst_type);
+  } else {
+    final_result = builder.CreateTruncOrBitCast(call, dst_type);
+  }
+
+  std::vector<Value*> except;
+  if (ret_to_be_casted != inst)
+    except.push_back(ret_to_be_casted);
+  else
+    except.push_back(param_ret);
+  except.push_back(call);
+  replaceAllUsesWithExcept(inst, final_result, except);
+
+  return true;
+}
+
+bool ErrorInjection::injectHooksCall(Instruction* inst, Instruction* nextInst,
+    int param, Function* injectFn) {
+  CallInst* call_inst = dyn_cast<CallInst>(inst);
+  assert(call_inst != NULL);
+
+  // Useful types
+  Type* int64ty = Type::getInt64Ty(module->getContext());
+  Type* stringty = Type::getInt8PtrTy(module->getContext());
+
+  // Derive the source and destination types
+  Type* op_type = call_inst->getType();
+  std::string op_type_str = getTypeStr(op_type, module);
+  if (op_type_str == "") return false;
+
+  IRBuilder<> builder(module->getContext());
+  builder.SetInsertPoint(nextInst);
+
+  // Produce the opcode string parameter
+  Value* opcode_global_str = builder.CreateGlobalString(inst->getOpcodeName());
+  Value* param_opcode = builder.CreateBitCast(opcode_global_str, stringty);
+
+  // Knob parameter for error injection
+  Value* param_knob = ConstantInt::get(int64ty, param, false);
+
+  // Procuce the parameter values (ret & op)
+  Type* ret_type = intify(op_type);
+  Value* ret_to_be_casted = builder.CreateBitCast(call_inst, ret_type);
+  Value* param_ret = builder.CreateZExtOrBitCast(ret_to_be_casted, int64ty);
+
+  // Produce the type string parameter (destination)
+  Value* type_global_str = builder.CreateGlobalString(op_type_str.c_str());
+  Value* param_orig_type = builder.CreateBitCast(type_global_str, stringty);
+
+
+  SmallVector<Value *, 6> Args;
+  Args.push_back(param_opcode);
+  Args.push_back(param_knob);
+  Args.push_back(param_ret);
+  Args.push_back(param_ret);// Let's just push this in there since all we care is the ret value
+  Args.push_back(param_ret); // Let's just push this in there since all we care is the ret value
+  Args.push_back(param_orig_type);
+  CallInst* call = builder.CreateCall(injectFn, Args);
+
+  Value* final_result;
+  if (op_type && op_type != int64ty) {
+    Value* trunc = builder.CreateTrunc(call, ret_type);
+    final_result = builder.CreateBitCast(trunc, op_type);
+  } else {
+    final_result = builder.CreateTruncOrBitCast(call, op_type);
+  }
+
+  std::vector<Value*> except;
+  if (ret_to_be_casted != inst)
+    except.push_back(ret_to_be_casted);
+  else
+    except.push_back(param_ret);
+  except.push_back(call);
+  replaceAllUsesWithExcept(inst, final_result, except);
+
+  return true;
+}
+
 bool ErrorInjection::injectHooks(Instruction* inst, Instruction* nextInst,
     int param, Function* injectFn) {
   if (isa<BinaryOperator>(inst))
     return injectHooksBinOp(inst, nextInst, param, injectFn);
+  if (isa<CastInst>(inst))
+    return injectHooksCast(inst, nextInst, param, injectFn);
   else if (isa<StoreInst>(inst))
     return injectHooksStore(inst, nextInst, param, injectFn);
   else if (isa<LoadInst>(inst))
     return injectHooksLoad(inst, nextInst, param, injectFn);
+  else if (isa<CallInst>(inst))
+    return injectHooksCall(inst, nextInst, param, injectFn);
+  else
+    assert(NULL && "Unsupported type!!!");
 
   return false;
 }
@@ -480,7 +631,8 @@ bool ErrorInjection::injectErrorInst(InstId iid, Instruction* nextInst,
       return injectErrorRegion(iid);
   }
 
-  if (isa<BinaryOperator>(inst) || isa<StoreInst>(inst) || isa<LoadInst>(inst)) {
+  if (isa<BinaryOperator>(inst) || isa<StoreInst>(inst) || isa<LoadInst>(inst)
+    || isa<CastInst>(inst) || isa<CallInst>(inst)) {
 
     std::stringstream ss;
     Type* orig_type = inst->getType();
@@ -489,10 +641,17 @@ bool ErrorInjection::injectErrorInst(InstId iid, Instruction* nextInst,
       orig_type = dyn_cast<StoreInst>(inst)->getValueOperand()->getType();
     }
 
+    std::string opCode;
+    if (isa<CallInst>(inst) && ci != NULL && !ci->isInlineAsm()) {
+      opCode = ci->getCalledFunction()->getName().str();
+    } else {
+      opCode = inst->getOpcodeName();
+    }
+
 
     ss << "instruction " << inst->getParent()->getParent()->getName().str()
        << ":" << iid.bb_index << ":" << iid.i_index
-       << ":" << inst->getOpcodeName()
+       << ":" << opCode
        << ":" << getTypeStr(orig_type, module);
 
     std::string instName = ss.str();
@@ -504,6 +663,8 @@ bool ErrorInjection::injectErrorInst(InstId iid, Instruction* nextInst,
 
     if (transformPass->relax && approx) { // we're injecting error
       int param = transformPass->relaxConfig[instName];
+      if (isa<CallInst>(inst) && ci != NULL && !ci->isInlineAsm()) {
+      }
       if (param) {
         ACCEPT_LOG << "injecting error " << param << "\n";
         // param tells which error injection will be done e.g. bit flipping
