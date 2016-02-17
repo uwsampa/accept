@@ -49,7 +49,8 @@ step_count = 0
 # because of the SSA style of the LLVM IR
 controlInsn = ['br','switch','indirectbr','ret']
 terminatorInsn = ['invoke','resume','catchswitch','catchret','cleanupret','unreachable']
-binaryInsn = ['add','fadd','sub','fsub','mul','fmul','udiv','sdiv','fdiv','urem','srem','frem']
+llInsn = ['fadd','fsub','mul','fmul','udiv','sdiv','fdiv','urem','srem','frem']
+binaryInsn = ['add','sub']
 bitbinInsn = ['shl','lshr','ashr','and','or','xor']
 vectorInsn = ['extractelement','insertelement','shufflevector']
 aggregateInsn = ['extractvalue','insertvalue']
@@ -72,13 +73,17 @@ ignoreList = [
     "phi",              # phi instructions are used by LLVM for dependence analysis
     "getelementptr",    # this is implicitly performed with load instructions
     "vector",           # same here
-    "compare"           # this is implicitly performed with conditional jumps
+    "compare",          # this is implicitly performed with conditional jumps
+    "other",            # don't care about these (usually very low)
+    "terminator",       # rarely ecountered
+    "aggregate"         # rarely ecountered
 ]
 
 # List of LLVM instruction lists
 llvmInsnList = [
     { "cat": "control", "iList": controlInsn},
     { "cat": "terminator", "iList": terminatorInsn},
+    { "cat": "longlatency", "iList": llInsn},
     { "cat": "binary", "iList": binaryInsn+bitbinInsn},
     { "cat": "vector", "iList": vectorInsn},
     { "cat": "aggregate", "iList": aggregateInsn},
@@ -103,6 +108,7 @@ bbIrCatDict = {
     "total": 0,
     "control": 0,
     "terminator": 0,
+    "longlatency": 0,
     "binary": 0,
     "vector": 0,
     "aggregate": 0,
@@ -281,7 +287,6 @@ def read_static_stats(llFile):
                     skip = True
 
                 if not skip:
-                    bbInfo[bbId]["total"] += 1
 
                     insnCatVector = determineIRCat(l, llvmInsnList)
                     insnCat = llvmInsnList[insnCatVector.index(1)]["cat"]
@@ -296,6 +301,7 @@ def read_static_stats(llFile):
                                 bbInfo[bbId][stdcCat] += 1
                         else:
                             bbInfo[bbId][insnCat] += 1
+                        bbInfo[bbId]["total"] += 1
 
                 prevInsnIdx = idx
 
@@ -452,9 +458,11 @@ def gen_default_config(instlimit, adaptiverate, timeout):
     csvHeader = []
     csvRow = []
     for cat in sorted(approxStats):
+        perc = 0.0
         if approxStats[cat] > 0:
             perc = approxStats[cat]/totalStats[cat]
             logging.info('Approx to precise instruction percentage: {} = {:.1%}'.format(cat, perc))
+        if cat!="total" and cat not in ignoreList:
             csvHeader.append(cat)
             csvRow.append(str(perc))
     logging.debug('CSV Header: {}'.format(('\t').join(csvHeader)))
