@@ -46,8 +46,11 @@ endif
 # scripts do.
 # Additionally, make virtualenv use python2.
 ifeq ($(shell which python2 >/dev/null 2>&1 ; echo $$?),0)
+	PYTHON2 := python2
 	CMAKE_FLAGS += -DPYTHON_EXECUTABLE:PATH=$(shell which python2)
 	VIRTUALENV += -p $(shell which python2)
+else
+	PYTHON2 := python
 endif
 # If python2-virtualenv is installed, use that instead.
 ifeq ($(shell which virtualenv2 >/dev/null 2>&1 ; echo $$?),0)
@@ -77,7 +80,7 @@ llvm: llvm/CMakeLists.txt llvm/tools/clang check_cmake check_ninja
 setup: llvm accept driver
 
 test:
-	$(BUILT)/bin/llvm-lit -v --filter='test_\w+\.' test
+	$(PYTHON2) $(BUILT)/bin/llvm-lit -v --filter='test_\w+\.' test
 
 clean:
 	rm -rf $(BUILD)
