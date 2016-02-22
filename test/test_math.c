@@ -12,4 +12,6 @@ int main() {
     APPROX double b = cos(a);
 
     double c = cos(a); // expected-error {{precision flow violation}}
+
+    APPROX double d = sin(a);
 }
