@@ -177,8 +177,11 @@ bool ErrorInjection::instructionErrorInjection(Function& F) {
       get_mangled_fn_name(module, injectFn_unmangled_name);
   Function* injectFn = module->getFunction(injectFn_mangled_name);
 
+  IRBuilder<> builder(module->getContext());
+
   bool modified = false;
   std::vector<InstId> all_insts;
+
   for (Function::iterator fi = F.begin(); fi != F.end(); ++fi) {
     BasicBlock *bb = fi;
     int icounter = 0;
@@ -187,12 +190,19 @@ bool ErrorInjection::instructionErrorInjection(Function& F) {
       InstId iid;
       iid.inst = inst; iid.bb_index = bbIndex; iid.i_index = icounter;
       all_insts.push_back(iid);
-      // metadata
+      // Write the metadata
       LLVMContext& C = inst->getContext();
       std::stringstream mss;
       mss << "bb" << bbIndex << "i" << icounter;
-      MDNode* N = MDNode::get(C, MDString::get(C, "this tags the instruction id and block number"));
-      inst->setMetadata(mss.str(), N);
+      Value* vals[] = {
+        MDString::get(C, mss.str()),
+        builder.getInt32(bbIndex),
+        builder.getInt32(icounter)
+      };
+      MDNode* N1 = MDNode::get(C, vals);
+      inst->setMetadata("iid", N1);
+      MDNode* N2 = MDNode::get(C, MDString::get(C, "instruction label"));
+      inst->setMetadata(mss.str(), N2);
       ++icounter;
     }
     ++bbIndex;
