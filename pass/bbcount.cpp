@@ -143,6 +143,7 @@ bool BBCount::instrumentBasicBlocks(Function & F){
 
       BasicBlock *bb = fi;
 
+#if INSTRUMENT_FP==true
       for (BasicBlock::iterator bi = bb->begin(); bi != bb->end(); ++bi) {
         Instruction *inst = bi;
         Instruction *nextInst = next(bi, 1);
@@ -156,7 +157,6 @@ bool BBCount::instrumentBasicBlocks(Function & F){
         {
           assert(nextInst && "next inst is NULL");
 
-#if INSTRUMENT_FP==true
           // Check if the float is double or half precision op
           Type * opType = inst->getType();
           if (opType == halfty ||
