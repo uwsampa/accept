@@ -44,8 +44,8 @@ namespace {
                              PassManagerBase &PM) {
     PM.add(new ApproxInfo());
     PM.add(createAcceptTransformPass());
-    PM.add(createBBCountPass());
     PM.add(createErrorInjectionPass());
+    PM.add(createBBCountPass());
   }
   static RegisterStandardPasses
       RegisterEarlyACCEPT(PassManagerBuilder::EP_EarlyAsPossible ,
