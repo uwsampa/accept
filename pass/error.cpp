@@ -641,8 +641,10 @@ bool ErrorInjection::injectErrorInst(InstId iid, Instruction* nextInst,
       return injectErrorRegion(iid);
   }
 
-  if (isa<BinaryOperator>(inst) || isa<StoreInst>(inst) || isa<LoadInst>(inst)
-    || isa<CastInst>(inst) || isa<CallInst>(inst)) {
+  if (isa<BinaryOperator>(inst) ||
+      isa<StoreInst>(inst) ||
+      isa<LoadInst>(inst) ||
+      isa<CallInst>(inst)) {
 
     std::stringstream ss;
     Type* orig_type = inst->getType();

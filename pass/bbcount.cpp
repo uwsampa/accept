@@ -74,7 +74,10 @@ bool BBCount::doInitialization(Module &M) {
       // Count the number fp
       for (BasicBlock::iterator bi = bb->begin(); bi != bb->end(); ++bi) {
         Instruction *inst = bi;
-        if (isa<BinaryOperator>(inst)) {
+        if (isa<BinaryOperator>(inst) ||
+            isa<StoreInst>(inst) ||
+            isa<LoadInst>(inst) ||
+            isa<CallInst>(inst)) {
           Type * opType = inst->getType();
           if (opType == Type::getHalfTy(Ctx) ||
               opType == Type::getFloatTy(Ctx) ||
@@ -152,7 +155,6 @@ bool BBCount::instrumentBasicBlocks(Function & F){
         if ( (isa<BinaryOperator>(inst) ||
               isa<StoreInst>(inst) ||
               isa<LoadInst>(inst) ||
-              isa<CastInst>(inst) ||
               isa<CallInst>(inst)) && inst->getMetadata("iid") )
         {
           assert(nextInst && "next inst is NULL");

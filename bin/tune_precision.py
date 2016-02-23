@@ -64,7 +64,7 @@ phiInsn = ['phi']
 otherInsn = ['select','va_arg','landingpad','catchpad','cleanuppad']
 
 # C standard library function calls (non-exhaustive)
-cMathFunc = ['acos','asin','atan','atan2','cos','cosh','sin','sinh','tanh','exp','frexp','ldexp','log','log10','modf','pow','sqrt','ceil','fabs','floor','fmod']
+cMathFunc = ['abs','acos','asin','atan','atan2','cos','cosh','sin','sinh','tan','tanh','exp','frexp','ldexp','log','log10','modf','pow','sqrt','sqrtf','ceil','fabs','floor','fmod']
 cStdFunc = ['__memcpy_chk','__memset_chk','calloc','free','printf']
 
 
@@ -76,7 +76,8 @@ ignoreList = [
     "compare",          # this is implicitly performed with conditional jumps
     "other",            # don't care about these (usually very low)
     "terminator",       # rarely ecountered
-    "aggregate"         # rarely ecountered
+    "aggregate",        # rarely ecountered
+    "conversion"        # although it is work, it's considered an artifact
 ]
 
 # List of LLVM instruction lists
@@ -102,6 +103,26 @@ stdCList = [
     { "cat": "cmath", "iList": cMathFunc},
     { "cat": "cstd", "iList": cStdFunc}
 ]
+
+# Dictionary for convenient list access
+llvmInsnListDict = {
+    "control" : controlInsn,
+    "terminator" : terminatorInsn,
+    "longlatency" : llInsn,
+    "binary" : binaryInsn+bitbinInsn,
+    "vector" : vectorInsn,
+    "aggregate" : aggregateInsn,
+    "loadstore" : loadstoreInsn,
+    "getelementptr" : getelementptrInsn,
+    "memory" : memoryInsn,
+    "conversion" : conversionInsn,
+    "compare" : cmpInsn,
+    "call" : callInsn,
+    "phi" : phiInsn,
+    "other" : otherInsn,
+    "cmath": cMathFunc,
+    "cstd": cStdFunc
+}
 
 # BB IR Category Dictionary
 bbIrCatDict = {
@@ -420,11 +441,12 @@ def gen_default_config(instlimit, adaptiverate, timeout, statsOnly=False):
     totalStats = dict(bbIrCatDict)
     for bbIdx in dynamicStats:
         execCount = dynamicStats[bbIdx]
-        if execCount>0:
+        # Only account for non-main BBs
+        if execCount>1:
             for cat in staticStats[bbIdx]:
                 totalStats[cat] += staticStats[bbIdx][cat]*execCount
                 # some debug code commented out for convenience
-                # if cat=="cmath" and staticStats[bbIdx][cat]>0:
+                # if cat=="call" and staticStats[bbIdx][cat]>0:
                 #     print "BB {} executes {} times".format(bbIdx, execCount)
                 #     print staticStats[bbIdx]
 
@@ -449,10 +471,9 @@ def gen_default_config(instlimit, adaptiverate, timeout, statsOnly=False):
     # Get the instruction breakdown from the config file
     approxStats = dict(bbIrCatDict)
     for approxInsn in config:
-        for l in [llvmInsnList, stdCList]:
-            for cat in l:
-                if approxInsn['opcode'] in cat["iList"]:
-                    approxStats[cat["cat"]] += dynamicStats[approxInsn['bb']]
+        for l in llvmInsnList+stdCList:
+            if approxInsn['opcode'] in l['iList']:
+                approxStats[l['cat']] += dynamicStats[approxInsn['bb']]
 
     # Print out the approximate instruction proportion
     csvHeader = []
@@ -470,6 +491,21 @@ def gen_default_config(instlimit, adaptiverate, timeout, statsOnly=False):
 
     # Finally report the number of knobs
     logging.info('There are {} static safe to approximate instructions'.format(len(config)))
+
+    # Check for non-approximable instructions that should be approximate!
+    for bbIdx in staticStats:
+        for cat in staticStats[bbIdx]:
+            if cat=="loadstore" or cat=="longlatency" or cat=="cmath":
+                staticPreciseCount = staticStats[bbIdx][cat]
+                staticApproxCount = 0
+                for approxInsn in config:
+                    if bbIdx == approxInsn['bb'] and approxInsn['opcode'] in llvmInsnListDict[cat]:
+                        staticApproxCount+=1
+                if staticStats[bbIdx][cat] > 0 and dynamicStats[bbIdx] > 0:
+                    if staticApproxCount < staticPreciseCount:
+                        logging.debug("bb {} executes {} times".format(bbIdx, dynamicStats[bbIdx]))
+                        logging.debug("\t{} has {} approx insn vs. {} precise insn".format(cat, staticApproxCount, staticPreciseCount))
+
 
     # If we are just interested in stats
     if statsOnly:
