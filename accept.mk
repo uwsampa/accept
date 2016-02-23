@@ -60,7 +60,7 @@ ENERCLIB ?= $(BUILTDIR)/lib/EnerCTypeChecker.$(LIBEXT)
 PASSLIB ?= $(BUILTDIR)/lib/enerc.$(LIBEXT)
 
 # General compiler flags.
-override CFLAGS += -I$(INCLUDEDIR) -g -fno-use-cxa-atexit
+override CFLAGS += -I$(INCLUDEDIR) -fno-use-cxa-atexit
 override CXXFLAGS += $(CFLAGS)
 LLCARGS += -O2
 
@@ -142,7 +142,7 @@ $(LINKEDBC): $(BCFILES) $(EXTRABC)
 $(TARGET).orig.bc: $(LINKEDBC)
 	$(LLVMOPT) -load $(PASSLIB) -O1 $(OPTARGS) $< -o $@
 $(TARGET).opt.bc: $(LINKEDBC) accept_config.txt
-	$(LLVMOPT) -load $(PASSLIB) -O1 -accept-relax $(OPTARGS) -inline $< -o $@
+	$(LLVMOPT) -load $(PASSLIB) -O1 -accept-relax $(OPTARGS) $< -o $@
 $(TARGET).dummy.bc: $(LINKEDBC)
 	cp $< $@
 
@@ -166,6 +166,7 @@ clean:
 	$(RM) $(TARGET) $(TARGET).s $(BCFILES) $(LLFILES) $(LINKEDBC) \
 	accept-globals-info.txt accept_config.txt accept_config_desc.txt \
 	accept_log.txt accept_time.txt accept_bbstats.txt cdf_stats.txt \
+	accept_fpstats.txt tmp_stats.txt \
 	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
 	accept-approxRetValueFunctions-info.txt accept-npuArrayArgs-info.txt \
 	$(TUNER) \
