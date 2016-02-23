@@ -53,6 +53,14 @@ bool ACCEPTPass::shouldSkipFunc(Function &F) {
     return true;
   }
 
+  // BB instrumentation.
+  if (F.getName().str().compare("logbb") == 0) {
+    return true;
+  }
+  if (F.getName().str().compare("logfp") == 0) {
+    return true;
+  }
+
   // LLVM intrinsics.
   if (F.isIntrinsic()) {
     return true;
