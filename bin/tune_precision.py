@@ -382,7 +382,7 @@ def read_config(fname, adaptiverate, stats_fn=None):
 
     return config
 
-def gen_default_config(instlimit, adaptiverate, timeout):
+def gen_default_config(instlimit, adaptiverate, timeout, statsOnly=False):
     """Reads in the coarse error injection descriptor,
     generates the default config by running make run_orig.
     Returns a config object.
@@ -470,6 +470,10 @@ def gen_default_config(instlimit, adaptiverate, timeout):
 
     # Finally report the number of knobs
     logging.info('There are {} static safe to approximate instructions'.format(len(config)))
+
+    # If we are just interested in stats
+    if statsOnly:
+        exit()
 
     # Notify the user that the instruction limit is lower than the configuration length
     if len(config) > instlimit:
@@ -1075,7 +1079,7 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
 # Main Function
 #################################################
 
-def tune_width(accept_config_fn, target_error, target_snr, adaptiverate, passlimit, instlimit, skip, timeout, clusterworkers, run_on_grappa):
+def tune_width(accept_config_fn, target_error, target_snr, adaptiverate, passlimit, instlimit, skip, timeout, statsOnly, clusterworkers, run_on_grappa):
     """Performs instruction masking tuning
     """
     # Generate default configuration
@@ -1084,7 +1088,7 @@ def tune_width(accept_config_fn, target_error, target_snr, adaptiverate, passlim
         print_config(config)
         exit()
     else:
-        config = gen_default_config(instlimit, adaptiverate, timeout)
+        config = gen_default_config(instlimit, adaptiverate, timeout, statsOnly)
 
     # If in SNR mode, measure initial SNR
     if (target_snr>0):
@@ -1159,6 +1163,10 @@ def cli():
         default=False, help='use seaborn formatting'
     )
     parser.add_argument(
+        '-stats', dest='statsOnly', action='store_true', required=False,
+        default=False, help='produce instruction breakdown'
+    )
+    parser.add_argument(
         '-c', dest='clusterworkers', action='store', type=int, required=False,
         default=0, help='max number of machines to allocate on the cluster'
     )
@@ -1207,6 +1215,7 @@ def cli():
         args.instlimit,
         args.skip,
         args.timeout,
+        args.statsOnly,
         args.clusterworkers,
         args.grappa)
 
