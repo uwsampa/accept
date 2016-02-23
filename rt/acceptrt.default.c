@@ -3,10 +3,29 @@
 #include <sys/time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
+
+#define HALF_MANTISSA_W   10
+#define HALF_EXPONENT_W   5
+#define HALF_EXP_BIAS     ( (1 << (HALF_EXPONENT_W-1)) - 1)
+#define HALF_EXP_MASK     ( (1 << HALF_EXPONENT_W) - 1 )
+#define FLOAT_MANTISSA_W  23
+#define FLOAT_EXPONENT_W  8
+#define FLOAT_EXP_BIAS    ( (1 << (FLOAT_EXPONENT_W-1)) - 1)
+#define FLOAT_EXP_MASK    ( (1 << FLOAT_EXPONENT_W) - 1 )
+#define DOUBLE_MANTISSA_W 52
+#define DOUBLE_EXPONENT_W 11
+#define DOUBLE_EXP_BIAS   ( (1 << (DOUBLE_EXPONENT_W-1)) - 1)
+#define DOUBLE_EXP_MASK   ( (1 << DOUBLE_EXPONENT_W) - 1 )
+
+
+typedef struct _minmax { int min, max; char* iid; } minmax;
 
 static double time_begin;
 static unsigned numBB;
-static unsigned* BBcount;
+static unsigned numFP;
+static unsigned* BBstat;
+static minmax* FPstat;
 
 void accept_roi_begin() {
     struct timeval t;
@@ -26,25 +45,64 @@ void accept_roi_end() {
 }
 
 void logbb(int i) {
-    BBcount[i]++;
+    BBstat[i]++;
+}
+
+void logfp(int type, char* iid, int fpid, int64_t value) {
+
+    int64_t exponent = 0;
+    switch (type) {
+        case 1:
+            exponent = ( (value >> HALF_MANTISSA_W) & HALF_EXP_MASK ) - HALF_EXP_BIAS;
+            break;
+        case 2:
+            exponent = ( (value >> FLOAT_MANTISSA_W) & FLOAT_EXP_MASK ) - FLOAT_EXP_BIAS;
+            break;
+        case 3:
+            exponent = ( (value >> DOUBLE_MANTISSA_W) & DOUBLE_EXP_MASK ) - DOUBLE_EXP_BIAS;
+            break;
+        default:
+            // The type enum is unkown, flag it
+            FPstat[fpid].iid = "unknown type";
+            return;
+    }
+
+    FPstat[fpid].min = exponent < FPstat[fpid].min ? exponent : FPstat[fpid].min;
+    FPstat[fpid].max = exponent > FPstat[fpid].max ? exponent : FPstat[fpid].max;
+    FPstat[fpid].iid = FPstat[fpid].iid==NULL ? iid : FPstat[fpid].iid;
 }
 
 void logbb_fini() {
     int i;
-    FILE *f = fopen("accept_bbstats.txt", "w");
-    fprintf(f, "BB\texec\n");
+    FILE *f1 = fopen("accept_bbstats.txt", "w");
+    FILE *f2 = fopen("accept_fpstats.txt", "w");
+    fprintf(f1, "BB\texec\n");
     for (i=0; i<numBB; i++) {
-        fprintf(f, "%u\t%u\n", i, BBcount[i]);
+        fprintf(f1, "%u\t%u\n", i, BBstat[i]);
     }
-    fclose(f);
+    fprintf(f2, "id\tmin\tmax\n");
+    for (i=0; i<numFP; i++) {
+        if (FPstat[i].iid!=NULL)
+            fprintf(f2, "%s\t%d\t%d\n", FPstat[i].iid, FPstat[i].min, FPstat[i].max);
+    }
+    fclose(f1);
+    fclose(f2);
 }
 
-void logbb_init(int n) {
+void logbb_init(int bbCount, int fpCount) {
     int i;
-    numBB = n;
-    BBcount = (unsigned int *) malloc (sizeof(unsigned int) * n);
+    numBB = bbCount;
+    numFP = fpCount;
+    printf("Got %d bbs and %d fps\n", bbCount, fpCount);
+    BBstat = (unsigned int *) malloc (sizeof(unsigned int) * bbCount);
+    FPstat = (minmax *) malloc (sizeof(minmax) * fpCount);
     for (i=0; i<numBB; i++){
-        BBcount[i] = 0;
+        BBstat[i] = 0;
+    }
+    for (i=0; i<numFP; i++){
+        FPstat[i].min = pow(2, DOUBLE_EXPONENT_W) - 1 - DOUBLE_EXP_BIAS;
+        FPstat[i].max = 0 - DOUBLE_EXP_BIAS;
+        FPstat[i].iid = NULL;
     }
     atexit(logbb_fini);
 }
