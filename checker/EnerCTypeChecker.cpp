@@ -8,6 +8,8 @@
 #include "llvm/Support/Debug.h"
 #include "enerc.h"
 #include <iostream>
+#include <string>
+#include <set>
 
 using namespace clang;
 
@@ -16,6 +18,38 @@ namespace {
 // The types in the EnerC type system.
 const uint32_t ecPrecise = 0;
 const uint32_t ecApprox = 1;
+
+// Whitelist for standard-library functions with polymorphic types.
+// C++11 TODO: Extended initializer lists would be nice here.
+char const* polymorphicWhitelist_array[] = {
+  "abs",
+  "cos",
+  "log",
+  "exp",
+  "pow",
+  "sqrt",
+  "sqrtf",
+  "sin",
+  "tan",
+  "acos",
+  "asin",
+  "atan",
+  "atan2",
+  "cosh",
+  "sinh",
+  "tanh",
+  "log10",
+  "ceil",
+  "fabs",
+  "floor",
+  "fmod",
+};
+const std::set<std::string> polymorphicWhitelist(
+  polymorphicWhitelist_array,
+  polymorphicWhitelist_array +
+    sizeof(polymorphicWhitelist_array) /
+    sizeof(polymorphicWhitelist_array[0])
+);
 
 // The typer: assign types to AST nodes.
 class EnerCTyper : public NodeTyper {
@@ -322,10 +356,10 @@ uint32_t EnerCTyper::typeForExpr(clang::Expr *expr) {
         return CL_LEAVE_UNCHANGED;
       }
 
-      // Special cases for standard math functions.
-      if (name.equals("abs") || name.equals("cos") || name.equals("log") ||
-          name.equals("exp") || name.equals("pow") || name.equals("sqrt") ||
-          name.equals("sqrtf")) {
+      // For a whitelist of standard math functions, we provide a kind of
+      // hacky parametric polymoprhism: the return type's qualifier is the
+      // same as the argument qualifier.
+      if (polymorphicWhitelist.count(name)) {
         Expr *arg = call->getArg(0);
         // Parametric-esque: return qualifier is the argument qualifier.
         uint32_t outType = typeOf(arg);
