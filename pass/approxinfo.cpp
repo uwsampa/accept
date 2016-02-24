@@ -202,6 +202,7 @@ char const* _funcWhitelistArray[] = {
   "sinh",
   "tanh",
   "exp",
+  "expf",
   "frexp",
   "ldexp",
   "log",
@@ -212,7 +213,9 @@ char const* _funcWhitelistArray[] = {
   "sqrtf",
   "ceil",
   "fabs",
+  "fabsf",
   "floor",
+  "floorf",
   "fmod",
 };
 const std::set<std::string> funcWhitelist(

@@ -49,8 +49,8 @@ step_count = 0
 # because of the SSA style of the LLVM IR
 controlInsn = ['br','switch','indirectbr','ret']
 terminatorInsn = ['invoke','resume','catchswitch','catchret','cleanupret','unreachable']
-llInsn = ['fadd','fsub','mul','fmul','udiv','sdiv','fdiv','urem','srem','frem']
-binaryInsn = ['add','sub']
+fpInsn = ['fadd','fsub','fmul','fdiv','frem']
+binaryInsn = ['add','sub','mul','udiv','sdiv','urem','srem']
 bitbinInsn = ['shl','lshr','ashr','and','or','xor']
 vectorInsn = ['extractelement','insertelement','shufflevector']
 aggregateInsn = ['extractvalue','insertvalue']
@@ -64,7 +64,7 @@ phiInsn = ['phi']
 otherInsn = ['select','va_arg','landingpad','catchpad','cleanuppad']
 
 # C standard library function calls (non-exhaustive)
-cMathFunc = ['abs','acos','asin','atan','atan2','cos','cosh','sin','sinh','tan','tanh','exp','frexp','ldexp','log','log10','modf','pow','sqrt','sqrtf','ceil','fabs','floor','fmod']
+cMathFunc = ['abs','acos','asin','atan','atan2','cos','cosh','sin','sinh','tan','tanh','exp','frexp','ldexp','log','log10','modf','pow','sqrt','sqrtf','ceil','fabs','fabsf','floor','floorf','fmod']
 cStdFunc = ['__memcpy_chk','__memset_chk','calloc','free','printf']
 
 
@@ -84,8 +84,8 @@ ignoreList = [
 llvmInsnList = [
     { "cat": "control", "iList": controlInsn},
     { "cat": "terminator", "iList": terminatorInsn},
-    { "cat": "longlatency", "iList": llInsn},
-    { "cat": "binary", "iList": binaryInsn+bitbinInsn},
+    { "cat": "fp_arith", "iList": fpInsn},
+    { "cat": "int_arith", "iList": binaryInsn+bitbinInsn},
     { "cat": "vector", "iList": vectorInsn},
     { "cat": "aggregate", "iList": aggregateInsn},
     { "cat": "loadstore", "iList": loadstoreInsn},
@@ -108,8 +108,8 @@ stdCList = [
 llvmInsnListDict = {
     "control" : controlInsn,
     "terminator" : terminatorInsn,
-    "longlatency" : llInsn,
-    "binary" : binaryInsn+bitbinInsn,
+    "fp_arith" : fpInsn,
+    "int_arith" : binaryInsn+bitbinInsn,
     "vector" : vectorInsn,
     "aggregate" : aggregateInsn,
     "loadstore" : loadstoreInsn,
@@ -129,8 +129,8 @@ bbIrCatDict = {
     "total": 0,
     "control": 0,
     "terminator": 0,
-    "longlatency": 0,
-    "binary": 0,
+    "fp_arith": 0,
+    "int_arith": 0,
     "vector": 0,
     "aggregate": 0,
     "loadstore": 0,
@@ -244,7 +244,7 @@ def checkIRCat(l, opList, strict):
             if re.search(r"\A" + re.escape(s) + r"\b", l):
                 return 1
         else:
-            if s in l:
+            if '@'+s in l:
                 return 1
     return 0
 
@@ -495,13 +495,13 @@ def gen_default_config(instlimit, adaptiverate, timeout, statsOnly=False):
     # Check for non-approximable instructions that should be approximate!
     for bbIdx in staticStats:
         for cat in staticStats[bbIdx]:
-            if cat=="loadstore" or cat=="longlatency" or cat=="cmath":
+            if cat=="loadstore" or cat=="fp_arith" or cat=="cmath":
                 staticPreciseCount = staticStats[bbIdx][cat]
                 staticApproxCount = 0
                 for approxInsn in config:
                     if bbIdx == approxInsn['bb'] and approxInsn['opcode'] in llvmInsnListDict[cat]:
                         staticApproxCount+=1
-                if staticStats[bbIdx][cat] > 0 and dynamicStats[bbIdx] > 0:
+                if staticStats[bbIdx][cat] > 0 and dynamicStats[bbIdx] > 1:
                     if staticApproxCount < staticPreciseCount:
                         logging.debug("bb {} executes {} times".format(bbIdx, dynamicStats[bbIdx]))
                         logging.debug("\t{} has {} approx insn vs. {} precise insn".format(cat, staticApproxCount, staticPreciseCount))
