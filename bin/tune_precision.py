@@ -353,6 +353,106 @@ def get_masks_from_param(param):
 # Configuration file reading/processing
 #################################################
 
+def analyzeInstructionMix(config, extraChecks=True):
+    """ Analyzes the instruction mix of an approximate program
+    """
+
+    # Generate the LLVM IR file of the orig program
+    curdir = os.getcwd()
+    llFn = curdir.split('/')[-1] + ".orig.ll"
+    logging.debug('Generating IR file (.ll): {}'.format(llFn))
+    try:
+        shell(shlex.split('make '+llFn), cwd=curdir)
+    except:
+        logging.error('Something went wrong generating the orig ll.')
+        exit()
+
+    # Obtain static instruction mix from LLVM IR
+    staticStats = read_static_stats(llFn)
+
+    # Obtain dynamic information
+    if not os.path.isfile(DYNSTATS_FILE):
+        try:
+            shell(shlex.split('make run_orig'), cwd=curdir)
+            shell(shlex.split('make run_opt'), cwd=curdir)
+        except:
+            logging.error('Something went wrong generating default config.')
+            exit()
+    assert (os.path.isfile(DYNSTATS_FILE)),"DYNSTATS_FILE not found!"
+    dynamicStats = read_dyn_stats(DYNSTATS_FILE)
+
+    # Combine static and dynamic profiles to produce instruction breakdown
+    totalStats = dict(bbIrCatDict)
+    for bbIdx in dynamicStats:
+        execCount = dynamicStats[bbIdx]
+        if execCount>1: # Only account for non-main BBs
+            for cat in staticStats[bbIdx]:
+                totalStats[cat] += staticStats[bbIdx][cat]*execCount
+                # some debug code commented out for convenience
+                # if cat=="call" and staticStats[bbIdx][cat]>0:
+                #     print "BB {} executes {} times".format(bbIdx, execCount)
+                #     print staticStats[bbIdx]
+
+    # Get the approximate instruction breakdown from the config file
+    approxStats = dict(bbIrCatDict)
+    for approxInsn in config:
+        for l in llvmInsnList+stdCList:
+            if approxInsn['opcode'] in l['iList']:
+                approxStats[l['cat']] += dynamicStats[approxInsn['bb']]
+
+    # Print out dynamic instruction mix statistics
+    csvHeader = []
+    csvRow = []
+    for cat in sorted(totalStats):
+        if cat!="total" and cat not in ignoreList:
+            ignorePerc = sum([totalStats[i] for i in ignoreList])
+            perc = totalStats[cat]/(totalStats["total"]-ignorePerc)
+            csvHeader.append(cat)
+            csvRow.append(str(perc))
+            # Set the threshold at 0.1%
+            if perc > 0.001:
+                logging.info('Dynamic instruction mix breakdown: {} = {:.1%}'.format(cat, perc))
+    logging.debug('CSV Header: {}'.format(('\t').join(csvHeader)))
+    logging.debug('CSV Row: {}'.format(('\t').join(csvRow)))
+
+    # Print out the approximate dynaic instruction mix statistics
+    csvHeader = []
+    csvRow = []
+    for cat in sorted(approxStats):
+        perc = 0.0
+        if approxStats[cat] > 0:
+            perc = approxStats[cat]/totalStats[cat]
+            logging.info('Approx to precise instruction percentage: {} = {:.1%}'.format(cat, perc))
+        if cat!="total" and cat not in ignoreList:
+            csvHeader.append(cat)
+            csvRow.append(str(perc))
+    logging.debug('CSV Header: {}'.format(('\t').join(csvHeader)))
+    logging.debug('CSV Row: {}'.format(('\t').join(csvRow)))
+
+    # Finally report the number of knobs
+    logging.info('There are {} static safe to approximate instructions'.format(len(config)))
+
+    # Check for non-approximable instructions that should be approximate!
+    if extraChecks:
+        for bbIdx in staticStats:
+            for cat in staticStats[bbIdx]:
+                if cat=="loadstore" or cat=="fp_arith" or cat=="cmath":
+                    staticPreciseCount = staticStats[bbIdx][cat]
+                    staticApproxCount = 0
+                    for approxInsn in config:
+                        if bbIdx == approxInsn['bb'] and approxInsn['opcode'] in llvmInsnListDict[cat]:
+                            staticApproxCount+=1
+                    if staticStats[bbIdx][cat] > 0 and dynamicStats[bbIdx] > 1:
+                        if staticApproxCount < staticPreciseCount:
+                            logging.debug("bb {} executes {} times".format(bbIdx, dynamicStats[bbIdx]))
+                            logging.debug("\t{} has {} approx insn vs. {} precise insn".format(cat, staticApproxCount, staticPreciseCount))
+
+
+
+#################################################
+# Configuration file reading/processing
+#################################################
+
 def parse_relax_config(f):
     """Parse a relaxation configuration from a file-like object.
     Generates (ident, param) tuples.
@@ -386,8 +486,9 @@ def read_config(fname, adaptiverate, stats_fn=None):
                 # Derive the masking rate
                 maskingRate = get_bitwidth_from_type(typ)/8 if adaptiverate else 1
 
-                # Filter the instruction if it doesn't execute
-                if not stats_fn or bb_info[int(bb)]>0:
+                # Filter the instruction if it doesn't execute more than once
+                # (This excludes code that is in the main file)
+                if not stats_fn or bb_info[int(bb)]>1:
                     # Add the config entry for the instruction
                     config.append({
                         'insn': ident,
@@ -403,7 +504,7 @@ def read_config(fname, adaptiverate, stats_fn=None):
 
     return config
 
-def gen_default_config(instlimit, adaptiverate, timeout, statsOnly=False):
+def gen_default_config(instlimit, adaptiverate, timeout):
     """Reads in the coarse error injection descriptor,
     generates the default config by running make run_orig.
     Returns a config object.
@@ -419,97 +520,8 @@ def gen_default_config(instlimit, adaptiverate, timeout, statsOnly=False):
         logging.error('Something went wrong generating default config.')
         exit()
 
-    # Analyze instruction mix
-    # instructionMix = analyzeInstructionMix(curdir)
-
-    # Generate the LLVM IR file of the orig program
-    llFn = curdir.split('/')[-1] + ".orig.ll"
-    logging.debug('Generating IR file (.ll): {}'.format(llFn))
-    try:
-        shell(shlex.split('make '+llFn), cwd=curdir, timeout=timeout)
-    except:
-        logging.error('Something went wrong generating the orig ll.')
-        exit()
-
-    # Obtain static information
-    staticStats = read_static_stats(llFn)
-
-    # Obtain dynamic information
-    dynamicStats = read_dyn_stats(DYNSTATS_FILE)
-
-    # Cross-reference static and dynamic profiles
-    totalStats = dict(bbIrCatDict)
-    for bbIdx in dynamicStats:
-        execCount = dynamicStats[bbIdx]
-        # Only account for non-main BBs
-        if execCount>1:
-            for cat in staticStats[bbIdx]:
-                totalStats[cat] += staticStats[bbIdx][cat]*execCount
-                # some debug code commented out for convenience
-                # if cat=="call" and staticStats[bbIdx][cat]>0:
-                #     print "BB {} executes {} times".format(bbIdx, execCount)
-                #     print staticStats[bbIdx]
-
-    # Print out statistics (in debug mode only)
-    csvHeader = []
-    csvRow = []
-    for cat in sorted(totalStats):
-        if cat!="total" and cat not in ignoreList:
-            ignorePerc = sum([totalStats[i] for i in ignoreList])
-            perc = totalStats[cat]/(totalStats["total"]-ignorePerc)
-            csvHeader.append(cat)
-            csvRow.append(str(perc))
-            # Set the threshold at 0.1%
-            if perc > 0.001:
-                logging.info('Dynamic instruction mix breakdown: {} = {:.1%}'.format(cat, perc))
-    logging.debug('CSV Header: {}'.format(('\t').join(csvHeader)))
-    logging.debug('CSV Row: {}'.format(('\t').join(csvRow)))
-
     # Load ACCEPT config file
     config = read_config(ACCEPT_CONFIG, adaptiverate, DYNSTATS_FILE)
-
-    # Get the instruction breakdown from the config file
-    approxStats = dict(bbIrCatDict)
-    for approxInsn in config:
-        for l in llvmInsnList+stdCList:
-            if approxInsn['opcode'] in l['iList']:
-                approxStats[l['cat']] += dynamicStats[approxInsn['bb']]
-
-    # Print out the approximate instruction proportion
-    csvHeader = []
-    csvRow = []
-    for cat in sorted(approxStats):
-        perc = 0.0
-        if approxStats[cat] > 0:
-            perc = approxStats[cat]/totalStats[cat]
-            logging.info('Approx to precise instruction percentage: {} = {:.1%}'.format(cat, perc))
-        if cat!="total" and cat not in ignoreList:
-            csvHeader.append(cat)
-            csvRow.append(str(perc))
-    logging.debug('CSV Header: {}'.format(('\t').join(csvHeader)))
-    logging.debug('CSV Row: {}'.format(('\t').join(csvRow)))
-
-    # Finally report the number of knobs
-    logging.info('There are {} static safe to approximate instructions'.format(len(config)))
-
-    # Check for non-approximable instructions that should be approximate!
-    for bbIdx in staticStats:
-        for cat in staticStats[bbIdx]:
-            if cat=="loadstore" or cat=="fp_arith" or cat=="cmath":
-                staticPreciseCount = staticStats[bbIdx][cat]
-                staticApproxCount = 0
-                for approxInsn in config:
-                    if bbIdx == approxInsn['bb'] and approxInsn['opcode'] in llvmInsnListDict[cat]:
-                        staticApproxCount+=1
-                if staticStats[bbIdx][cat] > 0 and dynamicStats[bbIdx] > 1:
-                    if staticApproxCount < staticPreciseCount:
-                        logging.debug("bb {} executes {} times".format(bbIdx, dynamicStats[bbIdx]))
-                        logging.debug("\t{} has {} approx insn vs. {} precise insn".format(cat, staticApproxCount, staticPreciseCount))
-
-
-    # If we are just interested in stats
-    if statsOnly:
-        exit()
 
     # Notify the user that the instruction limit is lower than the configuration length
     if len(config) > instlimit:
@@ -1122,9 +1134,13 @@ def tune_width(accept_config_fn, target_error, target_snr, adaptiverate, passlim
     if (accept_config_fn):
         config = read_config(accept_config_fn, adaptiverate)
         print_config(config)
-        exit()
     else:
-        config = gen_default_config(instlimit, adaptiverate, timeout, statsOnly)
+        config = gen_default_config(instlimit, adaptiverate, timeout)
+
+    # If we're only interested in instruction mix stats
+    if statsOnly:
+            analyzeInstructionMix(config)
+            exit()
 
     # If in SNR mode, measure initial SNR
     if (target_snr>0):
