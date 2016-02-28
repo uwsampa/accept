@@ -23,7 +23,8 @@ from eval import EXT
 ACCEPT_CONFIG = 'accept_config.txt'
 LOG_FILE = 'tune_precision.log'
 ERROR_LOG_FILE = 'error.log'
-DYNSTATS_FILE = 'accept_bbstats.txt'
+BB_DYNSTATS_FILE = 'accept_bbstats.txt'
+FP_DYNSTATS_FILE = 'accept_fpstats.txt'
 CDF_FILE = 'cdf_stats'
 
 # DIR NAMES
@@ -370,21 +371,21 @@ def analyzeInstructionMix(config, extraChecks=True):
     # Obtain static instruction mix from LLVM IR
     staticStats = read_static_stats(llFn)
 
-    # Obtain dynamic information
-    if not os.path.isfile(DYNSTATS_FILE):
+    # Obtain BB dynamic information
+    if not os.path.isfile(BB_DYNSTATS_FILE):
         try:
             shell(shlex.split('make run_orig'), cwd=curdir)
             shell(shlex.split('make run_opt'), cwd=curdir)
         except:
             logging.error('Something went wrong generating default config.')
             exit()
-    assert (os.path.isfile(DYNSTATS_FILE)),"DYNSTATS_FILE not found!"
-    dynamicStats = read_dyn_stats(DYNSTATS_FILE)
+    assert (os.path.isfile(BB_DYNSTATS_FILE)),"BB_DYNSTATS_FILE not found!"
+    dynamicBbStats = read_dyn_bb_stats(BB_DYNSTATS_FILE)
 
     # Combine static and dynamic profiles to produce instruction breakdown
     totalStats = dict(bbIrCatDict)
-    for bbIdx in dynamicStats:
-        execCount = dynamicStats[bbIdx]
+    for bbIdx in dynamicBbStats:
+        execCount = dynamicBbStats[bbIdx]
         if execCount>1: # Only account for non-main BBs
             for cat in staticStats[bbIdx]:
                 totalStats[cat] += staticStats[bbIdx][cat]*execCount
@@ -398,7 +399,7 @@ def analyzeInstructionMix(config, extraChecks=True):
     for approxInsn in config:
         for l in llvmInsnList+stdCList:
             if approxInsn['opcode'] in l['iList']:
-                approxStats[l['cat']] += dynamicStats[approxInsn['bb']]
+                approxStats[l['cat']] += dynamicBbStats[approxInsn['bb']]
 
     # Print out dynamic instruction mix statistics
     csvHeader = []
@@ -442,11 +443,48 @@ def analyzeInstructionMix(config, extraChecks=True):
                     for approxInsn in config:
                         if bbIdx == approxInsn['bb'] and approxInsn['opcode'] in llvmInsnListDict[cat]:
                             staticApproxCount+=1
-                    if staticStats[bbIdx][cat] > 0 and dynamicStats[bbIdx] > 1:
+                    if staticStats[bbIdx][cat] > 0 and dynamicBbStats[bbIdx] > 1:
                         if staticApproxCount < staticPreciseCount:
-                            logging.debug("bb {} executes {} times".format(bbIdx, dynamicStats[bbIdx]))
+                            logging.debug("bb {} executes {} times".format(bbIdx, dynamicBbStats[bbIdx]))
                             logging.debug("\t{} has {} approx insn vs. {} precise insn".format(cat, staticApproxCount, staticPreciseCount))
 
+    # Obtain FP dynamic information
+    if os.path.isfile(FP_DYNSTATS_FILE):
+        dynamicFpStats = read_dyn_fp_stats(FP_DYNSTATS_FILE)
+        # csvHeader = ["bbId", "expRange", "mantissa", "execs"]
+        # csvRow = []
+        for approxInsn in config:
+            fpId = 'bb'+str(approxInsn['bb'])+'i'+str(approxInsn['line'])
+            if fpId in dynamicFpStats:
+                expRange = dynamicFpStats[fpId][1]-dynamicFpStats[fpId][0]
+                mantissa = get_bitwidth_from_type(approxInsn['type']) - approxInsn['lomask']
+                execCount = dynamicBbStats[approxInsn['bb']]
+                logging.info("{}: [expRange, mantissa, execs] = [{}, {}, {}]".format(fpId, expRange, mantissa, execCount))
+                csvRow.append([fpId, str(expRange), str(mantissa), str(execCount)])
+        # print('{}'.format(('\t').join(csvHeader)))
+        # for row in csvRow:
+        #     print('{}'.format(('\t').join(row)))
+
+        expRange = [int(x[1]) for x in csvRow]
+        mantissa = [int(x[2]) for x in csvRow]
+        execCount = [int(x[3])*20/524288 for x in csvRow]
+
+        plt.scatter(expRange, mantissa, s=execCount, alpha=0.5)
+        plt.xlabel('Exponent Range')
+        plt.ylabel('Mantissa Width')
+        plt.savefig("fp.pdf", bbox_inches='tight')
+
+        # Analyze Math Functions
+        for approxInsn in config:
+            if approxInsn['opcode'] in llvmInsnListDict["cmath"]:
+                fpId = 'bb'+str(approxInsn['bb'])+'i'+str(approxInsn['line'])
+                if fpId in dynamicFpStats:
+                    expRange = dynamicFpStats[fpId][1]-dynamicFpStats[fpId][0]
+                else:
+                    expRange = -1
+                mantissa = get_bitwidth_from_type(approxInsn['type']) - approxInsn['lomask']
+                execCount = dynamicBbStats[approxInsn['bb']]
+                logging.info("Math function {}: [expRange, mantissa, execs] = [{}, {}, {}]".format(approxInsn['opcode'], expRange, mantissa, execCount))
 
 
 #################################################
@@ -470,7 +508,7 @@ def read_config(fname, adaptiverate, stats_fn=None):
     # Filter out the instructions that don't execute dynamically
     if stats_fn:
         # Read dynamic statistics
-        bb_info = read_dyn_stats(stats_fn)
+        bb_info = read_dyn_bb_stats(stats_fn)
 
     # Configuration object
     config = []
@@ -521,7 +559,7 @@ def gen_default_config(instlimit, adaptiverate, timeout):
         exit()
 
     # Load ACCEPT config file
-    config = read_config(ACCEPT_CONFIG, adaptiverate, DYNSTATS_FILE)
+    config = read_config(ACCEPT_CONFIG, adaptiverate, BB_DYNSTATS_FILE)
 
     # Notify the user that the instruction limit is lower than the configuration length
     if len(config) > instlimit:
@@ -598,7 +636,7 @@ def test_config(config, timeout, statspath=None, dstpath=None):
 
     # Now that we're done with the compilation, evaluate results
     output_fp = os.path.join(tmpdir,APPROX_OUTPUT)
-    trace_fp = os.path.join(tmpdir,DYNSTATS_FILE)
+    trace_fp = os.path.join(tmpdir,BB_DYNSTATS_FILE)
     if os.path.isfile(output_fp):
         error = eval.score(PRECISE_OUTPUT,os.path.join(tmpdir,APPROX_OUTPUT))
         logging.debug('Reported application error: {}'.format(error))
@@ -622,8 +660,8 @@ def test_config(config, timeout, statspath=None, dstpath=None):
 # Dynamic statistics file reading/processing
 #################################################
 
-def read_dyn_stats(stats_fn):
-    """Reads in the dynamic statistics file that ACCEPT spits out
+def read_dyn_bb_stats(stats_fn):
+    """Reads in the dynamic BB statistics file that ACCEPT spits out
     """
     bb_info = {}
     with open(stats_fn) as f:
@@ -635,10 +673,25 @@ def read_dyn_stats(stats_fn):
                 bb_info[int(bb_idx)] = int(bb_num)
     return bb_info
 
-def process_dyn_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
+def read_dyn_fp_stats(stats_fn):
+    """Reads in the dynamic FP statistics file that ACCEPT spits out
+    """
+    fp_info = {}
+    with open(stats_fn) as f:
+        for l in f:
+            line = l.strip()
+            elems = line.split('\t')
+            fp_id = elems[0]
+            if fp_id != 'id':
+                fp_min = int(elems[1])
+                fp_max = int(elems[2])
+                fp_info[fp_id] = [fp_min, fp_max]
+    return fp_info
+
+def process_dyn_bb_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
     """Processes the dynamic BB count file to produce stats
     """
-    bb_info = read_dyn_stats(stats_fn)
+    bb_info = read_dyn_bb_stats(stats_fn)
 
     # Program versions
     categories = ['baseline', 'precise', 'approx']
@@ -792,7 +845,7 @@ def report_error_and_savings(base_config, timeout, error=0, stats_fn=None, cdf_f
 
     # Collect dynamic statistics
     if (stats_fn):
-        savings = process_dyn_stats(base_config, stats_fn, cdf_fn)
+        savings = process_dyn_bb_stats(base_config, stats_fn, cdf_fn)
 
     # Dump the ACCEPT configuration file.
     if (accept_fn):
