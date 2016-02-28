@@ -1245,7 +1245,7 @@ def cli():
     )
     parser.add_argument(
         '-pl', dest='passlimit', action='store', type=int, required=False,
-        default=1000, help='limits the number of tuning passes (for quick testing)'
+        default=10000, help='limits the number of tuning passes (for quick testing)'
     )
     parser.add_argument(
         '-il', dest='instlimit', action='store', type=int, required=False,
