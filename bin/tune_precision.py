@@ -451,8 +451,8 @@ def analyzeInstructionMix(config, extraChecks=True):
     # Obtain FP dynamic information
     if os.path.isfile(FP_DYNSTATS_FILE):
         dynamicFpStats = read_dyn_fp_stats(FP_DYNSTATS_FILE)
-        # csvHeader = ["bbId", "expRange", "mantissa", "execs"]
-        # csvRow = []
+        csvHeader = ["bbId", "expRange", "mantissa", "execs"]
+        csvRow = []
         for approxInsn in config:
             fpId = 'bb'+str(approxInsn['bb'])+'i'+str(approxInsn['line'])
             if fpId in dynamicFpStats:
@@ -465,14 +465,14 @@ def analyzeInstructionMix(config, extraChecks=True):
         # for row in csvRow:
         #     print('{}'.format(('\t').join(row)))
 
-        expRange = [int(x[1]) for x in csvRow]
-        mantissa = [int(x[2]) for x in csvRow]
-        execCount = [int(x[3])*20/524288 for x in csvRow]
+        # expRange = [int(x[1]) for x in csvRow]
+        # mantissa = [int(x[2]) for x in csvRow]
+        # execCount = [int(x[3]) for x in csvRow]
 
-        plt.scatter(expRange, mantissa, s=execCount, alpha=0.5)
-        plt.xlabel('Exponent Range')
-        plt.ylabel('Mantissa Width')
-        plt.savefig("fp.pdf", bbox_inches='tight')
+        # plt.scatter(expRange, mantissa, s=execCount, alpha=0.5)
+        # plt.xlabel('Exponent Range')
+        # plt.ylabel('Mantissa Width')
+        # plt.savefig("fp.pdf", bbox_inches='tight')
 
         # Analyze Math Functions
         for approxInsn in config:
@@ -537,7 +537,7 @@ def read_config(fname, adaptiverate, stats_fn=None):
                         'line': int(line),
                         'opcode': opcode,
                         'type': typ,
-                        'rate': maskingRate
+                        'rate': int(maskingRate)
                         })
 
     return config
@@ -696,7 +696,7 @@ def process_dyn_bb_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
     # Program versions
     categories = ['baseline', 'precise', 'approx']
     # Op categories
-    op_categories = ['mem', 'exe', 'all']
+    op_categories = ['mem', 'exe', 'math', 'all']
     # Op types
     op_types = ['int', 'fp', 'all']
 
@@ -722,7 +722,12 @@ def process_dyn_bb_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
         # Derive dynamic execution count
         execs = bb_info[conf['bb']]
         # Derive op category
-        opcat = 'mem' if (conf['opcode']=='store' or conf['opcode']=='load') else 'exe'
+        if conf['opcode']=='store' or conf['opcode']=='load':
+            opcat = 'mem'
+        elif (conf['opcode'] in cMathFunc):
+            opcat = 'math'
+        else:
+            opcat = 'exe'
         # Derive op type
         typ = 'fp' if is_float_type(conf['type']) else 'int'
         # Update stats
@@ -833,7 +838,7 @@ def report_error_and_savings(base_config, timeout, error=0, stats_fn=None, cdf_f
 
     if step_count==0:
         with open(error_fn, 'a') as f:
-            f.write("step\terror\tmem\tmem_int\tmem_fp\texe\texe_int\texe_fp\n")
+            f.write("step\terror\tmem\tmem_int\tmem_fp\texe\texe_int\texe_fp\tmath\n")
 
     # Re-run approximate program (pass error as 0)
     if error==0:
@@ -857,7 +862,7 @@ def report_error_and_savings(base_config, timeout, error=0, stats_fn=None, cdf_f
     with open(error_fn, 'a') as f:
         f.write("{}\t{}\t".format(step_count, error))
         f.write("{}\t{}\t{}\t".format(savings["mem"]["all"], savings["mem"]["int"], savings["mem"]["fp"]))
-        f.write("{}\t{}\t{}\n".format(savings["exe"]["all"], savings["exe"]["int"], savings["exe"]["fp"]))
+        f.write("{}\t{}\t{}\t{}\n".format(savings["exe"]["all"], savings["exe"]["int"], savings["exe"]["fp"], savings["math"]["fp"]))
 
     # Increment global
     step_count+=1
