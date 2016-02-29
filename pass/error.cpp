@@ -266,18 +266,19 @@ bool ErrorInjection::injectHooksStore(Instruction* inst, Instruction* nextInst,
   if (orig_type_str == "") return false;
 
   IRBuilder<> builder(module->getContext());
-  builder.SetInsertPoint(nextInst);
+  builder.SetInsertPoint(inst);
 
   Value* opValue_to_be_casted = store_inst->getValueOperand();
-  if (orig_type_str == "Half") {
-    opValue_to_be_casted = builder.CreateBitCast(opValue_to_be_casted,
-        Type::getInt16Ty(module->getContext()));
-  } else if (orig_type_str == "Float") {
-    opValue_to_be_casted = builder.CreateBitCast(opValue_to_be_casted,
-        Type::getInt32Ty(module->getContext()));
-  } else if (orig_type_str == "Double") {
-    opValue_to_be_casted = builder.CreateBitCast(opValue_to_be_casted,
-        Type::getInt64Ty(module->getContext()));
+  Type* dst_type = NULL;
+  if (orig_type_str == "Half" || orig_type_str == "Float" || orig_type_str == "Double") {
+    if (orig_type_str == "Half") {
+      dst_type = Type::getInt16Ty(module->getContext());
+    } else if (orig_type_str == "Float") {
+      dst_type = Type::getInt32Ty(module->getContext());
+    } else if (orig_type_str == "Double") {
+      dst_type = Type::getInt64Ty(module->getContext());
+    }
+    opValue_to_be_casted = builder.CreateBitCast(opValue_to_be_casted, dst_type);
   }
 
   Type* int64ty = Type::getInt64Ty(module->getContext());
@@ -299,11 +300,22 @@ bool ErrorInjection::injectHooksStore(Instruction* inst, Instruction* nextInst,
   SmallVector<Value *, 6> Args;
   Args.push_back(param_opcode);
   Args.push_back(param_knob);
+  Args.push_back(param_val);
   Args.push_back(param_align);
   Args.push_back(param_addr);
-  Args.push_back(param_val);
   Args.push_back(param_orig_type);
   CallInst* call = builder.CreateCall(injectFn, Args);
+
+  Value* final_result;
+  if (dst_type && orig_type != int64ty) {
+    Value* trunc = builder.CreateTrunc(call, dst_type);
+    final_result = builder.CreateBitCast(trunc, orig_type);
+  } else {
+    final_result = builder.CreateTruncOrBitCast(call, orig_type);
+  }
+
+  // Now replace the operand value of the store instruction
+  store_inst->setOperand(0, final_result);
 
   return true;
 }
