@@ -1076,9 +1076,10 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
                 # Generate temporary configuration
                 tmp_config = copy.deepcopy(base_config)
                 # Derive the destination file paths
-                output_path = tmpoutputsdir+'/'+'out_'+str(tuning_pass)+'_'+str(idx)+EXT
                 stats_path = tmpoutputsdir+'/stats_'+str(tuning_pass)+'_'+str(idx)+'.txt'
-                logging.debug ("File output path of instruction {}: {}".format(tmp_config[idx]['lomask'], output_path))
+                if save_output:
+                    output_path = tmpoutputsdir+'/'+'out_'+str(tuning_pass)+'_'+str(idx)+EXT
+                    logging.debug ("File output path of instruction {}: {}".format(tmp_config[idx]['lomask'], output_path))
                 # Increment the LSB mask value
                 tmp_config[idx]['lomask'] += tmp_config[idx]['rate']
                 logging.info ("Testing lomask of value {} on instruction {}".format(tmp_config[idx]['lomask'], idx))
@@ -1142,10 +1143,11 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
             base_config[bestidx]['lomask'] += base_config[idx]['rate']
             prev_besterror = besterror
             logging.info ("Increasing lomask on instruction {} to {} (best)".format(bestidx, base_config[bestidx]['lomask']))
-            # Copy file output
-            src_path = tmpoutputsdir+'/out_'+str(tuning_pass)+'_'+str(bestidx)+EXT
-            dst_path = outputsdir+'/out_{0:05d}'.format(step_count)+EXT
-            shutil.copyfile(src_path, dst_path)
+            if save_output:
+                # Copy file output
+                src_path = tmpoutputsdir+'/out_'+str(tuning_pass)+'_'+str(bestidx)+EXT
+                dst_path = outputsdir+'/out_{0:05d}'.format(step_count)+EXT
+                shutil.copyfile(src_path, dst_path)
             # Report Error and Savings stats
             stats_path = tmpoutputsdir+'/stats_'+str(tuning_pass)+'_'+str(bestidx)+'.txt'
             cdf_path = outputsdir+'/cdf_{0:05d}'.format(step_count)
