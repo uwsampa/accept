@@ -978,7 +978,7 @@ def tune_himask(base_config, init_snr, instlimit, timeout, clusterworkers, run_o
 
     report_error_and_savings(base_config, timeout)
 
-def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, instlimit, timeout, clusterworkers, run_on_grappa):
+def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, instlimit, timeout, clusterworkers, run_on_grappa, save_output = False):
     """Tunes the least significant bits masking to meet the
     specified error requirements, given a passlimit.
     The tuning algorithm performs multiple passes over every
@@ -1087,9 +1087,15 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
                     jobid = cw.randid()
                     with jobs_lock:
                         jobs[jobid] = idx
-                    client.submit(jobid, test_config, tmp_config, timeout, stats_path, output_path)
+                    if save_output:
+                        client.submit(jobid, test_config, tmp_config, timeout, stats_path, output_path)
+                    else:
+                        client.submit(jobid, test_config, tmp_config, timeout, stats_path)
                 else:
-                    error = test_config(tmp_config, timeout, stats_path, output_path)
+                    if save_output:
+                        error = test_config(tmp_config, timeout, stats_path, output_path)
+                    else:
+                        error = test_config(tmp_config, timeout, stats_path)
                     insn_errors[idx] = error
         if (clusterworkers):
             logging.info('All jobs submitted for pass #{}'.format(tuning_pass))
