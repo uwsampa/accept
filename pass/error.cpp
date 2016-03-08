@@ -10,6 +10,7 @@
 #include "llvm/IRBuilder.h"
 #include "llvm/ValueSymbolTable.h"
 #include "llvm/Metadata.h"
+#include "llvm/DebugInfo.h"
 
 #include "accept.h"
 
@@ -190,7 +191,7 @@ bool ErrorInjection::instructionErrorInjection(Function& F) {
       InstId iid;
       iid.inst = inst; iid.bb_index = bbIndex; iid.i_index = icounter;
       all_insts.push_back(iid);
-      // Write the metadata
+      // Write metadata (instruction id & label)
       LLVMContext& C = inst->getContext();
       std::stringstream mss;
       mss << "bb" << bbIndex << "i" << icounter;
@@ -203,6 +204,22 @@ bool ErrorInjection::instructionErrorInjection(Function& F) {
       inst->setMetadata("iid", N1);
       MDNode* N2 = MDNode::get(C, MDString::get(C, "instruction label"));
       inst->setMetadata(mss.str(), N2);
+      // Also add the source file line number for convenience
+      MDNode* N3 = inst->getMetadata("dbg");
+      if (N3) {
+        DILocation Loc(N3);
+        unsigned line = Loc.getLineNumber();
+        unsigned col = Loc.getColumnNumber();
+        StringRef fn = Loc.getFilename();
+        std::stringstream locstring;
+        locstring << fn.str() << ":" << line << ":" << col;
+        Value* vals[] = {
+          MDString::get(C, mss.str()),
+          MDString::get(C, locstring.str())
+        };
+        MDNode* N4 = MDNode::get(C, vals);
+        inst->setMetadata("iloc", N4);
+      }
       ++icounter;
     }
     ++bbIndex;

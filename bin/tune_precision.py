@@ -14,8 +14,9 @@ import threading
 import collections
 import csv
 import re
+import time
 import numpy as np
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import eval
 from eval import EXT
 
@@ -191,6 +192,14 @@ def create_overwrite_directory(dirpath):
         shutil.rmtree(dirpath)
     os.makedirs(dirpath)
 
+def safe_copy(src, dst, lim=1000):
+    sleepCounter = 0
+    time.sleep(5)
+    while not os.path.isfile(src) and sleepCounter<lim:
+        time.sleep(1)
+        sleepCounter += 1
+    shutil.copyfile(src, dst)
+
 #################################################
 # LLVM Type Analysis Helper Functions
 #################################################
@@ -280,6 +289,7 @@ def read_static_stats(llFile):
     """
 
     bbInfo = {}
+    locMap = {}
 
     with open(llFile) as f:
         content = f.readlines()
@@ -301,7 +311,6 @@ def read_static_stats(llFile):
                         if content[i].strip()[-1]=='[':
                             l = ''.join(content[i:idx+1])
                             break
-
 
                 # Apply instruction filters
                 skip = False
@@ -327,7 +336,22 @@ def read_static_stats(llFile):
 
                 prevInsnIdx = idx
 
-    return bbInfo
+            # Check for metadata lines
+            # Very primitive parsing...
+            line = l.strip()
+            if line.startswith("!"):
+                tuples = line.split("!{")[1][:-1].split(", ")
+                allMetadataStr = True
+                for t in tuples:
+                    if not t.startswith("metadata !"):
+                        allMetadataStr = False
+                if allMetadataStr and len(tuples)==2:
+                    key = tuples[0][len("metadata !")+1:-1]
+                    val = tuples[1][len("metadata !")+1:-1]
+                    if key.startswith("bb"):
+                        locMap[key] = val
+
+    return bbInfo, locMap
 
 
 #################################################
@@ -369,7 +393,7 @@ def analyzeInstructionMix(config, extraChecks=True):
         exit()
 
     # Obtain static instruction mix from LLVM IR
-    staticStats = read_static_stats(llFn)
+    staticStats, locMap = read_static_stats(llFn)
 
     # Obtain BB dynamic information
     if not os.path.isfile(BB_DYNSTATS_FILE):
@@ -400,6 +424,13 @@ def analyzeInstructionMix(config, extraChecks=True):
         for l in llvmInsnList+stdCList:
             if approxInsn['opcode'] in l['iList']:
                 approxStats[l['cat']] += dynamicBbStats[approxInsn['bb']]
+        # Print the approximation setting
+        iid = "bb" + str(approxInsn["bb"]) + "i" + str(approxInsn["line"])
+        logging.debug("{}:{}:{}:{}:wi={}:lo={}".format(
+            locMap[iid],approxInsn["opcode"], approxInsn["type"], iid,
+            get_bitwidth_from_type(approxInsn["type"])-approxInsn["lomask"]-approxInsn["himask"],
+            approxInsn["lomask"]
+        ))
 
     # Print out dynamic instruction mix statistics
     csvHeader = []
@@ -448,43 +479,43 @@ def analyzeInstructionMix(config, extraChecks=True):
                             logging.debug("bb {} executes {} times".format(bbIdx, dynamicBbStats[bbIdx]))
                             logging.debug("\t{} has {} approx insn vs. {} precise insn".format(cat, staticApproxCount, staticPreciseCount))
 
-    # # Obtain FP dynamic information
-    # if os.path.isfile(FP_DYNSTATS_FILE):
-    #     dynamicFpStats = read_dyn_fp_stats(FP_DYNSTATS_FILE)
-    #     csvHeader = ["bbId", "expRange", "mantissa", "execs"]
-    #     csvRow = []
-    #     for approxInsn in config:
-    #         fpId = 'bb'+str(approxInsn['bb'])+'i'+str(approxInsn['line'])
-    #         if fpId in dynamicFpStats:
-    #             expRange = dynamicFpStats[fpId][1]-dynamicFpStats[fpId][0]
-    #             mantissa = get_bitwidth_from_type(approxInsn['type']) - approxInsn['lomask']
-    #             execCount = dynamicBbStats[approxInsn['bb']]
-    #             logging.info("{}: [expRange, mantissa, execs] = [{}, {}, {}]".format(fpId, expRange, mantissa, execCount))
-    #             csvRow.append([fpId, str(expRange), str(mantissa), str(execCount)])
-    #     print('{}'.format(('\t').join(csvHeader)))
-    #     for row in csvRow:
-    #         print('{}'.format(('\t').join(row)))
+    # Obtain FP dynamic information
+    if os.path.isfile(FP_DYNSTATS_FILE):
+        dynamicFpStats = read_dyn_fp_stats(FP_DYNSTATS_FILE)
+        csvHeader = ["bbId", "expRange", "mantissa", "execs"]
+        csvRow = []
+        for approxInsn in config:
+            fpId = 'bb'+str(approxInsn['bb'])+'i'+str(approxInsn['line'])
+            if fpId in dynamicFpStats:
+                expRange = dynamicFpStats[fpId][1]-dynamicFpStats[fpId][0]
+                mantissa = get_bitwidth_from_type(approxInsn['type']) - approxInsn['lomask']
+                execCount = dynamicBbStats[approxInsn['bb']]
+                logging.info("{}: [expRange, mantissa, execs] = [{}, {}, {}]".format(fpId, expRange, mantissa, execCount))
+                csvRow.append([fpId, str(expRange), str(mantissa), str(execCount)])
+        print('{}'.format(('\t').join(csvHeader)))
+        for row in csvRow:
+            print('{}'.format(('\t').join(row)))
 
-    #     expRange = [int(x[1]) for x in csvRow]
-    #     mantissa = [int(x[2]) for x in csvRow]
-    #     execCount = [int(x[3])*1000.0/10223616 for x in csvRow]
+        expRange = [int(x[1]) for x in csvRow]
+        mantissa = [int(x[2]) for x in csvRow]
+        execCount = [int(x[3])*1000.0/10223616 for x in csvRow]
 
-    #     plt.scatter(expRange, mantissa, s=execCount, alpha=0.5)
-    #     plt.xlabel('Exponent Range')
-    #     plt.ylabel('Mantissa Width')
-    #     plt.savefig("fp.pdf", bbox_inches='tight')
+        plt.scatter(expRange, mantissa, s=execCount, alpha=0.5)
+        plt.xlabel('Exponent Range')
+        plt.ylabel('Mantissa Width')
+        plt.savefig("fp.pdf", bbox_inches='tight')
 
-    #     # Analyze Math Functions
-    #     for approxInsn in config:
-    #         if approxInsn['opcode'] in llvmInsnListDict["cmath"]:
-    #             fpId = 'bb'+str(approxInsn['bb'])+'i'+str(approxInsn['line'])
-    #             if fpId in dynamicFpStats:
-    #                 expRange = dynamicFpStats[fpId][1]-dynamicFpStats[fpId][0]
-    #             else:
-    #                 expRange = -1
-    #             mantissa = get_bitwidth_from_type(approxInsn['type']) - approxInsn['lomask']
-    #             execCount = dynamicBbStats[approxInsn['bb']]
-    #             logging.info("Math function {}: [expRange, mantissa, execs] = [{}, {}, {}]".format(approxInsn['opcode'], expRange, mantissa, execCount))
+        # Analyze Math Functions
+        for approxInsn in config:
+            if approxInsn['opcode'] in llvmInsnListDict["cmath"]:
+                fpId = 'bb'+str(approxInsn['bb'])+'i'+str(approxInsn['line'])
+                if fpId in dynamicFpStats:
+                    expRange = dynamicFpStats[fpId][1]-dynamicFpStats[fpId][0]
+                else:
+                    expRange = -1
+                mantissa = get_bitwidth_from_type(approxInsn['type']) - approxInsn['lomask']
+                execCount = dynamicBbStats[approxInsn['bb']]
+                logging.info("Math function {}: [expRange, mantissa, execs] = [{}, {}, {}]".format(approxInsn['opcode'], expRange, mantissa, execCount))
 
 
 #################################################
@@ -750,83 +781,83 @@ def process_dyn_bb_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
             op_sav[typ] = sav
         savings[opcat] = op_sav
 
-    # if (cdf_fn):
+    if (cdf_fn):
 
-    #     # Now produce the CDF
-    #     cdfs = {}
-    #     for cat in categories:
-    #         cat_cdf = {}
-    #         for opcat in op_categories:
-    #             op_cdf = {}
-    #             for typ in op_types:
-    #                 cdf = [0]*(BITWIDHTMAX+1)
-    #                 op_cdf[typ] = cdf
-    #             cat_cdf[opcat] = op_cdf
-    #         cdfs[cat] = cat_cdf
+        # Now produce the CDF
+        cdfs = {}
+        for cat in categories:
+            cat_cdf = {}
+            for opcat in op_categories:
+                op_cdf = {}
+                for typ in op_types:
+                    cdf = [0]*(BITWIDHTMAX+1)
+                    op_cdf[typ] = cdf
+                cat_cdf[opcat] = op_cdf
+            cdfs[cat] = cat_cdf
 
-    #     # CSV file that gets outputted
-    #     cdf_stats = {}
-    #     for opcat in op_types:
-    #         cdf_stats[opcat] = [["bitw", "baseline_mem", "precise_mem", "approx_mem", "baseline_exe", "precise_exe", "approx_exe"]]
-    #     for i in range(0, (BITWIDHTMAX+1)):
-    #         for cat in categories:
-    #             for opcat in op_categories:
-    #                 for typ in op_types:
-    #                     total = sum(histograms[cat][opcat][typ])
-    #                     prev = 0 if i==0 else cdfs[cat][opcat][typ][i-1]
-    #                     if total>0:
-    #                         cdfs[cat][opcat][typ][i] = prev+float(histograms[cat][opcat][typ][i])/total
-    #         for typ in op_types:
-    #             cdf_stats[typ].append([i,
-    #                 cdfs['baseline']['mem'][typ][i], cdfs['precise']['mem'][typ][i], cdfs['approx']['mem'][typ][i],
-    #                 cdfs['baseline']['exe'][typ][i], cdfs['precise']['exe'][typ][i], cdfs['approx']['exe'][typ][i]])
+        # CSV file that gets outputted
+        cdf_stats = {}
+        for opcat in op_types:
+            cdf_stats[opcat] = [["bitw", "baseline_mem", "precise_mem", "approx_mem", "baseline_exe", "precise_exe", "approx_exe"]]
+        for i in range(0, (BITWIDHTMAX+1)):
+            for cat in categories:
+                for opcat in op_categories:
+                    for typ in op_types:
+                        total = sum(histograms[cat][opcat][typ])
+                        prev = 0 if i==0 else cdfs[cat][opcat][typ][i-1]
+                        if total>0:
+                            cdfs[cat][opcat][typ][i] = prev+float(histograms[cat][opcat][typ][i])/total
+            for typ in op_types:
+                cdf_stats[typ].append([i,
+                    cdfs['baseline']['mem'][typ][i], cdfs['precise']['mem'][typ][i], cdfs['approx']['mem'][typ][i],
+                    cdfs['baseline']['exe'][typ][i], cdfs['precise']['exe'][typ][i], cdfs['approx']['exe'][typ][i]])
 
-    #     for typ in op_types:
-    #         dest = cdf_fn+'_'+typ+'.csv'
-    #         with open(dest, 'w') as fp:
-    #             csv.writer(fp, delimiter='\t').writerows(cdf_stats[typ])
+        for typ in op_types:
+            dest = cdf_fn+'_'+typ+'.csv'
+            with open(dest, 'w') as fp:
+                csv.writer(fp, delimiter='\t').writerows(cdf_stats[typ])
 
-    #     # Formatting
-    #     palette = [ '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
-    #     cat_format = {
-    #         "mem": "mem",
-    #         "exe": "alu",
-    #         "all": "mem+alu"
-    #     }
-    #     typ_format = {
-    #         "int": "(int only)",
-    #         "fp": "(fp only)",
-    #         "all": ""
-    #     }
+        # Formatting
+        palette = [ '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+        cat_format = {
+            "mem": "mem",
+            "exe": "alu",
+            "all": "mem+alu"
+        }
+        typ_format = {
+            "int": "(int only)",
+            "fp": "(fp only)",
+            "all": ""
+        }
 
-    #     # Now plot the data!
-    #     f, axarr = plt.subplots(len(op_categories), len(op_types), sharex='col', sharey='row')
-    #     for i,opcat in enumerate(op_categories):
-    #         for j,typ in enumerate(op_types):
-    #             plots=[None] * len(categories)
-    #             legend=[None] * len(categories)
-    #             for k,cat in enumerate(categories):
-    #                 x = np.array(range(0, (BITWIDHTMAX+1)))
-    #                 y = np.array(cdfs[cat][opcat][typ])
-    #                 axarr[i, j].set_title(cat_format[opcat]+' '+typ_format[typ])
-    #                 x1,x2,y1,y2 = plt.axis()
-    #                 axarr[i][j].axis((x1,BITWIDHTMAX,y1,y2))
+        # Now plot the data!
+        f, axarr = plt.subplots(len(op_categories), len(op_types), sharex='col', sharey='row')
+        for i,opcat in enumerate(op_categories):
+            for j,typ in enumerate(op_types):
+                plots=[None] * len(categories)
+                legend=[None] * len(categories)
+                for k,cat in enumerate(categories):
+                    x = np.array(range(0, (BITWIDHTMAX+1)))
+                    y = np.array(cdfs[cat][opcat][typ])
+                    axarr[i, j].set_title(cat_format[opcat]+' '+typ_format[typ])
+                    x1,x2,y1,y2 = plt.axis()
+                    axarr[i][j].axis((x1,BITWIDHTMAX,y1,y2))
 
-    #                 plots[k], = axarr[i, j].plot(x, y, c=palette[k%len(palette)])
-    #                 legend[k] = cat
+                    plots[k], = axarr[i, j].plot(x, y, c=palette[k%len(palette)])
+                    legend[k] = cat
 
-    #             axarr[2][j].set_xlabel("Bit-width")
-    #         axarr[i][0].set_ylabel("Percentage")
+                axarr[2][j].set_xlabel("Bit-width")
+            axarr[i][0].set_ylabel("Percentage")
 
-    #     # Plot legend
-    #     f.legend(plots,
-    #            legend,
-    #            loc='upper center',
-    #            ncol=3,
-    #            fontsize=8)
+        # Plot legend
+        f.legend(plots,
+               legend,
+               loc='upper center',
+               ncol=3,
+               fontsize=8)
 
-    #     # Plot
-    #     plt.savefig(cdf_fn+'.pdf', bbox_inches='tight')
+        # Plot
+        plt.savefig(cdf_fn+'.pdf', bbox_inches='tight')
 
     return savings
 

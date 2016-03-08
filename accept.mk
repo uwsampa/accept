@@ -60,7 +60,7 @@ ENERCLIB ?= $(BUILTDIR)/lib/EnerCTypeChecker.$(LIBEXT)
 PASSLIB ?= $(BUILTDIR)/lib/enerc.$(LIBEXT)
 
 # General compiler flags.
-override CFLAGS += -I$(INCLUDEDIR) -fno-use-cxa-atexit
+override CFLAGS += -I$(INCLUDEDIR) -g -fno-use-cxa-atexit
 override CXXFLAGS += $(CFLAGS)
 LLCARGS += -O2
 
