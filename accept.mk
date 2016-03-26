@@ -154,6 +154,14 @@ $(TARGET).%.s: $(TARGET).%.bc
 $(TARGET).%: $(TARGET).%.s
 	$(LINKER) $(LDFLAGS) -o $@ $< $(LIBS)
 
+# Derive Statistics
+stats: derive_stats clean
+
+derive_stats:
+	cp $(BINDIR)/$(TUNER) .
+	$(VEPYTHON) $(TUNER) -stats
+	rm -rf $(TUNER)
+
 # Numerical Precision Autotuner
 tune: tune_precision clean
 

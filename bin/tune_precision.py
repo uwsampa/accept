@@ -87,7 +87,8 @@ llvmInsnList = [
     { "cat": "control", "iList": controlInsn},
     { "cat": "terminator", "iList": terminatorInsn},
     { "cat": "fp_arith", "iList": fpInsn},
-    { "cat": "int_arith", "iList": binaryInsn+bitbinInsn},
+    { "cat": "int_arith", "iList": binaryInsn},
+    { "cat": "bit_arith", "iList": bitbinInsn},
     { "cat": "vector", "iList": vectorInsn},
     { "cat": "aggregate", "iList": aggregateInsn},
     { "cat": "loadstore", "iList": loadstoreInsn},
@@ -111,7 +112,8 @@ llvmInsnListDict = {
     "control" : controlInsn,
     "terminator" : terminatorInsn,
     "fp_arith" : fpInsn,
-    "int_arith" : binaryInsn+bitbinInsn,
+    "int_arith" : binaryInsn,
+    "bit_arith" : bitbinInsn,
     "vector" : vectorInsn,
     "aggregate" : aggregateInsn,
     "loadstore" : loadstoreInsn,
@@ -133,6 +135,7 @@ bbIrCatDict = {
     "terminator": 0,
     "fp_arith": 0,
     "int_arith": 0,
+    "bit_arith": 0,
     "vector": 0,
     "aggregate": 0,
     "loadstore": 0,
@@ -385,7 +388,7 @@ def analyzeInstructionMix(config, extraChecks=True):
     # Generate the LLVM IR file of the orig program
     curdir = os.getcwd()
     llFn = curdir.split('/')[-1] + ".orig.ll"
-    logging.debug('Generating IR file (.ll): {}'.format(llFn))
+    logging.info('Generating IR file (.ll): {}'.format(llFn))
     try:
         shell(shlex.split('make '+llFn), cwd=curdir)
     except:
@@ -418,19 +421,12 @@ def analyzeInstructionMix(config, extraChecks=True):
                 #     print "BB {} executes {} times".format(bbIdx, execCount)
                 #     print staticStats[bbIdx]
 
-    # Get the approximate instruction breakdown from the config file
+    # Get the instruction breakdown from the config file
     approxStats = dict(bbIrCatDict)
     for approxInsn in config:
         for l in llvmInsnList+stdCList:
             if approxInsn['opcode'] in l['iList']:
                 approxStats[l['cat']] += dynamicBbStats[approxInsn['bb']]
-        # Print the approximation setting
-        iid = "bb" + str(approxInsn["bb"]) + "i" + str(approxInsn["line"])
-        logging.debug("{}:{}:{}:{}:wi={}:lo={}".format(
-            locMap[iid],approxInsn["opcode"], approxInsn["type"], iid,
-            get_bitwidth_from_type(approxInsn["type"])-approxInsn["lomask"]-approxInsn["himask"],
-            approxInsn["lomask"]
-        ))
 
     # Print out dynamic instruction mix statistics
     csvHeader = []
@@ -447,7 +443,7 @@ def analyzeInstructionMix(config, extraChecks=True):
     logging.debug('CSV Header: {}'.format(('\t').join(csvHeader)))
     logging.debug('CSV Row: {}'.format(('\t').join(csvRow)))
 
-    # Print out the approximate dynaic instruction mix statistics
+    # Print out the percentage of approximate instructions per category
     csvHeader = []
     csvRow = []
     for cat in sorted(approxStats):
@@ -460,9 +456,6 @@ def analyzeInstructionMix(config, extraChecks=True):
             csvRow.append(str(perc))
     logging.debug('CSV Header: {}'.format(('\t').join(csvHeader)))
     logging.debug('CSV Row: {}'.format(('\t').join(csvRow)))
-
-    # Finally report the number of knobs
-    logging.info('There are {} static safe to approximate instructions'.format(len(config)))
 
     # Check for non-approximable instructions that should be approximate!
     if extraChecks:
@@ -480,7 +473,8 @@ def analyzeInstructionMix(config, extraChecks=True):
                             logging.debug("\t{} has {} approx insn vs. {} precise insn".format(cat, staticApproxCount, staticPreciseCount))
 
     # Obtain FP dynamic information
-    if os.path.isfile(FP_DYNSTATS_FILE):
+    dynFp = True if os.path.isfile(FP_DYNSTATS_FILE) else False
+    if dynFp:
         dynamicFpStats = read_dyn_fp_stats(FP_DYNSTATS_FILE)
         csvHeader = ["bbId", "expRange", "mantissa", "execs"]
         csvRow = []
@@ -490,20 +484,20 @@ def analyzeInstructionMix(config, extraChecks=True):
                 expRange = dynamicFpStats[fpId][1]-dynamicFpStats[fpId][0]
                 mantissa = get_bitwidth_from_type(approxInsn['type']) - approxInsn['lomask']
                 execCount = dynamicBbStats[approxInsn['bb']]
-                logging.info("{}: [expRange, mantissa, execs] = [{}, {}, {}]".format(fpId, expRange, mantissa, execCount))
+                logging.debug("{}: [expRange, mantissa, execs] = [{}, {}, {}]".format(fpId, expRange, mantissa, execCount))
                 csvRow.append([fpId, str(expRange), str(mantissa), str(execCount)])
-        print('{}'.format(('\t').join(csvHeader)))
+        logging.debug('{}'.format(('\t').join(csvHeader)))
         for row in csvRow:
-            print('{}'.format(('\t').join(row)))
+            logging.debug('{}'.format(('\t').join(row)))
 
-        expRange = [int(x[1]) for x in csvRow]
-        mantissa = [int(x[2]) for x in csvRow]
-        execCount = [int(x[3])*1000.0/10223616 for x in csvRow]
+        # expRange = [int(x[1]) for x in csvRow]
+        # mantissa = [int(x[2]) for x in csvRow]
+        # execCount = [int(x[3])*1000.0/10223616 for x in csvRow]
 
-        plt.scatter(expRange, mantissa, s=execCount, alpha=0.5)
-        plt.xlabel('Exponent Range')
-        plt.ylabel('Mantissa Width')
-        plt.savefig("fp.pdf", bbox_inches='tight')
+        # plt.scatter(expRange, mantissa, s=execCount, alpha=0.5)
+        # plt.xlabel('Exponent Range')
+        # plt.ylabel('Mantissa Width')
+        # plt.savefig("fp.pdf", bbox_inches='tight')
 
         # Analyze Math Functions
         for approxInsn in config:
@@ -515,7 +509,33 @@ def analyzeInstructionMix(config, extraChecks=True):
                     expRange = -1
                 mantissa = get_bitwidth_from_type(approxInsn['type']) - approxInsn['lomask']
                 execCount = dynamicBbStats[approxInsn['bb']]
-                logging.info("Math function {}: [expRange, mantissa, execs] = [{}, {}, {}]".format(approxInsn['opcode'], expRange, mantissa, execCount))
+                logging.debug("Math function {}: [expRange, mantissa, execs] = [{}, {}, {}]".format(approxInsn['opcode'], expRange, mantissa, execCount))
+
+    # Print the approximation setting
+    logging.info("Approximate instruction statistics:")
+    for approxInsn in config:
+        iid = "bb" + str(approxInsn["bb"]) + "i" + str(approxInsn["line"])
+        execs = dynamicBbStats[approxInsn['bb']]
+        if execs>1:
+            if is_float_type(approxInsn['type']) and iid in dynamicFpStats:
+                minExp = dynamicFpStats[iid][0]
+                maxExp = dynamicFpStats[iid][1]
+                rangeExp = maxExp-minExp
+                logging.info("\t{}:{}:{}:{}:wi={}:lo={}:exp=[{},{}]:expRange:{}:execs={}".format(
+                    locMap[iid],approxInsn["opcode"], approxInsn["type"], iid,
+                    get_bitwidth_from_type(approxInsn["type"])-approxInsn["lomask"]-approxInsn["himask"],
+                    approxInsn["lomask"],
+                    maxExp, minExp, rangeExp, execs
+                ))
+            else:
+                logging.info("\t{}:{}:{}:{}:wi={}:lo={}:execs={}".format(
+                    locMap[iid],approxInsn["opcode"], approxInsn["type"], iid,
+                    get_bitwidth_from_type(approxInsn["type"])-approxInsn["lomask"]-approxInsn["himask"],
+                    approxInsn["lomask"], execs
+                ))
+
+    # Finally report the number of knobs
+    logging.info('There are {} static safe to approximate instructions'.format(len(config)))
 
 
 #################################################
