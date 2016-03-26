@@ -5,18 +5,21 @@
 #include <stdlib.h>
 #include <math.h>
 
-#define HALF_MANTISSA_W   10
-#define HALF_EXPONENT_W   5
-#define HALF_EXP_BIAS     ( (1 << (HALF_EXPONENT_W-1)) - 1)
-#define HALF_EXP_MASK     ( (1 << HALF_EXPONENT_W) - 1 )
-#define FLOAT_MANTISSA_W  23
-#define FLOAT_EXPONENT_W  8
-#define FLOAT_EXP_BIAS    ( (1 << (FLOAT_EXPONENT_W-1)) - 1)
-#define FLOAT_EXP_MASK    ( (1 << FLOAT_EXPONENT_W) - 1 )
-#define DOUBLE_MANTISSA_W 52
-#define DOUBLE_EXPONENT_W 11
-#define DOUBLE_EXP_BIAS   ( (1 << (DOUBLE_EXPONENT_W-1)) - 1)
-#define DOUBLE_EXP_MASK   ( (1 << DOUBLE_EXPONENT_W) - 1 )
+#define HALF_MANTISSA_W     10
+#define HALF_EXPONENT_W     5
+#define HALF_EXP_BIAS       ( (1 << (HALF_EXPONENT_W-1)) - 1)
+#define HALF_EXP_MASK       ( (1 << HALF_EXPONENT_W) - 1 )
+#define HALF_MAN_MASK       ( (1 << HALF_MANTISSA_W) - 1 )
+#define FLOAT_MANTISSA_W    23
+#define FLOAT_EXPONENT_W    8
+#define FLOAT_EXP_BIAS      ( (1 << (FLOAT_EXPONENT_W-1)) - 1)
+#define FLOAT_EXP_MASK      ( (1 << FLOAT_EXPONENT_W) - 1 )
+#define FLOAT_MAN_MASK      ( (1 << FLOAT_MANTISSA_W) - 1 )
+#define DOUBLE_MANTISSA_W   52
+#define DOUBLE_EXPONENT_W   11
+#define DOUBLE_EXP_BIAS     ( (1 << (DOUBLE_EXPONENT_W-1)) - 1)
+#define DOUBLE_EXP_MASK     ( (1 << DOUBLE_EXPONENT_W) - 1 )
+#define DOUBLE_MAN_MASK     ( (1 << DOUBLE_MANTISSA_W) - 1 )
 
 
 typedef struct _minmax { int min, max; char* iid; } minmax;
@@ -49,26 +52,30 @@ void logbb(int i) {
 }
 
 void logfp(int type, char* iid, int fpid, int64_t value) {
-    if (value==0) {
-        return;
-    }
 
-    int64_t exponent = 0;
+    int32_t exponent = 0;
+    int64_t mantissa = 0;
     switch (type) {
         case 1:
-            exponent = ( (value >> HALF_MANTISSA_W) & HALF_EXP_MASK ) - HALF_EXP_BIAS;
+            exponent = ( (value >> DOUBLE_MANTISSA_W) & HALF_EXP_MASK ) - HALF_EXP_BIAS;
+            mantissa = value & HALF_MAN_MASK;
             break;
         case 2:
             exponent = ( (value >> FLOAT_MANTISSA_W) & FLOAT_EXP_MASK ) - FLOAT_EXP_BIAS;
+            mantissa = value & FLOAT_MAN_MASK;
             break;
         case 3:
             exponent = ( (value >> DOUBLE_MANTISSA_W) & DOUBLE_EXP_MASK ) - DOUBLE_EXP_BIAS;
+            mantissa = value & DOUBLE_MAN_MASK;
             break;
         default:
             // The type enum is unkown, flag it
             FPstat[fpid].iid = "unknown type";
             return;
     }
+
+    if (mantissa==0)
+        return;
 
     FPstat[fpid].min = exponent < FPstat[fpid].min ? exponent : FPstat[fpid].min;
     FPstat[fpid].max = exponent > FPstat[fpid].max ? exponent : FPstat[fpid].max;
