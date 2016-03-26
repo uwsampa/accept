@@ -49,6 +49,9 @@ void logbb(int i) {
 }
 
 void logfp(int type, char* iid, int fpid, int64_t value) {
+    if (value==0) {
+        return;
+    }
 
     int64_t exponent = 0;
     switch (type) {
