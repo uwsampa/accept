@@ -22,6 +22,7 @@ from eval import EXT
 
 # FILE NAMES
 ACCEPT_CONFIG = 'accept_config.txt'
+ACCEPT_CONFIG_ROOT = 'accept_conf_'
 LOG_FILE = 'tune_precision.log'
 ERROR_LOG_FILE = 'error.log'
 BB_DYNSTATS_FILE = 'accept_bbstats.txt'
@@ -1211,7 +1212,7 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
             # Report Error and Savings stats
             stats_path = tmpoutputsdir+'/stats_'+str(tuning_pass)+'_'+str(bestidx)+'.txt'
             cdf_path = outputsdir+'/cdf_{0:05d}'.format(step_count)
-            accept_path = outputsdir+'/accept_conf_{0:05d}'.format(step_count)+'.txt'
+            accept_path = outputsdir+'/'+ACCEPT_CONFIG_ROOT+'{0:05d}'.format(step_count)+'.txt'
             # report_error_and_savings(base_config, timeout, besterror, stats_path, cdf_path, accept_path)
             report_error_and_savings(base_config, timeout, besterror, stats_path, None, accept_path)
 
@@ -1296,6 +1297,49 @@ def tune_width(accept_config_fn, target_error, target_snr, adaptiverate, passlim
             run_on_grappa)
 
 
+def getConfFile(path, snr):
+    logFn = path+'/'+ERROR_LOG_FILE
+    if (not os.path.isfile(logFn)):
+        logging.error('Log file not found in {}'.format(path))
+        exit()
+
+    # Read the log file in CSV format
+    csv = []
+    with open(logFn) as f:
+        lines = f.readlines()
+        for l in lines:
+            csv.append(l.strip().split('\t'))
+
+    # Error index
+    errorIdx = csv[0].index("error")
+
+    # Select the pareto-optimal points
+    paretoCsv = [csv[0]]
+    for i, elem in enumerate(csv[1:]):
+        paretoOptimal = True
+        for j in range(i+1,len(csv)):
+            if float(csv[j][errorIdx]) > float(elem[errorIdx]):
+                paretoOptimal = False
+        if paretoOptimal:
+            paretoCsv.append(elem)
+    csv = paretoCsv
+
+    # Optimal index given SNR target
+    idx = 0
+    for i, elem in enumerate(csv[1:]):
+        if float(elem[errorIdx]) > snr:
+            idx = i
+
+    if idx==0:
+        logging.info("No configuration with SNR = {} was found".format(snr))
+        return None
+    else:
+        confFile = ACCEPT_CONFIG_ROOT+'{0:05d}'.format(idx)+'.txt'
+        logging.info("Found {} with SNR = {}".format(confFile, csv[idx][errorIdx]))
+        return path+'/'+confFile
+
+
+
 #################################################
 # Argument validation
 #################################################
@@ -1307,6 +1351,10 @@ def cli():
     parser.add_argument(
         '-conf', dest='accept_config_fn', action='store', type=str, required=False,
         default=None, help='accept_config_file'
+    )
+    parser.add_argument(
+        '-runs', dest='accept_config_dir', action='store', type=str, required=False,
+        default=None, help='directory containing experimental results'
     )
     parser.add_argument(
         '-t', dest='target_error', action='store', type=float, required=False,
@@ -1383,9 +1431,17 @@ def cli():
     if(args.seaborn):
         import seaborn
 
+    # Check if source path was provided
+    # (used for static analysis)
+    configFn = None
+    if (args.accept_config_dir and args.target_snr):
+        configFn = getConfFile(args.accept_config_dir, args.target_snr)
+    else:
+        configFn = args.accept_config_fn
+
     # Tuning
     tune_width(
-        args.accept_config_fn,
+        configFn,
         args.target_error,
         args.target_snr,
         args.adaptiverate,
