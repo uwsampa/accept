@@ -381,7 +381,7 @@ def get_masks_from_param(param):
 # Configuration file reading/processing
 #################################################
 
-def analyzeInstructionMix(config, extraChecks=True):
+def analyzeInstructionMix(config, extraChecks=True, plotFPScatterplot=False):
     """ Analyzes the instruction mix of an approximate program
     """
 
@@ -411,8 +411,10 @@ def analyzeInstructionMix(config, extraChecks=True):
 
     # Combine static and dynamic profiles to produce instruction breakdown
     totalStats = dict(bbIrCatDict)
+    execCountMax = 0
     for bbIdx in dynamicBbStats:
         execCount = dynamicBbStats[bbIdx]
+        execCountMax = execCount if execCount > execCountMax else execCountMax
         if execCount>1: # Only account for non-main BBs
             for cat in staticStats[bbIdx]:
                 totalStats[cat] += staticStats[bbIdx][cat]*execCount
@@ -490,14 +492,15 @@ def analyzeInstructionMix(config, extraChecks=True):
         for row in csvRow:
             logging.debug('{}'.format(('\t').join(row)))
 
-        # expRange = [int(x[1]) for x in csvRow]
-        # mantissa = [int(x[2]) for x in csvRow]
-        # execCount = [int(x[3])*1000.0/10223616 for x in csvRow]
+        expRange = [int(x[1]) for x in csvRow]
+        mantissa = [int(x[2]) for x in csvRow]
+        execCount = [int(x[3])*1000.0/execCountMax for x in csvRow]
 
-        # plt.scatter(expRange, mantissa, s=execCount, alpha=0.5)
-        # plt.xlabel('Exponent Range')
-        # plt.ylabel('Mantissa Width')
-        # plt.savefig("fp.pdf", bbox_inches='tight')
+        if plotFPScatterplot:
+            plt.scatter(expRange, mantissa, s=execCount, alpha=0.5)
+            plt.xlabel('Exponent Range')
+            plt.ylabel('Mantissa Width')
+            plt.savefig("fp.pdf", bbox_inches='tight')
 
         # Analyze Math Functions
         for approxInsn in config:
@@ -511,6 +514,9 @@ def analyzeInstructionMix(config, extraChecks=True):
                 execCount = dynamicBbStats[approxInsn['bb']]
                 logging.debug("Math function {}: [expRange, mantissa, execs] = [{}, {}, {}]".format(approxInsn['opcode'], expRange, mantissa, execCount))
 
+    # Keep track of the exponent min and max
+    expMax = -1000
+    expMin = 1000
     # Print the approximation setting
     logging.info("Approximate instruction statistics:")
     for approxInsn in config:
@@ -520,6 +526,8 @@ def analyzeInstructionMix(config, extraChecks=True):
             if is_float_type(approxInsn['type']) and iid in dynamicFpStats:
                 minExp = dynamicFpStats[iid][0]
                 maxExp = dynamicFpStats[iid][1]
+                expMin = minExp if minExp<expMin else expMin
+                expMax = maxExp if maxExp>expMax else expMax
                 rangeExp = maxExp-minExp
                 logging.info("\t{}:{}:{}:{}:wi={}:lo={}:exp=[{},{}]:expRange:{}:execs={}".format(
                     locMap[iid],approxInsn["opcode"], approxInsn["type"], iid,
@@ -533,6 +541,7 @@ def analyzeInstructionMix(config, extraChecks=True):
                     get_bitwidth_from_type(approxInsn["type"])-approxInsn["lomask"]-approxInsn["himask"],
                     approxInsn["lomask"], execs
                 ))
+    logging.info('Exponent min and max: [{}, {}]'.format(expMin, expMax))
 
     # Finally report the number of knobs
     logging.info('There are {} static safe to approximate instructions'.format(len(config)))
