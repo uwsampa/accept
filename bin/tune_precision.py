@@ -382,7 +382,7 @@ def get_masks_from_param(param):
 # Configuration file reading/processing
 #################################################
 
-def analyzeInstructionMix(config, extraChecks=True, plotFPScatterplot=False):
+def analyzeInstructionMix(config, config_fn=None, extraChecks=True, plotFPScatterplot=False):
     """ Analyzes the instruction mix of an approximate program
     """
 
@@ -402,7 +402,11 @@ def analyzeInstructionMix(config, extraChecks=True, plotFPScatterplot=False):
     # Obtain BB dynamic information
     if not os.path.isfile(BB_DYNSTATS_FILE):
         try:
-            shell(shlex.split('make run_orig'), cwd=curdir)
+            # Check if config file is provided
+            if config_fn:
+                shutil.copyfile(config_fn,ACCEPT_CONFIG)
+            else:
+                shell(shlex.split('make run_orig'), cwd=curdir)
             shell(shlex.split('make run_opt'), cwd=curdir)
         except:
             logging.error('Something went wrong generating default config.')
@@ -518,23 +522,30 @@ def analyzeInstructionMix(config, extraChecks=True, plotFPScatterplot=False):
     # Keep track of the exponent min and max
     expMax = -1000
     expMin = 1000
+    expRangeMax = 0
     # Print the approximation setting
     logging.info("Approximate instruction statistics:")
     for approxInsn in config:
         iid = "bb" + str(approxInsn["bb"]) + "i" + str(approxInsn["line"])
         execs = dynamicBbStats[approxInsn['bb']]
         if execs>1:
-            if is_float_type(approxInsn['type']) and iid in dynamicFpStats:
-                minExp = dynamicFpStats[iid][0]
-                maxExp = dynamicFpStats[iid][1]
+            if is_float_type(approxInsn['type']) and iid in dynamicFpStats or not is_float_type(approxInsn['type']):
+                if is_float_type(approxInsn['type']) and iid in dynamicFpStats:
+                    minExp = dynamicFpStats[iid][0]
+                    maxExp = dynamicFpStats[iid][1]
+                    rangeExp = maxExp-minExp
+                else :
+                    minExp = 0
+                    maxExp = get_bitwidth_from_type(approxInsn["type"])-approxInsn["himask"]
+                    rangeExp = maxExp-minExp
                 expMin = minExp if minExp<expMin else expMin
                 expMax = maxExp if maxExp>expMax else expMax
-                rangeExp = maxExp-minExp
+                expRangeMax = rangeExp if rangeExp>expRangeMax else expRangeMax
                 logging.info("\t{}:{}:{}:{}:wi={}:lo={}:exp=[{},{}]:expRange:{}:execs={}".format(
                     locMap[iid],approxInsn["opcode"], approxInsn["type"], iid,
                     get_bitwidth_from_type(approxInsn["type"])-approxInsn["lomask"]-approxInsn["himask"],
                     approxInsn["lomask"],
-                    maxExp, minExp, rangeExp, execs
+                    minExp, maxExp, rangeExp, execs
                 ))
             else:
                 logging.info("\t{}:{}:{}:{}:wi={}:lo={}:execs={}".format(
@@ -542,7 +553,7 @@ def analyzeInstructionMix(config, extraChecks=True, plotFPScatterplot=False):
                     get_bitwidth_from_type(approxInsn["type"])-approxInsn["lomask"]-approxInsn["himask"],
                     approxInsn["lomask"], execs
                 ))
-    logging.info('Exponent min and max: [{}, {}]'.format(expMin, expMax))
+    logging.info('Exponent min and max and range max: [{}, {}, {}]'.format(expMin, expMax, expRangeMax))
 
     # Finally report the number of knobs
     logging.info('There are {} static safe to approximate instructions'.format(len(config)))
@@ -1266,7 +1277,7 @@ def tune_width(accept_config_fn, target_error, target_snr, adaptiverate, passlim
 
     # If we're only interested in instruction mix stats
     if statsOnly:
-            analyzeInstructionMix(config)
+            analyzeInstructionMix(config, accept_config_fn)
             exit()
 
     # If in SNR mode, measure initial SNR
