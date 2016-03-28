@@ -243,6 +243,18 @@ def is_float_type(typeStr):
     else:
         return False
 
+def get_float_exp_offset(typeStr):
+    """Returns the exponent offset of a float
+    """
+    if (typeStr=="Half"):
+        return 15
+    elif(typeStr=="Float"):
+        return 127
+    elif(typeStr=="Double"):
+        return 1023
+    else:
+        return 0
+
 
 
 #################################################
@@ -362,20 +374,21 @@ def read_static_stats(llFile):
 # Bit mask setting to conf file param conversion
 #################################################
 
-def get_param_from_masks(himask, lomask):
+def get_param_from_masks(himask, lomask, maxexp=0):
     """Returns parameter from width settings
     """
-    return (9<<16) + (himask<<8) + lomask
+    return (maxexp<<16) + (himask<<8) + lomask
 
 def get_masks_from_param(param):
     """Returns mask width settings from parameter
     """
     if param==0:
-        return 0,0
-    param -= (9<<16)
+        return 0,0,0
+    maxexp = (param>>16) & 0x0000FFFF;
+    param &= 0x0000FFFF
     himask = (param >> 8) & 0xFF;
     lomask = (param & 0xFF);
-    return himask, lomask
+    return himask, lomask, maxexp
 
 
 #################################################
@@ -529,21 +542,22 @@ def analyzeInstructionMix(config, config_fn=None, extraChecks=True, plotFPScatte
         iid = "bb" + str(approxInsn["bb"]) + "i" + str(approxInsn["line"])
         execs = dynamicBbStats[approxInsn['bb']]
         if execs>1:
-            if is_float_type(approxInsn['type']) and iid in dynamicFpStats or not is_float_type(approxInsn['type']):
+            if is_float_type(approxInsn['type']) and iid in dynamicFpStats:
                 if is_float_type(approxInsn['type']) and iid in dynamicFpStats:
                     minExp = dynamicFpStats[iid][0]
                     maxExp = dynamicFpStats[iid][1]
                     rangeExp = maxExp-minExp
                 else :
-                    minExp = 0
-                    maxExp = get_bitwidth_from_type(approxInsn["type"])-approxInsn["himask"]
+                    minExp = approxInsn["lomask"]
+                    maxExp = get_bitwidth_from_type(approxInsn["type"])-approxInsn["himask"]-1 # 1 because of implicit bit!
                     rangeExp = maxExp-minExp
                 expMin = minExp if minExp<expMin else expMin
                 expMax = maxExp if maxExp>expMax else expMax
                 expRangeMax = rangeExp if rangeExp>expRangeMax else expRangeMax
+                width = get_bitwidth_from_type(approxInsn["type"])-approxInsn["lomask"]+1 #implicit mantissa bit
                 logging.info("\t{}:{}:{}:{}:wi={}:lo={}:exp=[{},{}]:expRange:{}:execs={}".format(
                     locMap[iid],approxInsn["opcode"], approxInsn["type"], iid,
-                    get_bitwidth_from_type(approxInsn["type"])-approxInsn["lomask"]-approxInsn["himask"],
+                    width,
                     approxInsn["lomask"],
                     minExp, maxExp, rangeExp, execs
                 ))
@@ -573,14 +587,18 @@ def parse_relax_config(f):
             param, ident = line.split(None, 1)
             yield ident, int(param)
 
-def read_config(fname, adaptiverate, stats_fn=None):
+def read_config(fname, adaptiverate, bb_stats_fn=None, fp_stats_fn=None):
     """Reads in a fine error injection descriptor.
     Returns a config object.
     """
     # Filter out the instructions that don't execute dynamically
-    if stats_fn:
+    if bb_stats_fn:
         # Read dynamic statistics
-        bb_info = read_dyn_bb_stats(stats_fn)
+        bb_info = read_dyn_bb_stats(bb_stats_fn)
+
+    # Read in fp exponent ranges
+    if fp_stats_fn:
+        fp_info = read_dyn_fp_stats(fp_stats_fn)
 
     # Configuration object
     config = []
@@ -591,14 +609,20 @@ def read_config(fname, adaptiverate, stats_fn=None):
             if ident.startswith('instruction'):
                 _, i_ident = ident.split()
                 func, bb, line, opcode, typ = i_ident.split(':')
-                himask, lomask = get_masks_from_param(param)
+                himask, lomask, maxexp = get_masks_from_param(param)
 
                 # Derive the masking rate
                 maskingRate = get_bitwidth_from_type(typ)/8 if adaptiverate else 1
 
+                # Derive the min exponent
+                maxexp = 0
+                iid = "bb" + bb + "i" + line
+                if fp_stats_fn and iid in fp_info:
+                    maxexp = fp_info[iid][1]
+
                 # Filter the instruction if it doesn't execute more than once
                 # (This excludes code that is in the main file)
-                if not stats_fn or bb_info[int(bb)]>1:
+                if not bb_stats_fn or bb_info[int(bb)]>1:
                     # Add the config entry for the instruction
                     config.append({
                         'insn': ident,
@@ -609,7 +633,8 @@ def read_config(fname, adaptiverate, stats_fn=None):
                         'line': int(line),
                         'opcode': opcode,
                         'type': typ,
-                        'rate': int(maskingRate)
+                        'rate': int(maskingRate),
+                        'maxexp': maxexp
                         })
 
     return config
@@ -631,7 +656,7 @@ def gen_default_config(instlimit, adaptiverate, timeout):
         exit()
 
     # Load ACCEPT config file
-    config = read_config(ACCEPT_CONFIG, adaptiverate, BB_DYNSTATS_FILE)
+    config = read_config(ACCEPT_CONFIG, adaptiverate, BB_DYNSTATS_FILE, FP_DYNSTATS_FILE)
 
     # Notify the user that the instruction limit is lower than the configuration length
     if len(config) > instlimit:
@@ -646,9 +671,9 @@ def dump_relax_config(config, fname):
     logging.debug("-----------FILE DUMP BEGIN-----------")
     with open(fname, 'w') as f:
         for conf in config:
-            mode = get_param_from_masks(conf['himask'], conf['lomask'])
+            mode = get_param_from_masks(conf['himask'], conf['lomask'], conf['maxexp'])
             f.write(str(mode)+ ' ' + conf['insn'] + '\n')
-            logging.debug(str(mode)+ ' ' + conf['insn'])
+            logging.debug(str(mode)+ ' ' + conf['insn'] + ":" + str(conf['maxexp']))
     logging.debug("----------- FILE DUMP END -----------")
 
 def print_config(config):
@@ -673,7 +698,7 @@ def eval_compression_factor(config):
 # Configuration function testing
 #################################################
 
-def test_config(config, timeout, statspath=None, dstpath=None):
+def test_config(config, timeout, bbpath=None, fppath=None, dstpath=None):
     """Creates a temporary directory to run ACCEPT with
     the passed in config object for precision relaxation.
     """
@@ -707,15 +732,18 @@ def test_config(config, timeout, statspath=None, dstpath=None):
         return float(CRASH)
 
     # Now that we're done with the compilation, evaluate results
-    output_fp = os.path.join(tmpdir,APPROX_OUTPUT)
-    trace_fp = os.path.join(tmpdir,BB_DYNSTATS_FILE)
-    if os.path.isfile(output_fp):
+    output_fn = os.path.join(tmpdir,APPROX_OUTPUT)
+    bb_stats_fn = os.path.join(tmpdir,BB_DYNSTATS_FILE)
+    fp_stats_fn = os.path.join(tmpdir,FP_DYNSTATS_FILE)
+    if os.path.isfile(output_fn):
         error = eval.score(PRECISE_OUTPUT,os.path.join(tmpdir,APPROX_OUTPUT))
         logging.debug('Reported application error: {}'.format(error))
         if(dstpath):
-            shutil.copyfile(output_fp, dstpath)
-        if(statspath):
-            shutil.copyfile(trace_fp, statspath)
+            shutil.copyfile(output_fn, dstpath)
+        if(bbpath):
+            shutil.copyfile(bb_stats_fn, bbpath)
+        if(fppath):
+            shutil.copyfile(fp_stats_fn, fppath)
     else:
         # Something went wrong - no output!
         logging.warning('Missing output!')
@@ -902,7 +930,7 @@ def process_dyn_bb_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
 
     return savings
 
-def report_error_and_savings(base_config, timeout, error=0, stats_fn=None, cdf_fn=None, accept_fn=None, error_fn=ERROR_LOG_FILE):
+def report_error_and_savings(base_config, timeout, error=0, bb_stats_fn=None, accept_fn=None, cdf_fn=None, error_fn=ERROR_LOG_FILE):
     """Reports the error of the current config,
     and the savings from minimizing Bit-width.
     """
@@ -914,15 +942,15 @@ def report_error_and_savings(base_config, timeout, error=0, stats_fn=None, cdf_f
 
     # Re-run approximate program (pass error as 0)
     if error==0:
-        stats_fn = "tmp_stats.txt"
-        error = test_config(base_config, timeout, stats_fn)
+        bb_stats_fn = "tmp_bb_stats.txt"
+        error = test_config(base_config, timeout, bb_stats_fn)
         if error==CRASH or error==TIMEOUT or error==NOOUTPUT:
             logging.error("Configuration is faulty - exiting program")
             exit()
 
     # Collect dynamic statistics
-    if (stats_fn):
-        savings = process_dyn_bb_stats(base_config, stats_fn, cdf_fn)
+    if (bb_stats_fn):
+        savings = process_dyn_bb_stats(base_config, bb_stats_fn, cdf_fn)
 
     # Dump the ACCEPT configuration file.
     if (accept_fn):
@@ -1148,7 +1176,8 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
                 # Generate temporary configuration
                 tmp_config = copy.deepcopy(base_config)
                 # Derive the destination file paths
-                stats_path = tmpoutputsdir+'/stats_'+str(tuning_pass)+'_'+str(idx)+'.txt'
+                bb_stats_path = tmpoutputsdir+'/bb_stats_'+str(tuning_pass)+'_'+str(idx)+'.txt'
+                fp_stats_path = tmpoutputsdir+'/fp_stats_'+str(tuning_pass)+'_'+str(idx)+'.txt'
                 if save_output:
                     output_path = tmpoutputsdir+'/'+'out_'+str(tuning_pass)+'_'+str(idx)+EXT
                     logging.debug ("File output path of instruction {}: {}".format(tmp_config[idx]['lomask'], output_path))
@@ -1161,14 +1190,14 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
                     with jobs_lock:
                         jobs[jobid] = idx
                     if save_output:
-                        client.submit(jobid, test_config, tmp_config, timeout, stats_path, output_path)
+                        client.submit(jobid, test_config, tmp_config, timeout, bb_stats_path, fp_stats_path, output_path)
                     else:
-                        client.submit(jobid, test_config, tmp_config, timeout, stats_path)
+                        client.submit(jobid, test_config, tmp_config, timeout, bb_stats_path, fp_stats_path)
                 else:
                     if save_output:
-                        error = test_config(tmp_config, timeout, stats_path, output_path)
+                        error = test_config(tmp_config, timeout, bb_stats_path, fp_stats_path, output_path)
                     else:
-                        error = test_config(tmp_config, timeout, stats_path)
+                        error = test_config(tmp_config, timeout, bb_stats_path, fp_stats_path)
                     insn_errors[idx] = error
         if (clusterworkers):
             logging.info('All jobs submitted for pass #{}'.format(tuning_pass))
@@ -1221,11 +1250,16 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
                 dst_path = outputsdir+'/out_{0:05d}'.format(step_count)+EXT
                 shutil.copyfile(src_path, dst_path)
             # Report Error and Savings stats
-            stats_path = tmpoutputsdir+'/stats_'+str(tuning_pass)+'_'+str(bestidx)+'.txt'
-            cdf_path = outputsdir+'/cdf_{0:05d}'.format(step_count)
+            bb_stats_path = tmpoutputsdir+'/bb_stats_'+str(tuning_pass)+'_'+str(bestidx)+'.txt'
             accept_path = outputsdir+'/'+ACCEPT_CONFIG_ROOT+'{0:05d}'.format(step_count)+'.txt'
-            # report_error_and_savings(base_config, timeout, besterror, stats_path, cdf_path, accept_path)
-            report_error_and_savings(base_config, timeout, besterror, stats_path, None, accept_path)
+            report_error_and_savings(base_config, timeout, besterror, bb_stats_path, accept_path)
+            # Update expmin
+            fp_stats_path = tmpoutputsdir+'/fp_stats_'+str(tuning_pass)+'_'+str(bestidx)+'.txt'
+            fp_stats = read_dyn_fp_stats(fp_stats_path)
+            for conf in base_config:
+                iid = "bb" + str(conf["bb"]) + "i" + str(conf["line"])
+                if iid in fp_stats:
+                    conf["maxexp"] = fp_stats[iid][1]
 
         # Update the masking rates for the instructions which error degradations
         # exceed the threshold. Also set equilibrium to True if all rates have
@@ -1274,6 +1308,7 @@ def tune_width(accept_config_fn, target_error, target_snr, adaptiverate, passlim
         print_config(config)
     else:
         config = gen_default_config(instlimit, adaptiverate, timeout)
+        print_config(config)
 
     # If we're only interested in instruction mix stats
     if statsOnly:

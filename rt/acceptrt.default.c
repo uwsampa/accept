@@ -19,7 +19,7 @@
 #define DOUBLE_EXPONENT_W   11
 #define DOUBLE_EXP_BIAS     ( (1 << (DOUBLE_EXPONENT_W-1)) - 1)
 #define DOUBLE_EXP_MASK     ( (1 << DOUBLE_EXPONENT_W) - 1 )
-#define DOUBLE_MAN_MASK     ( (1 << DOUBLE_MANTISSA_W) - 1 )
+#define DOUBLE_MAN_MASK     ( (1ULL << DOUBLE_MANTISSA_W) - 1 )
 
 
 typedef struct _minmax { int min, max; char* iid; } minmax;
@@ -57,15 +57,15 @@ void logfp(int type, char* iid, int fpid, int64_t value) {
     int64_t mantissa = 0;
     switch (type) {
         case 1:
-            exponent = ( (value >> DOUBLE_MANTISSA_W) & HALF_EXP_MASK ) - HALF_EXP_BIAS;
+            exponent = ( (value >> HALF_MANTISSA_W) & HALF_EXP_MASK );
             mantissa = value & HALF_MAN_MASK;
             break;
         case 2:
-            exponent = ( (value >> FLOAT_MANTISSA_W) & FLOAT_EXP_MASK ) - FLOAT_EXP_BIAS;
+            exponent = ( (value >> FLOAT_MANTISSA_W) & FLOAT_EXP_MASK );
             mantissa = value & FLOAT_MAN_MASK;
             break;
         case 3:
-            exponent = ( (value >> DOUBLE_MANTISSA_W) & DOUBLE_EXP_MASK ) - DOUBLE_EXP_BIAS;
+            exponent = ( (value >> DOUBLE_MANTISSA_W) & DOUBLE_EXP_MASK );
             mantissa = value & DOUBLE_MAN_MASK;
             break;
         default:
@@ -80,6 +80,7 @@ void logfp(int type, char* iid, int fpid, int64_t value) {
     FPstat[fpid].min = exponent < FPstat[fpid].min ? exponent : FPstat[fpid].min;
     FPstat[fpid].max = exponent > FPstat[fpid].max ? exponent : FPstat[fpid].max;
     FPstat[fpid].iid = FPstat[fpid].iid==NULL ? iid : FPstat[fpid].iid;
+    // printf("\t[min, max, curr]: [%d, %d, %d]\n", FPstat[fpid].min, FPstat[fpid].max, exponent);
 }
 
 void logbb_fini() {
@@ -110,8 +111,8 @@ void logbb_init(int bbCount, int fpCount) {
         BBstat[i] = 0;
     }
     for (i=0; i<numFP; i++){
-        FPstat[i].min = pow(2, DOUBLE_EXPONENT_W) - 1 - DOUBLE_EXP_BIAS;
-        FPstat[i].max = 0 - DOUBLE_EXP_BIAS;
+        FPstat[i].min = 1024;
+        FPstat[i].max = -1023;
         FPstat[i].iid = NULL;
     }
     atexit(logbb_fini);

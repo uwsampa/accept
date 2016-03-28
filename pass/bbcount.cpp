@@ -8,7 +8,7 @@
 
 #include "accept.h"
 
-#define INSTRUMENT_FP false
+#define INSTRUMENT_FP true
 
 using namespace llvm;
 
