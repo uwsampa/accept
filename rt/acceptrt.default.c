@@ -74,7 +74,10 @@ void logfp(int type, char* iid, int fpid, int64_t value) {
             return;
     }
 
-    if (mantissa==0)
+    // For now let's assume the use of subnormals as specified by
+    // the IEEE-754 spec is forbidden. Thus, to test that a number
+    // is zero, we just have to check the exponent value
+    if (exponent==0)
         return;
 
     FPstat[fpid].min = exponent < FPstat[fpid].min ? exponent : FPstat[fpid].min;

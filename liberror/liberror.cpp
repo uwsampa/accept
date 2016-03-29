@@ -122,9 +122,16 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
       // Fixed-point evaluation emulation
       int32_t max_exp = model;
       int32_t exponent = ( (ret >> HALF_MANTISSA_W) & HALF_EXP_MASK );
-      loshift += (max_exp - exponent);
-      lomask = MASK_64 << loshift;
-      return_value = ret&lomask;
+      // FIXME: Can't find a better solution at the moment...
+      if (exponent <= max_exp) {
+        loshift += (max_exp - exponent);
+      }
+      if (loshift > HALF_MANTISSA_W) {
+        return_value = 0;
+      } else {
+        lomask = MASK_64 << loshift;
+        return_value = ret&lomask;
+      }
     }
   } else if (!strcmp(type, "Float")) {
     if (model==0) {
@@ -133,9 +140,16 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
       // Fixed-point evaluation emulation
       int32_t max_exp = model;
       int32_t exponent = ( (ret >> FLOAT_MANTISSA_W) & FLOAT_EXP_MASK );
-      loshift += (max_exp - exponent);
-      lomask = MASK_64 << loshift;
-      return_value = ret&lomask;
+      // FIXME: Can't find a better solution at the moment...
+      if (exponent <= max_exp) {
+        loshift += (max_exp - exponent);
+      }
+      if (loshift > FLOAT_MANTISSA_W) {
+        return_value = 0;
+      } else {
+        lomask = MASK_64 << loshift;
+        return_value = ret&lomask;
+      }
     }
   } else if (!strcmp(type, "Double")) {
     if (model==0) {
@@ -144,9 +158,16 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
       // Fixed-point evaluation emulation
       int32_t max_exp = model;
       int32_t exponent = ( (ret >> DOUBLE_MANTISSA_W) & DOUBLE_EXP_MASK );
-      loshift += (max_exp - exponent);
-      lomask = MASK_64 << loshift;
-      return_value = ret&lomask;
+      // FIXME: Can't find a better solution at the moment...
+      if (exponent <= max_exp) {
+        loshift += (max_exp - exponent);
+      }
+      if (loshift > DOUBLE_MANTISSA_W) {
+        return_value = 0;
+      } else {
+        lomask = MASK_64 << loshift;
+        return_value = ret&lomask;
+      }
     }
   } else {
     return_value = ret&lomask;
