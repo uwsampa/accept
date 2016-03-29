@@ -970,7 +970,7 @@ def report_error_and_savings(base_config, timeout, error=0, bb_stats_fn=None, er
 # Parameterisation testing
 #################################################
 
-def tune_himask_insn(base_config, idx, init_snr, timeout, snr_diff_threshold=1.0):
+def tune_himask_insn(base_config, idx, init_snr, timeout, double_to_single=True, snr_diff_threshold=1.0):
     """Tunes the most significant bit masking of
     an instruction given its index without affecting
     application error.
@@ -1014,6 +1014,11 @@ def tune_himask_insn(base_config, idx, init_snr, timeout, snr_diff_threshold=1.0
             logging.debug ("New best mask!")
             best_mask = mask_val
     logging.info ("Instruction {} {} set to {}".format(idx, mask, mask_val))
+
+    # Fast tuning for double precision FP
+    if double_to_single and base_config[idx]['type']=='Double':
+        double_to_single_mask = get_bitwidth_from_type("Double")-get_bitwidth_from_type("Float")
+        best_mask = double_to_single_mask if double_to_single_mask>best_mask else best_mask
 
     # Return the mask value
     return best_mask
