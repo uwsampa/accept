@@ -965,7 +965,7 @@ def report_error_and_savings(base_config, timeout, error=0, bb_stats_fn=None, er
 # Parameterisation testing
 #################################################
 
-def tune_himask_insn(base_config, idx, init_snr, timeout, snr_diff_threshold=1):
+def tune_himask_insn(base_config, idx, init_snr, timeout, snr_diff_threshold=1.0):
     """Tunes the most significant bit masking of
     an instruction given its index without affecting
     application error.
@@ -1078,7 +1078,7 @@ def tune_himask(base_config, init_snr, instlimit, timeout, clusterworkers, run_o
 
     report_error_and_savings(base_config, timeout)
 
-def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, instlimit, timeout, clusterworkers, run_on_grappa, save_output = False):
+def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, instlimit, timeout, clusterworkers, run_on_grappa, save_output = False, sloppy=True, snr_diff_threshold=1.0):
     """Tunes the least significant bits masking to meet the
     specified error requirements, given a passlimit.
     The tuning algorithm performs multiple passes over every
@@ -1214,8 +1214,16 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
                 zero_error.append(idx)
             # Update min error accordingly
             elif (not snr_mode and error<besterror) or (snr_mode and error>besterror):
-                    besterror = error
-                    bestidx = idx
+                besterror = error
+                bestidx = idx
+
+        # Sloppy mode (SNR only) - all instructions which errors are close-enough (as defined
+        # by snr_diff_threshold) to the best error are added to the zero_error list
+        for idx in range(0, min(instlimit, len(base_config))):
+            if snr_mode and sloppy:
+                if abs(besterror-prev_besterror)<snr_diff_threshold:
+                 zero_error.append(idx)
+
 
         # Apply LSB masking to the instruction that are not impacted by it
         logging.debug ("Zero-error instruction list: {}".format(zero_error))
