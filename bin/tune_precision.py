@@ -32,6 +32,10 @@ CDF_FILE = 'cdf_stats'
 # DIR NAMES
 OUTPUT_DIR = 'outputs'
 
+# Globally defined
+outputsdir = os.getcwd()+'/../'+os.path.basename(os.path.normpath(os.getcwd()))+'_outputs'
+tmpoutputsdir = os.getcwd()+'/../'+os.path.basename(os.path.normpath(os.getcwd()))+'tmp_outputs'
+
 # OUTPUT FILES
 PRECISE_OUTPUT = 'orig'+EXT
 APPROX_OUTPUT = 'out'+EXT
@@ -543,14 +547,9 @@ def analyzeInstructionMix(config, config_fn=None, extraChecks=True, plotFPScatte
         execs = dynamicBbStats[approxInsn['bb']]
         if execs>1:
             if is_float_type(approxInsn['type']) and iid in dynamicFpStats:
-                if is_float_type(approxInsn['type']) and iid in dynamicFpStats:
-                    minExp = dynamicFpStats[iid][0]
-                    maxExp = dynamicFpStats[iid][1]
-                    rangeExp = maxExp-minExp
-                else :
-                    minExp = approxInsn["lomask"]
-                    maxExp = get_bitwidth_from_type(approxInsn["type"])-approxInsn["himask"]-1 # 1 because of implicit bit!
-                    rangeExp = maxExp-minExp
+                minExp = dynamicFpStats[iid][0]
+                maxExp = dynamicFpStats[iid][1]
+                rangeExp = maxExp-minExp
                 expMin = minExp if minExp<expMin else expMin
                 expMax = maxExp if maxExp>expMax else expMax
                 expRangeMax = rangeExp if rangeExp>expRangeMax else expRangeMax
@@ -562,10 +561,10 @@ def analyzeInstructionMix(config, config_fn=None, extraChecks=True, plotFPScatte
                     minExp, maxExp, rangeExp, execs
                 ))
             else:
-                logging.info("\t{}:{}:{}:{}:wi={}:lo={}:execs={}".format(
+                logging.info("\t{}:{}:{}:{}:wi={}:hi={}:lo={}:execs={}".format(
                     locMap[iid],approxInsn["opcode"], approxInsn["type"], iid,
                     get_bitwidth_from_type(approxInsn["type"])-approxInsn["lomask"]-approxInsn["himask"],
-                    approxInsn["lomask"], execs
+                    approxInsn["himask"], approxInsn["lomask"], execs
                 ))
     logging.info('Exponent min and max and range max: [{}, {}, {}]'.format(expMin, expMax, expRangeMax))
 
@@ -788,7 +787,7 @@ def read_dyn_fp_stats(stats_fn):
                 fp_info[fp_id] = [fp_min, fp_max]
     return fp_info
 
-def process_dyn_bb_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
+def process_dyn_bb_stats(config, stats_fn, BITWIDHTMAX=64):
     """Processes the dynamic BB count file to produce stats
     """
     bb_info = read_dyn_bb_stats(stats_fn)
@@ -850,87 +849,85 @@ def process_dyn_bb_stats(config, stats_fn, cdf_fn=None, BITWIDHTMAX=64):
             op_sav[typ] = sav
         savings[opcat] = op_sav
 
-    if (cdf_fn):
+    # # Now produce the CDF
+    # cdfs = {}
+    # for cat in categories:
+    #     cat_cdf = {}
+    #     for opcat in op_categories:
+    #         op_cdf = {}
+    #         for typ in op_types:
+    #             cdf = [0]*(BITWIDHTMAX+1)
+    #             op_cdf[typ] = cdf
+    #         cat_cdf[opcat] = op_cdf
+    #     cdfs[cat] = cat_cdf
 
-        # Now produce the CDF
-        cdfs = {}
-        for cat in categories:
-            cat_cdf = {}
-            for opcat in op_categories:
-                op_cdf = {}
-                for typ in op_types:
-                    cdf = [0]*(BITWIDHTMAX+1)
-                    op_cdf[typ] = cdf
-                cat_cdf[opcat] = op_cdf
-            cdfs[cat] = cat_cdf
+    # # CSV file that gets outputted
+    # cdf_stats = {}
+    # for opcat in op_types:
+    #     cdf_stats[opcat] = [["bitw", "baseline_mem", "precise_mem", "approx_mem", "baseline_exe", "precise_exe", "approx_exe"]]
+    # for i in range(0, (BITWIDHTMAX+1)):
+    #     for cat in categories:
+    #         for opcat in op_categories:
+    #             for typ in op_types:
+    #                 total = sum(histograms[cat][opcat][typ])
+    #                 prev = 0 if i==0 else cdfs[cat][opcat][typ][i-1]
+    #                 if total>0:
+    #                     cdfs[cat][opcat][typ][i] = prev+float(histograms[cat][opcat][typ][i])/total
+    #     for typ in op_types:
+    #         cdf_stats[typ].append([i,
+    #             cdfs['baseline']['mem'][typ][i], cdfs['precise']['mem'][typ][i], cdfs['approx']['mem'][typ][i],
+    #             cdfs['baseline']['exe'][typ][i], cdfs['precise']['exe'][typ][i], cdfs['approx']['exe'][typ][i]])
 
-        # CSV file that gets outputted
-        cdf_stats = {}
-        for opcat in op_types:
-            cdf_stats[opcat] = [["bitw", "baseline_mem", "precise_mem", "approx_mem", "baseline_exe", "precise_exe", "approx_exe"]]
-        for i in range(0, (BITWIDHTMAX+1)):
-            for cat in categories:
-                for opcat in op_categories:
-                    for typ in op_types:
-                        total = sum(histograms[cat][opcat][typ])
-                        prev = 0 if i==0 else cdfs[cat][opcat][typ][i-1]
-                        if total>0:
-                            cdfs[cat][opcat][typ][i] = prev+float(histograms[cat][opcat][typ][i])/total
-            for typ in op_types:
-                cdf_stats[typ].append([i,
-                    cdfs['baseline']['mem'][typ][i], cdfs['precise']['mem'][typ][i], cdfs['approx']['mem'][typ][i],
-                    cdfs['baseline']['exe'][typ][i], cdfs['precise']['exe'][typ][i], cdfs['approx']['exe'][typ][i]])
+    # for typ in op_types:
+    #     dest = cdf_fn+'_'+typ+'.csv'
+    #     with open(dest, 'w') as fp:
+    #         csv.writer(fp, delimiter='\t').writerows(cdf_stats[typ])
 
-        for typ in op_types:
-            dest = cdf_fn+'_'+typ+'.csv'
-            with open(dest, 'w') as fp:
-                csv.writer(fp, delimiter='\t').writerows(cdf_stats[typ])
+    # # Formatting
+    # palette = [ '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+    # cat_format = {
+    #     "mem": "mem",
+    #     "exe": "alu",
+    #     "all": "mem+alu"
+    # }
+    # typ_format = {
+    #     "int": "(int only)",
+    #     "fp": "(fp only)",
+    #     "all": ""
+    # }
 
-        # Formatting
-        palette = [ '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
-        cat_format = {
-            "mem": "mem",
-            "exe": "alu",
-            "all": "mem+alu"
-        }
-        typ_format = {
-            "int": "(int only)",
-            "fp": "(fp only)",
-            "all": ""
-        }
+    # # Now plot the data!
+    # f, axarr = plt.subplots(len(op_categories), len(op_types), sharex='col', sharey='row')
+    # for i,opcat in enumerate(op_categories):
+    #     for j,typ in enumerate(op_types):
+    #         plots=[None] * len(categories)
+    #         legend=[None] * len(categories)
+    #         for k,cat in enumerate(categories):
+    #             x = np.array(range(0, (BITWIDHTMAX+1)))
+    #             y = np.array(cdfs[cat][opcat][typ])
+    #             axarr[i, j].set_title(cat_format[opcat]+' '+typ_format[typ])
+    #             x1,x2,y1,y2 = plt.axis()
+    #             axarr[i][j].axis((x1,BITWIDHTMAX,y1,y2))
 
-        # Now plot the data!
-        f, axarr = plt.subplots(len(op_categories), len(op_types), sharex='col', sharey='row')
-        for i,opcat in enumerate(op_categories):
-            for j,typ in enumerate(op_types):
-                plots=[None] * len(categories)
-                legend=[None] * len(categories)
-                for k,cat in enumerate(categories):
-                    x = np.array(range(0, (BITWIDHTMAX+1)))
-                    y = np.array(cdfs[cat][opcat][typ])
-                    axarr[i, j].set_title(cat_format[opcat]+' '+typ_format[typ])
-                    x1,x2,y1,y2 = plt.axis()
-                    axarr[i][j].axis((x1,BITWIDHTMAX,y1,y2))
+    #             plots[k], = axarr[i, j].plot(x, y, c=palette[k%len(palette)])
+    #             legend[k] = cat
 
-                    plots[k], = axarr[i, j].plot(x, y, c=palette[k%len(palette)])
-                    legend[k] = cat
+    #         axarr[2][j].set_xlabel("Bit-width")
+    #     axarr[i][0].set_ylabel("Percentage")
 
-                axarr[2][j].set_xlabel("Bit-width")
-            axarr[i][0].set_ylabel("Percentage")
+    # # Plot legend
+    # f.legend(plots,
+    #        legend,
+    #        loc='upper center',
+    #        ncol=3,
+    #        fontsize=8)
 
-        # Plot legend
-        f.legend(plots,
-               legend,
-               loc='upper center',
-               ncol=3,
-               fontsize=8)
-
-        # Plot
-        plt.savefig(cdf_fn+'.pdf', bbox_inches='tight')
+    # # Plot
+    # plt.savefig(cdf_fn+'.pdf', bbox_inches='tight')
 
     return savings
 
-def report_error_and_savings(base_config, timeout, error=0, bb_stats_fn=None, accept_fn=None, cdf_fn=None, error_fn=ERROR_LOG_FILE):
+def report_error_and_savings(base_config, timeout, error=0, bb_stats_fn=None, error_fn=ERROR_LOG_FILE):
     """Reports the error of the current config,
     and the savings from minimizing Bit-width.
     """
@@ -940,21 +937,17 @@ def report_error_and_savings(base_config, timeout, error=0, bb_stats_fn=None, ac
         with open(error_fn, 'a') as f:
             f.write("step\terror\tmem\tmem_int\tmem_fp\texe\texe_int\texe_fp\tmath\n")
 
-    # Re-run approximate program (pass error as 0)
-    if error==0:
+    # Collect dynamic statistics
+    if not bb_stats_fn or error==0:
         bb_stats_fn = "tmp_bb_stats.txt"
         error = test_config(base_config, timeout, bb_stats_fn)
         if error==CRASH or error==TIMEOUT or error==NOOUTPUT:
             logging.error("Configuration is faulty - exiting program")
             exit()
-
-    # Collect dynamic statistics
-    if (bb_stats_fn):
-        savings = process_dyn_bb_stats(base_config, bb_stats_fn, cdf_fn)
+    savings = process_dyn_bb_stats(base_config, bb_stats_fn)
 
     # Dump the ACCEPT configuration file.
-    if (accept_fn):
-        dump_relax_config(base_config, accept_fn)
+    dump_relax_config(base_config, outputsdir+'/'+ACCEPT_CONFIG_ROOT+'{0:05d}'.format(step_count)+'.txt')
 
     # Also log to file:
     logging.info ("[step, error, static savings]: [{}, {}, {}]".format(step_count, error, eval_compression_factor(base_config)))
@@ -972,7 +965,7 @@ def report_error_and_savings(base_config, timeout, error=0, bb_stats_fn=None, ac
 # Parameterisation testing
 #################################################
 
-def tune_himask_insn(base_config, idx, init_snr, timeout):
+def tune_himask_insn(base_config, idx, init_snr, timeout, snr_diff_threshold=1):
     """Tunes the most significant bit masking of
     an instruction given its index without affecting
     application error.
@@ -980,19 +973,25 @@ def tune_himask_insn(base_config, idx, init_snr, timeout):
     # Generate temporary configuration
     tmp_config = copy.deepcopy(base_config)
 
+    # If int type, tune hi-mask, if float, tune lo-mask
+    if is_float_type(base_config[idx]['type']):
+        mask = 'lomask'
+    else:
+        mask = 'himask'
+
     # Initialize the mask and best mask variables
     bitwidth = get_bitwidth_from_type(base_config[idx]['type'])
     mask_val = bitwidth>>1
     best_mask = 0
     # Now to the autotune part - do a log exploration
     for i in range(0, int(math.log(bitwidth, 2))):
-        logging.info ("Increasing himask on instruction {} to {}".format(idx, mask_val))
+        logging.info ("Increasing {} on instruction {} to {}".format(mask, idx, mask_val))
         # Set the mask in the temporary config
-        tmp_config[idx]['himask'] = mask_val
+        tmp_config[idx][mask] = mask_val
         # Test the config
         error = test_config(tmp_config, timeout)
         # Check the error, and modify mask_val accordingly
-        if (init_snr==0 and error==0) or (init_snr>0 and abs(init_snr-error)<0.001):
+        if (init_snr==0 and error==0) or (init_snr>0 and abs(init_snr-error)<snr_diff_threshold):
             logging.debug ("New best mask!")
             best_mask = mask_val
             mask_val += bitwidth>>(i+2)
@@ -1001,16 +1000,17 @@ def tune_himask_insn(base_config, idx, init_snr, timeout):
     # Corner case - e.g.: bitmask=31, test 32
     if best_mask==bitwidth-1:
         mask_val = bitwidth
-        logging.info ("Increasing himask on instruction {} to {}".format(idx, mask_val))
+        logging.info ("Increasing {} on instruction {} to {}".format(mask, idx, mask_val))
         # Set the mask in the temporary config
-        tmp_config[idx]['himask'] = bitwidth
+        tmp_config[idx][mask] = bitwidth
         # Test the config
         error = test_config(tmp_config, timeout)
         if (init_snr==0 and error==0) or (init_snr>0 and abs(init_snr-error)<0.001):
             logging.debug ("New best mask!")
             best_mask = mask_val
-    logging.info ("Himask on instruction {} set to {}".format(idx, mask_val))
-    # Return the mask value, and type tuple
+    logging.info ("Instruction {} {} set to {}".format(idx, mask, mask_val))
+
+    # Return the mask value
     return best_mask
 
 def tune_himask(base_config, init_snr, instlimit, timeout, clusterworkers, run_on_grappa):
@@ -1026,13 +1026,13 @@ def tune_himask(base_config, init_snr, instlimit, timeout, clusterworkers, run_o
     jobs_lock = threading.Lock()
 
     # Map instructions to errors
-    insn_himasks = collections.defaultdict(list)
+    insn_masks = collections.defaultdict(list)
 
     def completion(jobid, output):
         with jobs_lock:
             idx = jobs.pop(jobid)
         logging.info ("Bit tuning on instruction {} done!".format(idx))
-        insn_himasks[idx] = output
+        insn_masks[idx] = output
 
     if (clusterworkers):
         # Select partition
@@ -1052,17 +1052,13 @@ def tune_himask(base_config, init_snr, instlimit, timeout, clusterworkers, run_o
 
     for idx in range(0, min(instlimit, len(base_config))):
         logging.info ("Tuning instruction: {}".format(base_config[idx]['insn']))
-        if (is_float_type(base_config[idx]['type'])):
-            logging.info ("Skipping tuning because instruction type is a Float")
-            insn_himasks[idx] = 0
+        if (clusterworkers>0):
+            jobid = cw.randid()
+            with jobs_lock:
+                jobs[jobid] = idx
+            client.submit(jobid, tune_himask_insn, base_config, idx, init_snr, timeout)
         else:
-            if (clusterworkers>0):
-                jobid = cw.randid()
-                with jobs_lock:
-                    jobs[jobid] = idx
-                client.submit(jobid, tune_himask_insn, base_config, idx, init_snr, timeout)
-            else:
-                insn_himasks[idx] = tune_himask_insn(base_config, idx, init_snr, timeout)
+            insn_masks[idx] = tune_himask_insn(base_config, idx, init_snr, timeout)
 
     if (clusterworkers):
         logging.info('All jobs submitted for himaks tuning')
@@ -1071,10 +1067,14 @@ def tune_himask(base_config, init_snr, instlimit, timeout, clusterworkers, run_o
         cw.slurm.stop()
 
     # Post processing
-    logging.debug ("Himasks: {}".format(insn_himasks))
+    logging.debug ("Himasks: {}".format(insn_masks))
     for idx in range(0, min(instlimit, len(base_config))):
-        base_config[idx]['himask'] = insn_himasks[idx]
-        logging.info ("Himask of instruction {} tuned to {}".format(idx, insn_himasks[idx]))
+        if (is_float_type(base_config[idx]['type'])):
+            base_config[idx]['lomask'] = insn_masks[idx]
+            logging.info ("Lomask of instruction {} tuned to {}".format(idx, insn_masks[idx]))
+        else:
+            base_config[idx]['himask'] = insn_masks[idx]
+            logging.info ("Himask of instruction {} tuned to {}".format(idx, insn_masks[idx]))
 
     report_error_and_savings(base_config, timeout)
 
@@ -1123,18 +1123,6 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
         )
         client = cw.client.ClientThread(completion, cw.slurm.master_host())
         client.start()
-
-    # Get the current working directory
-    curdir = os.getcwd()
-    # Get the last level directory name (the one we're in)
-    dirname = os.path.basename(os.path.normpath(curdir))
-    # Create a temporary output directory
-    outputsdir = curdir+'/../'+dirname+'_outputs'
-    tmpoutputsdir = curdir+'/../'+dirname+'_tmpoutputs'
-    create_overwrite_directory(outputsdir)
-    create_overwrite_directory(tmpoutputsdir)
-    logging.debug('Output directory created: {}'.format(outputsdir))
-    logging.debug('Tmp output directory created: {}'.format(tmpoutputsdir))
 
     # Previous min error (to keep track of instructions that don't impact error)
     prev_besterror = init_snr if snr_mode else 0.0
@@ -1251,8 +1239,7 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
                 shutil.copyfile(src_path, dst_path)
             # Report Error and Savings stats
             bb_stats_path = tmpoutputsdir+'/bb_stats_'+str(tuning_pass)+'_'+str(bestidx)+'.txt'
-            accept_path = outputsdir+'/'+ACCEPT_CONFIG_ROOT+'{0:05d}'.format(step_count)+'.txt'
-            report_error_and_savings(base_config, timeout, besterror, bb_stats_path, accept_path)
+            report_error_and_savings(base_config, timeout, besterror, bb_stats_path)
             # Update expmin
             fp_stats_path = tmpoutputsdir+'/fp_stats_'+str(tuning_pass)+'_'+str(bestidx)+'.txt'
             fp_stats = read_dyn_fp_stats(fp_stats_path)
@@ -1285,14 +1272,14 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
         # 1 - min error exceeds target_error / max snr is below target snr
         # 2 - empty zero_error
         # 3 - reached equilibrium
-        if ((not snr_mode and besterror>target_error) or (snr_mode and besterror<target_snr)) and (not zero_error) and equilibrium:
+        if ((not snr_mode and besterror>target_error) or (snr_mode and besterror<target_snr)) \
+        and (not zero_error) \
+        and equilibrium:
+            report_error_and_savings(base_config, timeout)
             break
 
     if(clusterworkers):
         cw.slurm.stop()
-
-    # Transfer files over
-    shutil.move(outputsdir, curdir+'/'+OUTPUT_DIR)
 
 
 #################################################
@@ -1485,6 +1472,10 @@ def cli():
     else:
         configFn = args.accept_config_fn
 
+    # Create a temporary output directory
+    create_overwrite_directory(outputsdir)
+    logging.debug('Output directory created: {}'.format(outputsdir))
+
     # Tuning
     tune_width(
         configFn,
@@ -1506,6 +1497,7 @@ def cli():
         rootLogger.removeHandler(handler)
 
     # Finally, transfer all files in the outputs dir
+    shutil.move(outputsdir, os.getcwd()+'/'+OUTPUT_DIR)
     if (os.path.isdir(OUTPUT_DIR)):
         if os.path.exists(ACCEPT_CONFIG):
             shutil.move(ACCEPT_CONFIG, OUTPUT_DIR+'/'+ACCEPT_CONFIG)
@@ -1514,10 +1506,8 @@ def cli():
         shutil.move(args.logpath, OUTPUT_DIR+'/'+args.logpath)
 
     # Cleanup
-    curdir = os.getcwd()
-    dirname = os.path.basename(os.path.normpath(curdir))
-    tmpoutputsdir = curdir+'/../'+dirname+'_tmpoutputs'
-    shutil.rmtree(tmpoutputsdir)
+    if (os.path.isdir(tmpoutputsdir)):
+        shutil.rmtree(tmpoutputsdir)
 
 if __name__ == '__main__':
     cli()
