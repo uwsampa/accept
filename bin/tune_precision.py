@@ -399,7 +399,7 @@ def get_masks_from_param(param):
 # Configuration file reading/processing
 #################################################
 
-def analyzeInstructionMix(config, config_fn=None, extraChecks=True, plotFPScatterplot=False):
+def analyzeConfigStats(config, config_fn=None, extraChecks=True, plotFPScatterplot=False):
     """ Analyzes the instruction mix of an approximate program
     """
 
@@ -430,6 +430,15 @@ def analyzeInstructionMix(config, config_fn=None, extraChecks=True, plotFPScatte
             exit()
     assert (os.path.isfile(BB_DYNSTATS_FILE)),"BB_DYNSTATS_FILE not found!"
     dynamicBbStats = read_dyn_bb_stats(BB_DYNSTATS_FILE)
+
+    # Measure error
+    if os.path.isfile(APPROX_OUTPUT):
+        error = eval.score(PRECISE_OUTPUT,APPROX_OUTPUT)
+    else:
+        # Something went wrong - no output!
+        logging.error("Something went wrong - missing output!")
+        exit()
+    logging.info('Application SNR = {}.'.format(error))
 
     # Combine static and dynamic profiles to produce instruction breakdown
     totalStats = dict(bbIrCatDict)
@@ -586,7 +595,7 @@ def parse_relax_config(f):
             param, ident = line.split(None, 1)
             yield ident, int(param)
 
-def read_config(fname, adaptiverate, bb_stats_fn=None, fp_stats_fn=None):
+def read_config(fname, bb_stats_fn=None, fp_stats_fn=None):
     """Reads in a fine error injection descriptor.
     Returns a config object.
     """
@@ -610,9 +619,6 @@ def read_config(fname, adaptiverate, bb_stats_fn=None, fp_stats_fn=None):
                 func, bb, line, opcode, typ = i_ident.split(':')
                 himask, lomask, maxexp = get_masks_from_param(param)
 
-                # Derive the masking rate
-                maskingRate = get_bitwidth_from_type(typ)/8 if adaptiverate else 1
-
                 # Derive the min exponent
                 maxexp = 0
                 iid = "bb" + bb + "i" + line
@@ -632,13 +638,12 @@ def read_config(fname, adaptiverate, bb_stats_fn=None, fp_stats_fn=None):
                         'line': int(line),
                         'opcode': opcode,
                         'type': typ,
-                        'rate': int(maskingRate),
                         'maxexp': maxexp
                         })
 
     return config
 
-def gen_default_config(instlimit, adaptiverate, timeout):
+def gen_default_config(instlimit, timeout):
     """Reads in the coarse error injection descriptor,
     generates the default config by running make run_orig.
     Returns a config object.
@@ -655,7 +660,7 @@ def gen_default_config(instlimit, adaptiverate, timeout):
         exit()
 
     # Load ACCEPT config file
-    config = read_config(ACCEPT_CONFIG, adaptiverate, BB_DYNSTATS_FILE, FP_DYNSTATS_FILE)
+    config = read_config(ACCEPT_CONFIG, BB_DYNSTATS_FILE, FP_DYNSTATS_FILE)
 
     # Notify the user that the instruction limit is lower than the configuration length
     if len(config) > instlimit:
@@ -1143,11 +1148,6 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
         for idx in range(0, min(instlimit, len(base_config))):
             logging.info ("Tuning lomask on {}".format(base_config[idx]['insn']))
 
-            # Initial adjustments
-            if (base_config[idx]['rate'] > get_bitwidth_from_type(base_config[idx]['type'])-(base_config[idx]['himask']+base_config[idx]['lomask'])):
-                base_config[idx]['rate'] = get_bitwidth_from_type(base_config[idx]['type'])-(base_config[idx]['himask']+base_config[idx]['lomask'])
-                logging.debug("Updated the mask increment of instruction {} to {}".format(idx, base_config[idx]['rate']))
-
             # Check if we've reached the bitwidth limit
             if (base_config[idx]['himask']+base_config[idx]['lomask']) == get_bitwidth_from_type(base_config[idx]['type']):
                 insn_errors[idx] = max_error
@@ -1170,7 +1170,7 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
                     output_path = tmpoutputsdir+'/'+'out_'+str(tuning_pass)+'_'+str(idx)+EXT
                     logging.debug ("File output path of instruction {}: {}".format(tmp_config[idx]['lomask'], output_path))
                 # Increment the LSB mask value
-                tmp_config[idx]['lomask'] += tmp_config[idx]['rate']
+                tmp_config[idx]['lomask'] += 1
                 logging.info ("Testing lomask of value {} on instruction {}".format(tmp_config[idx]['lomask'], idx))
                 # Test the config
                 if (clusterworkers):
@@ -1228,7 +1228,7 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
         # Apply LSB masking to the instruction that are not impacted by it
         logging.debug ("Zero-error instruction list: {}".format(zero_error))
         for idx in zero_error:
-            base_config[idx]['lomask'] += base_config[idx]['rate']
+            base_config[idx]['lomask'] += 1
             logging.info ("Increasing lomask on instruction {} to {} (no additional error)".format(idx, base_config[idx]['lomask']))
         # Report best error achieved
         if snr_mode:
@@ -1237,7 +1237,7 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
             logging.debug ("[besterror, target_error] = [{}, {}]".format(besterror, target_error))
         # Apply LSB masking to the instruction that minimizes positive error
         if (not snr_mode and besterror <= target_error) or (snr_mode and besterror >= target_snr):
-            base_config[bestidx]['lomask'] += base_config[idx]['rate']
+            base_config[bestidx]['lomask'] += 1
             prev_besterror = besterror
             logging.info ("Increasing lomask on instruction {} to {} (best)".format(bestidx, base_config[bestidx]['lomask']))
             if save_output:
@@ -1256,33 +1256,12 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
                 if iid in fp_stats:
                     conf["maxexp"] = fp_stats[iid][1]
 
-        # Update the masking rates for the instructions which error degradations
-        # exceed the threshold. Also set equilibrium to True if all rates have
-        # converged to 1.
-        equilibrium = True
-        for idx in range(0, min(instlimit, len(base_config))):
-            # The error is too large so let's reduce the masking rate
-            if (not snr_mode and insn_errors[idx] > target_error) or (snr_mode and insn_errors[idx] < target_snr):
-                if (base_config[idx]['rate']>1):
-                    # This means we haven't reached equilibrium
-                    equilibrium = False
-                    # Let's half reduce the masking rate
-                    base_config[idx]['rate'] = max(int(base_config[idx]['rate']/2), 1)
-                    logging.debug("Updated the mask increment of instruction {} to {}".format(idx, base_config[idx]['rate']))
-                else:
-                    # The rate is already set to 1 so let's tell the autotuner
-                    # not to revisit this instruction during later passes
-                    maxed_insn.append(idx)
-
         logging.info ("Bit tuning pass #{} done!\n".format(tuning_pass))
 
         # Termination conditions:
         # 1 - min error exceeds target_error / max snr is below target snr
         # 2 - empty zero_error
-        # 3 - reached equilibrium
-        if ((not snr_mode and besterror>target_error) or (snr_mode and besterror<target_snr)) \
-        and (not zero_error) \
-        and equilibrium:
+        if ((not snr_mode and besterror>target_error) or (snr_mode and besterror<target_snr)) and (not zero_error):
             report_error_and_savings(base_config, timeout)
             break
 
@@ -1294,20 +1273,20 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
 # Main Function
 #################################################
 
-def tune_width(accept_config_fn, target_error, target_snr, adaptiverate, passlimit, instlimit, skip, timeout, statsOnly, clusterworkers, run_on_grappa):
+def tune_width(accept_config_fn, target_error, target_snr, passlimit, instlimit, skip, timeout, statsOnly, clusterworkers, run_on_grappa):
     """Performs instruction masking tuning
     """
     # Generate default configuration
     if (accept_config_fn):
-        config = read_config(accept_config_fn, adaptiverate)
+        config = read_config(accept_config_fn)
         print_config(config)
     else:
-        config = gen_default_config(instlimit, adaptiverate, timeout)
+        config = gen_default_config(instlimit, timeout)
         print_config(config)
 
     # If we're only interested in instruction mix stats
     if statsOnly:
-            analyzeInstructionMix(config, accept_config_fn)
+            analyzeConfigStats(config, accept_config_fn)
             exit()
 
     # If in SNR mode, measure initial SNR
@@ -1414,10 +1393,6 @@ def cli():
         default=1000, help='limits the number of instructions that get tuned (for quick testing)'
     )
     parser.add_argument(
-        '-adaptiverate', dest='adaptiverate', action='store_true', required=False,
-        default=False, help='enables adaptive masking rate (speeds up autotuner)'
-    )
-    parser.add_argument(
         '-skip', dest='skip', action='store', type=str, required=False,
         default=None, help='skip a particular phase'
     )
@@ -1489,7 +1464,6 @@ def cli():
         configFn,
         args.target_error,
         args.target_snr,
-        args.adaptiverate,
         args.passlimit,
         args.instlimit,
         args.skip,
