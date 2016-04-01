@@ -16,7 +16,7 @@ import csv
 import re
 import time
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import eval
 from eval import EXT
 
@@ -527,11 +527,11 @@ def analyzeConfigStats(config, config_fn=None, extraChecks=True, plotFPScatterpl
         mantissa = [int(x[2]) for x in csvRow]
         execCount = [int(x[3])*1000.0/execCountMax for x in csvRow]
 
-        if plotFPScatterplot:
-            plt.scatter(expRange, mantissa, s=execCount, alpha=0.5)
-            plt.xlabel('Exponent Range')
-            plt.ylabel('Mantissa Width')
-            plt.savefig("fp.pdf", bbox_inches='tight')
+        # if plotFPScatterplot:
+        #     plt.scatter(expRange, mantissa, s=execCount, alpha=0.5)
+        #     plt.xlabel('Exponent Range')
+        #     plt.ylabel('Mantissa Width')
+        #     plt.savefig("fp.pdf", bbox_inches='tight')
 
         # Analyze Math Functions
         for approxInsn in config:
@@ -947,8 +947,8 @@ def report_error_and_savings(base_config, timeout, error=0, bb_stats_fn=None, er
         bb_stats_fn = "tmp_bb_stats.txt"
         error = test_config(base_config, timeout, bb_stats_fn)
         if error==CRASH or error==TIMEOUT or error==NOOUTPUT:
-            logging.error("Configuration is faulty - exiting program")
-            exit()
+            logging.info("Configuration is faulty, error set to 0 SNR")
+            return
     savings = process_dyn_bb_stats(base_config, bb_stats_fn)
 
     # Dump the ACCEPT configuration file.
