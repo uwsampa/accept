@@ -595,7 +595,7 @@ def parse_relax_config(f):
             param, ident = line.split(None, 1)
             yield ident, int(param)
 
-def read_config(fname, bb_stats_fn=None, fp_stats_fn=None):
+def read_config(fname, fixed, bb_stats_fn=None, fp_stats_fn=None):
     """Reads in a fine error injection descriptor.
     Returns a config object.
     """
@@ -622,7 +622,7 @@ def read_config(fname, bb_stats_fn=None, fp_stats_fn=None):
                 # Derive the min exponent
                 maxexp = 0
                 iid = "bb" + bb + "i" + line
-                if fp_stats_fn and iid in fp_info:
+                if fixed and fp_stats_fn and iid in fp_info:
                     maxexp = fp_info[iid][1]
 
                 # Filter the instruction if it doesn't execute more than once
@@ -643,7 +643,7 @@ def read_config(fname, bb_stats_fn=None, fp_stats_fn=None):
 
     return config
 
-def gen_default_config(instlimit, timeout):
+def gen_default_config(instlimit, fixed, timeout):
     """Reads in the coarse error injection descriptor,
     generates the default config by running make run_orig.
     Returns a config object.
@@ -660,7 +660,7 @@ def gen_default_config(instlimit, timeout):
         exit()
 
     # Load ACCEPT config file
-    config = read_config(ACCEPT_CONFIG, BB_DYNSTATS_FILE, FP_DYNSTATS_FILE)
+    config = read_config(ACCEPT_CONFIG, fixed, BB_DYNSTATS_FILE, FP_DYNSTATS_FILE)
 
     # Notify the user that the instruction limit is lower than the configuration length
     if len(config) > instlimit:
@@ -970,7 +970,7 @@ def report_error_and_savings(base_config, timeout, error=0, bb_stats_fn=None, er
 # Parameterisation testing
 #################################################
 
-def tune_himask_insn(base_config, idx, init_snr, timeout, double_to_single=True, snr_diff_threshold=1.0):
+def tune_himask_insn(base_config, idx, init_snr, timeout, double_to_single=False, snr_diff_threshold=1.0):
     """Tunes the most significant bit masking of
     an instruction given its index without affecting
     application error.
@@ -1088,7 +1088,7 @@ def tune_himask(base_config, init_snr, instlimit, timeout, clusterworkers, run_o
 
     report_error_and_savings(base_config, timeout)
 
-def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, instlimit, timeout, clusterworkers, run_on_grappa, save_output = False, sloppy=True, snr_diff_threshold=1.0):
+def tune_lomask(base_config, target_error, target_snr, init_snr, fixed, passlimit, instlimit, timeout, clusterworkers, run_on_grappa, save_output = False, sloppy=True, snr_diff_threshold=1.0):
     """Tunes the least significant bits masking to meet the
     specified error requirements, given a passlimit.
     The tuning algorithm performs multiple passes over every
@@ -1253,13 +1253,14 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
             # Report Error and Savings stats
             bb_stats_path = tmpoutputsdir+'/bb_stats_'+str(tuning_pass)+'_'+str(bestidx)+'.txt'
             report_error_and_savings(base_config, timeout, besterror, bb_stats_path)
-            # Update expmin
-            fp_stats_path = tmpoutputsdir+'/fp_stats_'+str(tuning_pass)+'_'+str(bestidx)+'.txt'
-            fp_stats = read_dyn_fp_stats(fp_stats_path)
-            for conf in base_config:
-                iid = "bb" + str(conf["bb"]) + "i" + str(conf["line"])
-                if iid in fp_stats:
-                    conf["maxexp"] = fp_stats[iid][1]
+            # Update expmin if fixed-point emulation is enabled
+            if fixed:
+                fp_stats_path = tmpoutputsdir+'/fp_stats_'+str(tuning_pass)+'_'+str(bestidx)+'.txt'
+                fp_stats = read_dyn_fp_stats(fp_stats_path)
+                for conf in base_config:
+                    iid = "bb" + str(conf["bb"]) + "i" + str(conf["line"])
+                    if iid in fp_stats:
+                        conf["maxexp"] = fp_stats[iid][1]
 
         logging.info ("Bit tuning pass #{} done!\n".format(tuning_pass))
 
@@ -1278,15 +1279,15 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, passlimit, inst
 # Main Function
 #################################################
 
-def tune_width(accept_config_fn, target_error, target_snr, passlimit, instlimit, skip, timeout, statsOnly, clusterworkers, run_on_grappa):
+def tune_width(accept_config_fn, target_error, target_snr, fixed, passlimit, instlimit, skip, timeout, statsOnly, clusterworkers, run_on_grappa):
     """Performs instruction masking tuning
     """
     # Generate default configuration
     if (accept_config_fn):
-        config = read_config(accept_config_fn)
+        config = read_config(accept_config_fn, fixed)
         print_config(config)
     else:
-        config = gen_default_config(instlimit, timeout)
+        config = gen_default_config(instlimit, fixed, timeout)
         print_config(config)
 
     # If we're only interested in instruction mix stats
@@ -1315,6 +1316,7 @@ def tune_width(accept_config_fn, target_error, target_snr, passlimit, instlimit,
             target_error,
             target_snr,
             init_snr,
+            fixed,
             passlimit,
             instlimit,
             timeout,
@@ -1352,7 +1354,7 @@ def getConfFile(path, snr):
     # Optimal index given SNR target
     idx = 0
     for i, elem in enumerate(csv[1:]):
-        if float(elem[errorIdx]) > snr:
+        if float(elem[errorIdx]) >= snr:
             idx = i
 
     if idx==0:
@@ -1388,6 +1390,10 @@ def cli():
     parser.add_argument(
         '-snr', dest='target_snr', action='store', type=float, required=False,
         default=0, help='target signal to noise ratio (if set, error is ignored)'
+    )
+    parser.add_argument(
+        '-fixed', dest='fixed', action='store_true', required=False,
+        default=False, help='if set, emulates fixed-point behavior'
     )
     parser.add_argument(
         '-pl', dest='passlimit', action='store', type=int, required=False,
@@ -1462,6 +1468,7 @@ def cli():
         configFn,
         args.target_error,
         args.target_snr,
+        args.fixed,
         args.passlimit,
         args.instlimit,
         args.skip,
