@@ -1406,10 +1406,6 @@ def cli():
         default=600, help='timeout of an experiment in minutes'
     )
     parser.add_argument(
-        '-seaborn', dest='seaborn', action='store_true', required=False,
-        default=False, help='use seaborn formatting'
-    )
-    parser.add_argument(
         '-stats', dest='statsOnly', action='store_true', required=False,
         default=False, help='produce instruction breakdown'
     )
@@ -1448,9 +1444,6 @@ def cli():
         rootLogger.setLevel(logging.DEBUG)
     else:
         rootLogger.setLevel(logging.INFO)
-
-    if(args.seaborn):
-        import seaborn
 
     # Check if source path was provided
     # (used for static analysis)
