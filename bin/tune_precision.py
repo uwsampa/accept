@@ -399,7 +399,7 @@ def get_masks_from_param(param):
 # Configuration file reading/processing
 #################################################
 
-def analyzeConfigStats(config, config_fn=None, extraChecks=True, plotFPScatterplot=False):
+def analyzeConfigStats(config, fixed, config_fn=None, extraChecks=True, plotFPScatterplot=False):
     """ Analyzes the instruction mix of an approximate program
     """
 
@@ -562,7 +562,9 @@ def analyzeConfigStats(config, config_fn=None, extraChecks=True, plotFPScatterpl
                 expMin = minExp if minExp<expMin else expMin
                 expMax = maxExp if maxExp>expMax else expMax
                 expRangeMax = rangeExp if rangeExp>expRangeMax else expRangeMax
-                width = get_bitwidth_from_type(approxInsn["type"])-approxInsn["lomask"]+1 #implicit mantissa bit
+                width = get_bitwidth_from_type(approxInsn["type"])-approxInsn["lomask"]
+                if fixed:
+                    width += 1 #implicit mantissa bit
                 logging.info("\t{}:{}:{}:{}:wi={}:lo={}:exp=[{},{}]:expRange:{}:execs={}".format(
                     locMap[iid],approxInsn["opcode"], approxInsn["type"], iid,
                     width,
@@ -576,6 +578,27 @@ def analyzeConfigStats(config, config_fn=None, extraChecks=True, plotFPScatterpl
                     approxInsn["himask"], approxInsn["lomask"], execs
                 ))
     logging.info('Exponent min and max and range max: [{}, {}, {}]'.format(expMin, expMax, expRangeMax))
+
+    # Compute bit savings!
+    bit_savings = 0
+    total_execs = 0
+    for approxInsn in config:
+        iid = "bb" + str(approxInsn["bb"]) + "i" + str(approxInsn["line"])
+        execs = dynamicBbStats[approxInsn["bb"]]
+        if is_float_type(approxInsn['type']):
+            ref_precision = get_bitwidth_from_type(approxInsn["type"])
+            apr_precision = get_bitwidth_from_type(approxInsn["type"])-approxInsn["lomask"]
+            if fixed:
+                ref_precision += 1
+                apr_precision += 1
+        else:
+            ref_precision = get_bitwidth_from_type(approxInsn["type"])
+            apr_precision = get_bitwidth_from_type(approxInsn["type"])-approxInsn["lomask"]-approxInsn["himask"]
+        bit_savings += (ref_precision-apr_precision)/ref_precision*execs
+        total_execs += execs
+    logging.info('Aggregate bit-savings: {0:.2f}%'.format(100.0*bit_savings/total_execs))
+
+
 
     # Finally report the number of knobs
     logging.info('There are {} static safe to approximate instructions'.format(len(config)))
@@ -1292,7 +1315,7 @@ def tune_width(accept_config_fn, target_error, target_snr, fixed, passlimit, ins
 
     # If we're only interested in instruction mix stats
     if statsOnly:
-            analyzeConfigStats(config, accept_config_fn)
+            analyzeConfigStats(config, fixed, accept_config_fn)
             exit()
 
     # If in SNR mode, measure initial SNR
