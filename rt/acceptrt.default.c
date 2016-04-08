@@ -10,19 +10,22 @@
 #define HALF_EXP_BIAS       ( (1 << (HALF_EXPONENT_W-1)) - 1)
 #define HALF_EXP_MASK       ( (1 << HALF_EXPONENT_W) - 1 )
 #define HALF_MAN_MASK       ( (1 << HALF_MANTISSA_W) - 1 )
+#define HALF_SIGN_MASK      (1 << 15)
 #define FLOAT_MANTISSA_W    23
 #define FLOAT_EXPONENT_W    8
 #define FLOAT_EXP_BIAS      ( (1 << (FLOAT_EXPONENT_W-1)) - 1)
 #define FLOAT_EXP_MASK      ( (1 << FLOAT_EXPONENT_W) - 1 )
 #define FLOAT_MAN_MASK      ( (1 << FLOAT_MANTISSA_W) - 1 )
+#define FLOAT_SIGN_MASK     (1 << 31)
 #define DOUBLE_MANTISSA_W   52
 #define DOUBLE_EXPONENT_W   11
 #define DOUBLE_EXP_BIAS     ( (1 << (DOUBLE_EXPONENT_W-1)) - 1)
 #define DOUBLE_EXP_MASK     ( (1 << DOUBLE_EXPONENT_W) - 1 )
 #define DOUBLE_MAN_MASK     ( (1ULL << DOUBLE_MANTISSA_W) - 1 )
+#define DOUBLE_SIGN_MASK    (1ULL << 63)
 
 
-typedef struct _minmax { int min, max; char* iid; } minmax;
+typedef struct _minmax { int min, max; int sign; char* iid; } minmax;
 
 static double time_begin;
 static unsigned numBB;
@@ -55,18 +58,22 @@ void logfp(int type, char* iid, int fpid, int64_t value) {
 
     int32_t exponent = 0;
     int64_t mantissa = 0;
+    int32_t sign = 0;
     switch (type) {
         case 1:
             exponent = ( (value >> HALF_MANTISSA_W) & HALF_EXP_MASK );
             mantissa = value & HALF_MAN_MASK;
+            sign = value & HALF_SIGN_MASK ? 1 : 0;
             break;
         case 2:
             exponent = ( (value >> FLOAT_MANTISSA_W) & FLOAT_EXP_MASK );
             mantissa = value & FLOAT_MAN_MASK;
+            sign = value & FLOAT_SIGN_MASK ? 1 : 0;
             break;
         case 3:
             exponent = ( (value >> DOUBLE_MANTISSA_W) & DOUBLE_EXP_MASK );
             mantissa = value & DOUBLE_MAN_MASK;
+            sign = value & DOUBLE_SIGN_MASK ? 1 : 0;
             break;
         default:
             // The type enum is unkown, flag it
@@ -83,6 +90,7 @@ void logfp(int type, char* iid, int fpid, int64_t value) {
     FPstat[fpid].min = exponent < FPstat[fpid].min ? exponent : FPstat[fpid].min;
     FPstat[fpid].max = exponent > FPstat[fpid].max ? exponent : FPstat[fpid].max;
     FPstat[fpid].iid = FPstat[fpid].iid==NULL ? iid : FPstat[fpid].iid;
+    FPstat[fpid].sign |= FPstat[fpid].sign;
     // printf("\t[min, max, curr]: [%d, %d, %d]\n", FPstat[fpid].min, FPstat[fpid].max, exponent);
 }
 
@@ -94,10 +102,10 @@ void logbb_fini() {
     for (i=0; i<numBB; i++) {
         fprintf(f1, "%u\t%u\n", i, BBstat[i]);
     }
-    fprintf(f2, "id\tmin\tmax\n");
+    fprintf(f2, "id\tmin\tmax\tsign\n");
     for (i=0; i<numFP; i++) {
         if (FPstat[i].iid!=NULL)
-            fprintf(f2, "%s\t%d\t%d\n", FPstat[i].iid, FPstat[i].min, FPstat[i].max);
+            fprintf(f2, "%s\t%d\t%d\t%d\n", FPstat[i].iid, FPstat[i].min, FPstat[i].max, FPstat[i].sign);
     }
     fclose(f1);
     fclose(f2);
@@ -117,6 +125,7 @@ void logbb_init(int bbCount, int fpCount) {
         FPstat[i].min = 1024;
         FPstat[i].max = -1023;
         FPstat[i].iid = NULL;
+        FPstat[i].sign = 0;
     }
     atexit(logbb_fini);
 }
