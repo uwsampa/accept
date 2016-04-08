@@ -449,10 +449,6 @@ def analyzeConfigStats(config, fixed, config_fn=None, extraChecks=True, plotFPSc
         if execCount>1: # Only account for non-main BBs
             for cat in staticStats[bbIdx]:
                 totalStats[cat] += staticStats[bbIdx][cat]*execCount
-                # some debug code commented out for convenience
-                # if cat=="call" and staticStats[bbIdx][cat]>0:
-                #     print "BB {} executes {} times".format(bbIdx, execCount)
-                #     print staticStats[bbIdx]
 
     # Get the instruction breakdown from the config file
     approxStats = dict(bbIrCatDict)
@@ -507,7 +503,8 @@ def analyzeConfigStats(config, fixed, config_fn=None, extraChecks=True, plotFPSc
 
     # Obtain FP dynamic information
     dynFp = True if os.path.isfile(FP_DYNSTATS_FILE) else False
-    if dynFp:
+    dynamicFpStats = read_dyn_fp_stats(FP_DYNSTATS_FILE)
+    if dynFp and len(dynamicFpStats)>1:
         dynamicFpStats = read_dyn_fp_stats(FP_DYNSTATS_FILE)
         csvHeader = ["bbId", "expRange", "mantissa", "execs"]
         csvRow = []
@@ -533,17 +530,38 @@ def analyzeConfigStats(config, fixed, config_fn=None, extraChecks=True, plotFPSc
         #     plt.ylabel('Mantissa Width')
         #     plt.savefig("fp.pdf", bbox_inches='tight')
 
+        logging.info("Math Function Analysis")
         # Analyze Math Functions
-        for approxInsn in config:
-            if approxInsn['opcode'] in llvmInsnListDict["cmath"]:
-                fpId = 'bb'+str(approxInsn['bb'])+'i'+str(approxInsn['line'])
-                if fpId in dynamicFpStats:
-                    expRange = dynamicFpStats[fpId][1]-dynamicFpStats[fpId][0]
-                else:
-                    expRange = -1
-                mantissa = get_bitwidth_from_type(approxInsn['type']) - approxInsn['lomask']
-                execCount = dynamicBbStats[approxInsn['bb']]
-                logging.debug("Math function {}: [expRange, mantissa, execs] = [{}, {}, {}]".format(approxInsn['opcode'], expRange, mantissa, execCount))
+        for idx, currInsn in enumerate(config):
+            if currInsn['opcode'] in llvmInsnListDict["cmath"]:
+                prevInsn = config[idx-1]
+                currId = 'bb'+str(currInsn['bb'])+'i'+str(currInsn['line'])
+                prevId = 'bb'+str(prevInsn['bb'])+'i'+str(prevInsn['line'])
+                if currId in dynamicFpStats:
+                    # Derive Output Range
+                    outExpMin = dynamicFpStats[currId][0]-get_float_exp_offset(currInsn['type'])
+                    outExpMax = dynamicFpStats[currId][1]-get_float_exp_offset(currInsn['type'])
+                    outSign = dynamicFpStats[currId][2]
+                    outMinVal = pow(2, outExpMin)
+                    outMaxVal = pow(2, outExpMax+1)
+                    if outSign==1:
+                        outMinVal = 0-outMaxVal
+                    # Derive absolute error threshold
+                    mantissa = get_bitwidth_from_type(currInsn['type']) - currInsn['lomask']
+                    fixPrec = mantissa + 1
+                    error = pow(2, outExpMax-fixPrec)/2
+                    # Derive Input Range
+                    # TODO: prev instruction might not be dependent instruction!
+                    inExpMin = dynamicFpStats[prevId][0]-get_float_exp_offset(prevInsn['type'])
+                    inExpMax = dynamicFpStats[prevId][1]-get_float_exp_offset(prevInsn['type'])
+                    inSign = dynamicFpStats[prevId][2]
+                    inMinVal = pow(2, inExpMin)
+                    inMaxVal = pow(2, inExpMax+1)
+                    if inSign==1:
+                        inMinVal = 0-inMaxVal
+
+                    logging.info("  Function {} with prev {}: [inMin, inMax, outMin, outMax, error] = [{}\t{}\t{}\t{}\t{}]".format(currInsn['opcode'], prevInsn['opcode'], \
+                        inMinVal, inMaxVal, outMinVal, outMaxVal, error))
 
     # Keep track of the exponent min and max
     expMax = -1000
@@ -812,7 +830,8 @@ def read_dyn_fp_stats(stats_fn):
             if fp_id != 'id':
                 fp_min = int(elems[1])
                 fp_max = int(elems[2])
-                fp_info[fp_id] = [fp_min, fp_max]
+                fp_sign = int(elems[3])
+                fp_info[fp_id] = [fp_min, fp_max, fp_sign]
     return fp_info
 
 def process_dyn_bb_stats(config, stats_fn, BITWIDHTMAX=64):
@@ -1111,7 +1130,7 @@ def tune_himask(base_config, init_snr, instlimit, timeout, clusterworkers, run_o
 
     report_error_and_savings(base_config, timeout)
 
-def tune_lomask(base_config, target_error, target_snr, init_snr, fixed, passlimit, instlimit, timeout, clusterworkers, run_on_grappa, save_output = False, sloppy=True, snr_diff_threshold=1.0):
+def tune_lomask(base_config, target_error, target_snr, init_snr, fixed, passlimit, instlimit, timeout, clusterworkers, run_on_grappa, save_output = False, sloppy=False, snr_diff_threshold=1.0):
     """Tunes the least significant bits masking to meet the
     specified error requirements, given a passlimit.
     The tuning algorithm performs multiple passes over every
@@ -1378,14 +1397,14 @@ def getConfFile(path, snr):
     idx = 0
     for i, elem in enumerate(csv[1:]):
         if float(elem[errorIdx]) >= snr:
-            idx = i
+            idx = int(elem[0])
 
     if idx==0:
         logging.info("No configuration with SNR = {} was found".format(snr))
         return None
     else:
         confFile = ACCEPT_CONFIG_ROOT+'{0:05d}'.format(idx)+'.txt'
-        logging.info("Found {} with SNR = {}".format(confFile, csv[idx][errorIdx]))
+        logging.info("Found {}".format(confFile))
         return path+'/'+confFile
 
 
