@@ -1,6 +1,12 @@
 #include <cstring>
 #include <iostream>
 
+// Rounding mode
+// 0: No rounding
+// 1: Stochastic
+// 2: Rounding to nearest
+#define STOCHASTIC_ROUNDING 2
+
 // include approximation models
 #include "reducedprecfp.hpp"
 #include "lva.hpp"
@@ -43,6 +49,8 @@
 #define DOUBLE_EXP_MASK     ( (1 << DOUBLE_EXPONENT_W) - 1 )
 #define DOUBLE_MAN_MASK     ( (1ULL << DOUBLE_MANTISSA_W) - 1 )
 
+// Global carry bit
+uint64_t carry = 1;
 
 /*
  * injectInst drives all of the error injection routines
@@ -64,6 +72,7 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
   //   exit(0);
   // }
   // store original return value
+
   uint64_t return_value = ret;
 
   // decode parameter bits so we can pick model and pass model parameter
@@ -78,6 +87,13 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
   uint64_t lomask = MASK_64 << loshift;
   // Now generate the MSB mask
   uint64_t himask = 0;
+
+#if STOCHASTIC_ROUNDING==1
+  ret += (carry<<loshift);
+  carry = (carry==1) ? 0 : 1;
+#elif STOCHASTIC_ROUNDING==2
+  ret += (carry<<loshift)/2;
+#endif
 
   // Type dependent himask (only works with ints)
   if (!strcmp(type, "Int64")) {
