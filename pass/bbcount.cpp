@@ -160,7 +160,13 @@ bool BBCount::instrumentBasicBlocks(Function & F){
           assert(nextInst && "next inst is NULL");
 
           // Check if the float is double or half precision op
-          Type * opType = inst->getType();
+          Type * opType;
+          if (isa<StoreInst>(inst)) {
+            StoreInst* store_inst = dyn_cast<StoreInst>(inst);
+            opType = store_inst->getValueOperand()->getType();
+          } else {
+            opType = inst->getType();
+          }
           if (opType == halfty ||
               opType == floatty ||
               opType == doublety) {
@@ -196,7 +202,14 @@ bool BBCount::instrumentBasicBlocks(Function & F){
             // Arg3: FP instruction index
             Value* param_fpIdx = builder.getInt32(fpIndex);
             // Arg4: Destination value and type
-            Value* dst_to_be_casted = builder.CreateBitCast(inst, dst_type);
+            Value* dst_to_be_casted;
+            if (isa<StoreInst>(inst)) {
+              StoreInst* store_inst = dyn_cast<StoreInst>(inst);
+              dst_to_be_casted = store_inst->getValueOperand();
+              dst_to_be_casted = builder.CreateBitCast(dst_to_be_casted, dst_type);
+            } else {
+              dst_to_be_casted = builder.CreateBitCast(inst, dst_type);
+            }
             Value* param_val = builder.CreateZExtOrBitCast(dst_to_be_casted, int64ty);
 
             // Create vector
