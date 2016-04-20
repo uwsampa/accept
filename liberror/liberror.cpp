@@ -5,7 +5,7 @@
 // 0: No rounding
 // 1: Stochastic
 // 2: Rounding to nearest
-#define STOCHASTIC_ROUNDING 2
+#define STOCHASTIC_ROUNDING 0
 
 // include approximation models
 #include "reducedprecfp.hpp"
