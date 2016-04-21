@@ -146,7 +146,7 @@ $(TARGET).%: $(TARGET).%.s
 clean:
 	$(RM) $(TARGET) $(TARGET).s $(BCFILES) $(LLFILES) $(LINKEDBC) \
 	accept-globals-info.txt accept_config.txt accept_config_desc.txt \
-	accept_log.txt accept_time.txt \
+	accept_log.txt accept_time.txt accept_npulog.txt \
 	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
 	accept-approxRetValueFunctions-info.txt accept-npuArrayArgs-info.txt \
 	$(CLEANMETOO)

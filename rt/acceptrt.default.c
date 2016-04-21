@@ -1,9 +1,13 @@
-// Ordinary platform: use system clock for performance.
 
 #include <sys/time.h>
 #include <stdio.h>
+#include <stdarg.h>
+#include <stdlib.h>
+#include <math.h>
 
 static double time_begin;
+
+static FILE* npuLog;
 
 void accept_roi_begin() {
     struct timeval t;
@@ -20,4 +24,30 @@ void accept_roi_end() {
     FILE *f = fopen("accept_time.txt", "w");
     fprintf(f, "%f\n", delta);
     fclose(f);
+}
+
+void lognpu(char* ret_type, int64_t ret_val, int32_t num_args, ...) {
+    int i;
+
+    va_list arguments;
+    va_start(arguments, num_args);
+    for (i=0; i<num_args; i++) {
+        if (i==0) {
+            fprintf(npuLog, "%f", va_arg(arguments, float));
+        } else {
+            fprintf(npuLog, " %f", va_arg(arguments, float));
+        }
+    }
+    fprintf(npuLog, "\n%f\n", *((float *) &ret_val));
+    va_end(arguments);
+}
+
+void npu_fini() {
+    int i;
+    fclose(npuLog);
+}
+
+void npu_init(int bbCount, int fpCount) {
+    npuLog = fopen("accept_npulog.txt", "w");
+    atexit(npu_fini);
 }
