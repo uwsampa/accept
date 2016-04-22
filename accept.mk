@@ -21,11 +21,16 @@ LLVMOPT := $(BUILTDIR)/bin/opt
 LLVMLLC := $(BUILTDIR)/bin/llc
 LLVMLLI := $(BUILTDIR)/bin/lli
 RTDIR := $(ACCEPTDIR)/rt
+VEDIR := $(ACCEPTDIR)/venv
+NNTUNEDIR := $(ACCEPTDIR)/nntune
 
 # Target platform specifics.
 ARCH ?= default
 RTLIB ?= $(RTDIR)/acceptrt.$(ARCH).bc
 EXTRABC += $(RTLIB)
+
+# Virtual Env Python
+VEPYTHON := $(VEDIR)/bin/python2.7
 
 # Host platform specifics.
 ifeq ($(shell uname -s),Darwin)
@@ -142,6 +147,11 @@ $(TARGET).%.s: $(TARGET).%.bc
 # .s -> executable (assemble and link)
 $(TARGET).%: $(TARGET).%.s
 	$(LINKER) $(LDFLAGS) -o $@ $< $(LIBS)
+
+# Derive Statistics
+train:
+	$(VEPYTHON) $(NNTUNEDIR)/nntune.py -train accept_npulog.txt
+
 
 clean:
 	$(RM) $(TARGET) $(TARGET).s $(BCFILES) $(LLFILES) $(LINKEDBC) \
