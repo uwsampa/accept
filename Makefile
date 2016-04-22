@@ -77,7 +77,7 @@ llvm: llvm/CMakeLists.txt llvm/tools/clang check_cmake check_ninja
 
 .PHONY: setup test clean
 
-setup: llvm accept driver
+setup: llvm accept driver nntune
 
 test:
 	$(PYTHON2) $(BUILT)/bin/llvm-lit -v --filter='test_\w+\.' test
@@ -139,6 +139,13 @@ check_virtualenv:
 driver:
 	[ -e $(VENV)/bin/pip ] || $(VIRTUALENV) $(VENV)
 	./$(VENV)/bin/pip install -r requirements.txt
+
+# NNtune build
+
+.PHONY: nntune
+
+nntune:
+	cd nntune; make
 
 
 # Documentation.

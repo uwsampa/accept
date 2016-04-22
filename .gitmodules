@@ -5,3 +5,6 @@
 	path = nntune
 	url = https://github.com/uwsampa/nntune.git
 	branch = snnap
+[submodule "fann-snnap"]
+	path = fann-snnap
+	url = https://github.com/tmoreau89/fann-snnap.git
