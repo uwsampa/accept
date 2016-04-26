@@ -30,37 +30,55 @@ void accept_roi_end() {
     fclose(f);
 }
 
-void lognpu(char* ret_type, int64_t ret_val, int32_t num_args, ...) {
+void lognpu(int numIn, int numOut, int32_t num_args, ...) {
     int i;
 
+    // Process arguments
     va_list arguments;
     va_start(arguments, num_args);
-    for (i=0; i<num_args; i++) {
+    // Inputs
+    for (i=0; i<numIn; i++) {
         if (i==0) {
             fprintf(npuLog, "%f", va_arg(arguments, float));
         } else {
             fprintf(npuLog, " %f", va_arg(arguments, float));
         }
     }
-    fprintf(npuLog, "\n%f\n", *((float *) &ret_val));
+    fprintf(npuLog, "\n");
+    // Outputs
+    for (i=0; i<numOut; i++) {
+        if (i==0) {
+            fprintf(npuLog, "%f", *va_arg(arguments, float*));
+        } else {
+            fprintf(npuLog, " %f", *va_arg(arguments, float*));
+        }
+    }
+    fprintf(npuLog, "\n");
     va_end(arguments);
 }
 
-int64_t invokenpu(char* ret_type, int64_t ret_val, int32_t num_args, ...) {
+void invokenpu(int numIn, int numOut, int32_t num_args, ...) {
     int i;
+
+    // Process arguments
     va_list arguments;
     va_start(arguments, num_args);
-    fann_type input[num_args];
-    for (i=0; i< num_args; i++) {
+
+    // Prepare FANN inputs
+    fann_type input[numIn];
+    for (i=0; i< numIn; i++) {
         input[i] = (fann_type) va_arg(arguments, float);
     }
-    fann_type *output = fann_run(ann, input);
-    return *((int64_t *) output);
-}
 
-void log_init(int bbCount, int fpCount) {
-    npuLog = fopen("accept_npulog.txt", "w");
-    atexit(log_fini);
+    // Invoke FANN
+    fann_type *output = fann_run(ann, input);
+
+    // Process FANN outputs
+    for (i=0; i< numOut; i++) {
+        *va_arg(arguments, float*) = output[i];
+    }
+
+    va_end(arguments);
 }
 
 void log_fini() {
@@ -68,13 +86,18 @@ void log_fini() {
     fclose(npuLog);
 }
 
+void log_init(int bbCount, int fpCount) {
+    npuLog = fopen("accept_npulog.txt", "w");
+    atexit(log_fini);
+}
+
+void npu_fini() {
+    fann_destroy(ann);
+}
+
 void npu_init(int bbCount, int fpCount) {
     if (access( "output.nn", F_OK ) != -1) {
         ann = fann_create_from_file("output.nn");
     }
     atexit(npu_fini);
-}
-
-void npu_fini(int bbCount, int fpCount) {
-    fann_destroy(ann);
 }
