@@ -46,8 +46,46 @@ namespace {
     virtual bool doInitialization(llvm::Module &M);
     virtual bool doFinalization(llvm::Module &M);
     virtual bool runOnFunction(llvm::Function &F);
-    bool instrumentBasicBlocks(llvm::Function &F);
+    bool instrumentFunction(llvm::Function &F);
   };
+
+  void replaceAllUsesWithExcept(Instruction* oldInst, Value* newInst, std::vector<Value*>& except) {
+    std::vector<User*> users;
+    for (Value::use_iterator ui = oldInst->use_begin();
+        ui != oldInst->use_end(); ++ui)
+      users.push_back(*ui);
+
+    for (int i = 0; i < users.size(); ++i) {
+      User* user = users[i];
+
+      bool shouldSkip = false;
+      for (int j = 0; j < except.size(); ++j) {
+        if (except[j] == cast<Instruction>(user)) {
+          shouldSkip = true;
+          break;
+        }
+      }
+      if (shouldSkip) continue;
+
+      if (Constant *C = dyn_cast<Constant>(user)) {
+        if (!isa<GlobalValue>(C)) {
+          int j;
+          for (j = 0; j < user->getNumOperands(); ++j)
+            if (user->getOperand(j) == oldInst) break;
+
+          C->replaceUsesOfWithOnConstant(oldInst, newInst,
+              &(user->getOperandUse(j)));
+          continue;
+        }
+      }
+
+      user->replaceUsesOfWith(oldInst, newInst);
+    }
+
+    if (BasicBlock *BB = dyn_cast<BasicBlock>(oldInst))
+      BB->replaceSuccessorsPhiUsesWith(cast<BasicBlock>(newInst));
+  }
+
 }
 
 NPUInst::NPUInst() : FunctionPass(ID) {
@@ -83,10 +121,18 @@ bool NPUInst::doInitialization(Module &M) {
   Function *Main = M.getFunction("main");
   assert(Main && "Error: npu-instrumentation requires a main function");
 
-  // Initialization call, logbb_init() defined in run time
+  // Initialization call, log_init()/npu_init() defined in run time
+  // log_init initializes the logging process (during run_orig)
+  // npu_init initializes the npu (during run_opt)
+  std::string npu_injectFn_name;
+  if (transformPass->relax) {
+    npu_injectFn_name = "npu_init";
+  } else {
+    npu_injectFn_name = "log_init";
+  }
   LLVMContext &Ctx = Main->getContext();
   Constant *initFunc = Main->getParent()->getOrInsertFunction(
-    "npu_init", Type::getVoidTy(Ctx), NULL
+    npu_injectFn_name, Type::getVoidTy(Ctx), NULL
   );
   BasicBlock *bb = &Main->front();
   Instruction *op = &bb->front();
@@ -107,14 +153,14 @@ bool NPUInst::runOnFunction(Function &F) {
   // Skip optimizing functions that seem to be in standard libraries.
   if (!transformPass->shouldSkipFunc(F)) {
     assert (!llvm::verifyFunction(F) && "Verification failed before code alteration");
-    modified = instrumentBasicBlocks(F);
+    modified = instrumentFunction(F);
     assert (!llvm::verifyFunction(F) && "Verification failed after code alteration");
   }
 
   return modified;
 }
 
-bool NPUInst::instrumentBasicBlocks(Function & F){
+bool NPUInst::instrumentFunction(Function & F){
 
   LLVMContext &Ctx = F.getContext();
   Type* voidty = Type::getVoidTy(Ctx);
@@ -125,9 +171,6 @@ bool NPUInst::instrumentBasicBlocks(Function & F){
   Type* halfty = Type::getHalfTy(Ctx);
   Type* floatty = Type::getFloatTy(Ctx);
   Type* doublety = Type::getDoubleTy(Ctx);
-
-  const std::string npu_injectFn_name = "lognpu";
-  Function* npuLogFunc = module->getFunction(npu_injectFn_name);
 
   bool modified = false;
 
@@ -145,6 +188,16 @@ bool NPUInst::instrumentBasicBlocks(Function & F){
           std::string called_fn_name = call_inst->getCalledFunction()->getName().str();
           // outs() << F.getName() << " calls " << called_fn_name << " which is NPU-able!\n";
 
+          // Function to inject
+          bool approx = isApprox(inst);
+          std::string npu_injectFn_name;
+          if (transformPass->relax) {
+            npu_injectFn_name = "invokenpu";
+          } else {
+            npu_injectFn_name = "lognpu";
+          }
+          Function* npuLogFunc = module->getFunction(npu_injectFn_name);
+
           // IR builder
           IRBuilder<> builder(module->getContext());
           builder.SetInsertPoint(nextInst);
@@ -158,13 +211,14 @@ bool NPUInst::instrumentBasicBlocks(Function & F){
               Type::getInt8PtrTy(module->getContext()));
 
           // Return Value Parameter
+          Type* int_ret_type = ret_type;
           if (ret_type == halfty)
-            ret_type = int16ty;
+            int_ret_type = int16ty;
           else if (ret_type == floatty)
-            ret_type = int32ty;
+            int_ret_type = int32ty;
           else if (ret_type == doublety)
-            ret_type = int64ty;
-          Value* ret_to_be_casted = builder.CreateBitCast(call_inst, ret_type);
+            int_ret_type = int64ty;
+          Value* ret_to_be_casted = builder.CreateBitCast(call_inst, int_ret_type);
           Value* param_ret = builder.CreateZExtOrBitCast(ret_to_be_casted, int64ty);
 
           // Arguments Paramters
@@ -182,6 +236,25 @@ bool NPUInst::instrumentBasicBlocks(Function & F){
 
           // Insert Function Call
           CallInst* call = builder.CreateCall(npuLogFunc, args);
+
+          if (transformPass->relax) {
+            // Use the return value to replace all instances
+            Value* final_result;
+            if (int_ret_type != int64ty) {
+              Value* trunc = builder.CreateTrunc(call, int_ret_type);
+              final_result = builder.CreateBitCast(trunc, ret_type);
+            } else {
+              final_result = builder.CreateTruncOrBitCast(call, ret_type);
+            }
+
+            std::vector<Value*> except;
+            if (ret_to_be_casted != inst)
+              except.push_back(ret_to_be_casted);
+            else
+              except.push_back(param_ret);
+            except.push_back(call);
+            replaceAllUsesWithExcept(inst, final_result, except);
+          }
 
           modified = true;
 

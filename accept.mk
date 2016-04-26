@@ -23,14 +23,23 @@ LLVMLLI := $(BUILTDIR)/bin/lli
 RTDIR := $(ACCEPTDIR)/rt
 VEDIR := $(ACCEPTDIR)/venv
 NNTUNEDIR := $(ACCEPTDIR)/nntune
+FANNDIR := $(ACCEPTDIR)/fann-snnap
 
 # Target platform specifics.
 ARCH ?= default
 RTLIB ?= $(RTDIR)/acceptrt.$(ARCH).bc
-EXTRABC += $(RTLIB)
+
+# Linked BCs
+FANNARGS := -I$(FANNDIR)/src/include -I$(FANNDIR)/src/
+FANNLIBSRC := $(FANNDIR)/src/floatfann.c
+FANNLIBDST := $(RTDIR)/floatfann.bc
+EXTRABC += $(RTLIB) $(FANNLIBDST)
 
 # Virtual Env Python
 VEPYTHON := $(VEDIR)/bin/python2.7
+
+# Error Target
+MSETARGET := 0.01
 
 # Host platform specifics.
 ifeq ($(shell uname -s),Darwin)
@@ -121,7 +130,11 @@ $(BUILD_TARGETS): build_%: setup $(EXTRADEPS) $(TARGET).%
 
 # Make the ACCEPT runtime library for the target architecture.
 $(RTLIB):
-	make -C $(RTDIR) acceptrt.$(ARCH).bc CC="$(CC)" CFLAGS="$(CFLAGS)"
+	make -C $(RTDIR) acceptrt.$(ARCH).bc CC="$(CC)" CFLAGS="$(CFLAGS) $(FANNARGS)"
+
+# Compile additional libraries (FANN)
+$(FANNLIBDST): $(FANNLIBSRC)
+	$(CC) $(CFLAGS) $(FANNARGS) $(CLANGARGS) -c -emit-llvm -o $@ $<
 
 # Link component bitcode files into a single file.
 $(LINKEDBC): $(BCFILES) $(EXTRABC)
@@ -150,7 +163,7 @@ $(TARGET).%: $(TARGET).%.s
 
 # Derive Statistics
 train:
-	$(VEPYTHON) $(NNTUNEDIR)/nntune.py -train accept_npulog.txt
+	$(VEPYTHON) $(NNTUNEDIR)/nntune.py -train accept_npulog.txt -error_target $(MSETARGET)
 
 
 clean:
