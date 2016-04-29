@@ -22,7 +22,7 @@ static struct fann *ann;
 // Input and output buffers
 static float * input_buffer;
 static float * output_buffer;
-static float ** output_dst_buffer;
+static unsigned char ** output_dst_buffer;
 static int input_ptr;
 static int output_dst_ptr;
 
@@ -52,18 +52,18 @@ void lognpu(int numIn, int numOut, int32_t num_args, ...) {
     // Inputs
     for (i=0; i<numIn; i++) {
         if (i==0) {
-            fprintf(npuLog, "%f", va_arg(arguments, float));
+            fprintf(npuLog, "%f", (float)(va_arg(arguments, unsigned char)-128)/128);
         } else {
-            fprintf(npuLog, " %f", va_arg(arguments, float));
+            fprintf(npuLog, " %f", (float)(va_arg(arguments, unsigned char)-128)/128);
         }
     }
     fprintf(npuLog, "\n");
     // Outputs
     for (i=0; i<numOut; i++) {
         if (i==0) {
-            fprintf(npuLog, "%f", *va_arg(arguments, float*));
+            fprintf(npuLog, "%f", (float)(*va_arg(arguments, unsigned char*)-128)/128);
         } else {
-            fprintf(npuLog, " %f", *va_arg(arguments, float*));
+            fprintf(npuLog, " %f", (float)(*va_arg(arguments, unsigned char*)-128)/128);
         }
     }
     fprintf(npuLog, "\n");
@@ -81,12 +81,12 @@ void invokenpu(int numIn, int numOut, int32_t num_args, ...) {
 
     // Push input values to buffer
     for (i=0; i<numIn; i++) {
-        input_buffer[input_ptr++] = va_arg(arguments, float);
+        input_buffer[input_ptr++] = (float)(va_arg(arguments, unsigned char)-128)/128;
     }
 
     // Push output pointer to buffer
     for (i=0; i<numOut; i++) {
-        output_dst_buffer[output_dst_ptr++] = va_arg(arguments, float*);
+        output_dst_buffer[output_dst_ptr++] = va_arg(arguments, unsigned char*);
     }
 
     if (input_ptr==numIn*BATCH_SIZE) {
@@ -113,7 +113,7 @@ void invokenpu(int numIn, int numOut, int32_t num_args, ...) {
         // Equivalent to npu() end
 
         for (i=0; i<numOut*BATCH_SIZE; i++) {
-            *(output_dst_buffer[i]) = output_buffer[i];
+            *(output_dst_buffer[i]) = output_buffer[i]*128+128;
         }
 
     }
@@ -146,7 +146,7 @@ void npu_init(int bbCount, int fpCount) {
     // Allocate memory for buffers
     input_buffer = (float *) malloc(sizeof(float)*fann_get_num_input(ann)*BATCH_SIZE);
     output_buffer = (float *) malloc(sizeof(float)*fann_get_num_output(ann)*BATCH_SIZE);
-    output_dst_buffer = (float **) malloc(sizeof(float*)*fann_get_num_output(ann)*BATCH_SIZE);
+    output_dst_buffer = (float **) malloc(sizeof(unsigned char*)*fann_get_num_output(ann)*BATCH_SIZE);
     // Initialize pointers
     input_ptr = 0;
     output_dst_ptr = 0;
