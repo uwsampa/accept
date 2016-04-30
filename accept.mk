@@ -25,6 +25,8 @@ VEDIR := $(ACCEPTDIR)/venv
 NNTUNEDIR := $(ACCEPTDIR)/nntune
 FANNDIR := $(ACCEPTDIR)/fann-snnap
 NPUCOMPILEDIR := $(ACCEPTDIR)/npu_compiler
+CFLAGS := -target arm-xilinx-linux-gnueabihf -mcpu=cortex-a9 -mfloat-abi=hard
+LDFLAGS += $(CFLAGS)
 
 # Target platform specifics.
 ARCH ?= default
@@ -70,7 +72,7 @@ PASSLIB ?= $(BUILTDIR)/lib/enerc.$(LIBEXT)
 # General compiler flags.
 override CFLAGS += -I$(INCLUDEDIR) -g -fno-use-cxa-atexit
 override CXXFLAGS += $(CFLAGS)
-LLCARGS += -O2
+LLCARGS += -O2 -float-abi=hard
 
 # Compiler flags to pass to Clang to add the ACCEPT machinery.
 ENERCFLAGS :=  -Xclang -load -Xclang $(ENERCLIB) \

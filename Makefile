@@ -11,11 +11,10 @@ VENV := venv
 
 # CMake options for building LLVM and the ACCEPT pass.
 CMAKE_FLAGS := -G Ninja -DCMAKE_INSTALL_PREFIX:PATH=$(shell pwd)/$(BUILT)
-ifeq ($(RELEASE),1)
+
 CMAKE_FLAGS += -DCMAKE_BUILD_TYPE:STRING=Release
-else
-CMAKE_FLAGS += -DCMAKE_BUILD_TYPE:STRING=Debug
-endif
+
+CMAKE_FLAGS += -DLLVM_TARGETS_TO_BUILD="ARM"
 
 ifeq ($(shell uname -s),Darwin)
         LIBEXT := dylib
