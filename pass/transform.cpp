@@ -53,6 +53,10 @@ bool ACCEPTPass::shouldSkipFunc(Function &F) {
     return true;
   }
 
+  if (F.getName().startswith("fann_")) {
+    return true;
+  }
+
   // LLVM intrinsics.
   if (F.isIntrinsic()) {
     return true;
