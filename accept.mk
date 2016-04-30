@@ -24,6 +24,7 @@ RTDIR := $(ACCEPTDIR)/rt
 VEDIR := $(ACCEPTDIR)/venv
 NNTUNEDIR := $(ACCEPTDIR)/nntune
 FANNDIR := $(ACCEPTDIR)/fann-snnap
+NPUCOMPILEDIR := $(ACCEPTDIR)/npu_compiler
 
 # Target platform specifics.
 ARCH ?= default
@@ -33,7 +34,10 @@ RTLIB ?= $(RTDIR)/acceptrt.$(ARCH).bc
 FANNARGS := -I$(FANNDIR)/src/include -I$(FANNDIR)/src/
 FANNLIBSRC := $(FANNDIR)/src/floatfann.c
 FANNLIBDST := $(RTDIR)/floatfann.bc
-EXTRABC += $(RTLIB) $(FANNLIBDST)
+
+NPUSRC := $(RTDIR)/npu.c
+NPULIB := $(RTDIR)/npu.bc
+EXTRABC += $(RTLIB) $(FANNLIBDST) $(NPULIB)
 
 # Virtual Env Python
 VEPYTHON := $(VEDIR)/bin/python2.7
@@ -136,6 +140,9 @@ $(RTLIB):
 $(FANNLIBDST): $(FANNLIBSRC)
 	$(CC) $(CFLAGS) $(FANNARGS) $(CLANGARGS) -c -emit-llvm -o $@ $<
 
+$(NPULIB): $(NPUSRC)
+	$(CC) $(CFLAGS) $(CLANGARGS) -c -emit-llvm -o $@ $<
+
 # Link component bitcode files into a single file.
 $(LINKEDBC): $(BCFILES) $(EXTRABC)
 	$(LLVMLINK) $^ > $@
@@ -164,6 +171,8 @@ $(TARGET).%: $(TARGET).%.s
 # Derive Statistics
 train:
 	$(VEPYTHON) $(NNTUNEDIR)/nntune.py -train accept_npulog.txt -error_target $(MSETARGET)
+	$(eval wd := $(PWD))
+	cd $(NPUCOMPILEDIR); ./nn2snnap.sh $(wd)/output.nn > $(wd)/output.snnap 
 
 
 clean:

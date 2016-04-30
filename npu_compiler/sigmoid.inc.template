@@ -1,0 +1,5 @@
+// Sigmoid Mode
+localparam SIGMODE_W             = 3;
+localparam SIGMODE_LINEAR        = 2'b01;
+localparam SIGMODE_SIGMOID       = 2'b10;
+localparam SIGMODE_SYMMETRIC     = 2'b11;
