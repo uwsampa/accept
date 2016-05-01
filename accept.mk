@@ -25,7 +25,7 @@ VEDIR := $(ACCEPTDIR)/venv
 NNTUNEDIR := $(ACCEPTDIR)/nntune
 FANNDIR := $(ACCEPTDIR)/fann-snnap
 NPUCOMPILEDIR := $(ACCEPTDIR)/npu_compiler
-CFLAGS := -target arm-xilinx-linux-gnueabihf -mcpu=cortex-a9 -mfloat-abi=hard
+CFLAGS += -target arm-xilinx-linux-gnueabihf -mcpu=cortex-a9 -mfloat-abi=hard -O3
 LDFLAGS += $(CFLAGS)
 
 # Target platform specifics.
@@ -72,7 +72,7 @@ PASSLIB ?= $(BUILTDIR)/lib/enerc.$(LIBEXT)
 # General compiler flags.
 override CFLAGS += -I$(INCLUDEDIR) -g -fno-use-cxa-atexit
 override CXXFLAGS += $(CFLAGS)
-LLCARGS += -O2 -float-abi=hard
+LLCARGS += -O3 -float-abi=hard
 
 # Compiler flags to pass to Clang to add the ACCEPT machinery.
 ENERCFLAGS :=  -Xclang -load -Xclang $(ENERCLIB) \
@@ -156,9 +156,9 @@ $(LINKEDBC): $(BCFILES) $(EXTRABC)
 
 # Versions of the amalgamated program.
 $(TARGET).orig.bc: $(LINKEDBC)
-	$(LLVMOPT) -load $(PASSLIB) -O1 $(OPTARGS) $< -o $@
+	$(LLVMOPT) -load $(PASSLIB) -O3 $(OPTARGS) $< -o $@
 $(TARGET).opt.bc: $(LINKEDBC) accept_config.txt
-	$(LLVMOPT) -load $(PASSLIB) -O1 -accept-relax $(OPTARGS) $< -o $@
+	$(LLVMOPT) -load $(PASSLIB) -O3 -accept-relax $(OPTARGS) $< -o $@
 $(TARGET).dummy.bc: $(LINKEDBC)
 	cp $< $@
 
