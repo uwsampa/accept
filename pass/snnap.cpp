@@ -6,7 +6,6 @@
 #include "llvm/Module.h"
 #include "llvm/Analysis/Verifier.h"
 #include "llvm/Attributes.h"
-#include "llvm/IntrinsicInst.h"
 
 #include "accept.h"
 
@@ -114,7 +113,6 @@ NPUInst::NPUInst() : FunctionPass(ID) {
 const char *NPUInst::getPassName() const {
   return "Basic Block instrumentation";
 }
-
 bool NPUInst::doInitialization(Module &M) {
   module = &M;
 
@@ -205,126 +203,120 @@ bool NPUInst::instrumentFunction(Function & F){
 
       if (isa<CallInst>(inst)) {
         CallInst* call_inst = dyn_cast<CallInst>(inst);
-        Function *callee = call_inst->getCalledFunction();
-        if (callee) {
-          std::string called_fn_name = callee->getName().str();
-          // if (npu_fns.find(callee) != npu_fns.end() ) {
-          if (!isa<IntrinsicInst>(inst) && !transformPass->shouldSkipFunc(*callee)) {
-            if (transformPass->AI->isPrecisePure(const_cast<Function*>(callee))
-              && !transformPass->AI->isWhitelistedPure(called_fn_name)) {
+        if (npu_fns.find(call_inst->getCalledFunction()) != npu_fns.end() ) {
+          std::string called_fn_name = call_inst->getCalledFunction()->getName().str();
+          // outs() << F.getName() << " calls " << called_fn_name << " which is NPU-able!\n";
 
-              // outs() << F.getName() << " calls " << called_fn_name << " which is NPU-able\n";
+          // Function to inject
+          bool approx = isApprox(inst);
+          std::string npu_injectFn_name;
+          if (transformPass->relax) {
+            npu_injectFn_name = "invokenpu";
+          } else {
+            npu_injectFn_name = "lognpu";
+          }
+          Function* npuLogFunc = module->getFunction(npu_injectFn_name);
 
-              // Function to inject
-              bool approx = isApprox(inst);
-              std::string npu_injectFn_name;
-              if (transformPass->relax) {
-                npu_injectFn_name = "invokenpu";
-              } else {
-                npu_injectFn_name = "lognpu";
-              }
-              Function* npuLogFunc = module->getFunction(npu_injectFn_name);
+          // IR builder
+          IRBuilder<> builder(module->getContext());
+          builder.SetInsertPoint(nextInst);
 
-              // IR builder
-              IRBuilder<> builder(module->getContext());
-              builder.SetInsertPoint(nextInst);
+          // // Return Type Parameter
+          // Type* ret_type = call_inst->getType();
+          // std::string ret_type_str = getTypeStr(ret_type, module);
+          // if (ret_type_str == "") return false;
+          // Value* ret_type_global_str = builder.CreateGlobalString(ret_type_str.c_str());
+          // Value* param_ret_type = builder.CreateBitCast(ret_type_global_str,
+          //     Type::getInt8PtrTy(module->getContext()));
 
-              // // Return Type Parameter
-              // Type* ret_type = call_inst->getType();
-              // std::string ret_type_str = getTypeStr(ret_type, module);
-              // if (ret_type_str == "") return false;
-              // Value* ret_type_global_str = builder.CreateGlobalString(ret_type_str.c_str());
-              // Value* param_ret_type = builder.CreateBitCast(ret_type_global_str,
-              //     Type::getInt8PtrTy(module->getContext()));
+          // // Return Value Parameter
+          // Type* int_ret_type = ret_type;
+          // if (ret_type == halfty)
+          //   int_ret_type = int16ty;
+          // else if (ret_type == floatty)
+          //   int_ret_type = int32ty;
+          // else if (ret_type == doublety)
+          //   int_ret_type = int64ty;
+          // Value* ret_to_be_casted = builder.CreateBitCast(call_inst, int_ret_type);
+          // Value* param_ret_value = builder.CreateZExtOrBitCast(ret_to_be_casted, int64ty);
 
-              // // Return Value Parameter
-              // Type* int_ret_type = ret_type;
-              // if (ret_type == halfty)
-              //   int_ret_type = int16ty;
-              // else if (ret_type == floatty)
-              //   int_ret_type = int32ty;
-              // else if (ret_type == doublety)
-              //   int_ret_type = int64ty;
-              // Value* ret_to_be_casted = builder.CreateBitCast(call_inst, int_ret_type);
-              // Value* param_ret_value = builder.CreateZExtOrBitCast(ret_to_be_casted, int64ty);
+          // Arguments Paramters
+          const int nargs = call_inst->getNumArgOperands();
+          Value* param_args = ConstantInt::get(int32ty, nargs, false);
 
-              // Arguments Paramters
-              const int nargs = call_inst->getNumArgOperands();
-              Value* param_args = ConstantInt::get(int32ty, nargs, false);
-
-              // Derive the number of inputs and outputs
-              int ninputs = 0;
-              int noutputs = 0;
-              // Input and Output vectors
-              SmallVector<Value *, 0> input_args;
-              SmallVector<Value *, 0> output_args;
-              for (int i = 0; i < nargs; ++i) {
-                // Get Argument Type
-                // If pointer, it's an output else it's an input
-                Type* arg_type = call_inst->getArgOperand(i)->getType();
-                const int typeEnum = getTypeEnum(arg_type, module);
-                if (typeEnum>8) {
-                  noutputs ++;
-                  output_args.push_back(call_inst->getArgOperand(i));
-                } else if (typeEnum>0) {
-                  ninputs ++;
-                  input_args.push_back(call_inst->getArgOperand(i));
-                }
-              }
-              Value* ninput_args = ConstantInt::get(int32ty, ninputs, false);
-              Value* noutput_args = ConstantInt::get(int32ty, noutputs, false);
-
-              // Instrumentation function
-              SmallVector<Value *, 0> args;
-              // args.push_back(param_ret_type);
-              // args.push_back(param_ret_value);
-              args.push_back(ninput_args);
-              args.push_back(noutput_args);
-              args.push_back(param_args);
-
-              for (int i = 0; i < ninputs; ++i) {
-                args.push_back(input_args[i]);
-              }
-              for (int i = 0; i < noutputs; ++i) {
-                args.push_back(output_args[i]);
-              }
-
-              // Insert Function Call
-              CallInst* call = builder.CreateCall(npuLogFunc, args);
-
-              // if (transformPass->relax) {
-              //   // Use the return value to replace all instances
-              //   Value* final_result;
-              //   if (int_ret_type != int64ty) {
-              //     Value* trunc = builder.CreateTrunc(call, int_ret_type);
-              //     final_result = builder.CreateBitCast(trunc, ret_type);
-              //   } else {
-              //     final_result = builder.CreateTruncOrBitCast(call, ret_type);
-              //   }
-
-              //   std::vector<Value*> except;
-              //   if (ret_to_be_casted != inst)
-              //     except.push_back(ret_to_be_casted);
-              //   else
-              //     except.push_back(param_ret_value);
-              //   except.push_back(call);
-              //   replaceAllUsesWithExcept(inst, final_result, except);
-              // }
-
-              // Remove from parent
-              if (transformPass->relax) {
-                remList.push_back(inst);
-              }
-
-              modified = true;
+          // Derive the number of inputs and outputs
+          int ninputs = 0;
+          int noutputs = 0;
+          // Input and Output vectors
+          SmallVector<Value *, 0> input_args;
+          SmallVector<Value *, 0> output_args;
+          for (int i = 0; i < nargs; ++i) {
+            // Get Argument Type
+            // If pointer, it's an output else it's an input
+            Type* arg_type = call_inst->getArgOperand(i)->getType();
+            const int typeEnum = getTypeEnum(arg_type, module);
+            if (typeEnum>8) {
+              noutputs ++;
+              output_args.push_back(call_inst->getArgOperand(i));
+            } else if (typeEnum>0) {
+              ninputs ++;
+              input_args.push_back(call_inst->getArgOperand(i));
             }
           }
+          Value* ninput_args = ConstantInt::get(int32ty, ninputs, false);
+          Value* noutput_args = ConstantInt::get(int32ty, noutputs, false);
+
+          // Instrumentation function
+          SmallVector<Value *, 0> args;
+          // args.push_back(param_ret_type);
+          // args.push_back(param_ret_value);
+          args.push_back(ninput_args);
+          args.push_back(noutput_args);
+          args.push_back(param_args);
+
+          for (int i = 0; i < ninputs; ++i) {
+            args.push_back(input_args[i]);
+          }
+          for (int i = 0; i < noutputs; ++i) {
+            args.push_back(output_args[i]);
+          }
+
+          // Insert Function Call
+          CallInst* call = builder.CreateCall(npuLogFunc, args);
+
+          // if (transformPass->relax) {
+          //   // Use the return value to replace all instances
+          //   Value* final_result;
+          //   if (int_ret_type != int64ty) {
+          //     Value* trunc = builder.CreateTrunc(call, int_ret_type);
+          //     final_result = builder.CreateBitCast(trunc, ret_type);
+          //   } else {
+          //     final_result = builder.CreateTruncOrBitCast(call, ret_type);
+          //   }
+
+          //   std::vector<Value*> except;
+          //   if (ret_to_be_casted != inst)
+          //     except.push_back(ret_to_be_casted);
+          //   else
+          //     except.push_back(param_ret_value);
+          //   except.push_back(call);
+          //   replaceAllUsesWithExcept(inst, final_result, except);
+          // }
+
+          // Remove from parent
+          if (transformPass->relax) {
+            remList.push_back(inst);
+          }
+
+          modified = true;
+
         }
       }
     }
   }
 
   // Remove the function calls
+  // TODO: this assumes the function is precise-pure
   for (std::vector<Instruction *>::iterator it = remList.begin() ; it != remList.end(); ++it) {
     Instruction *inst = *it;
     inst->eraseFromParent();
