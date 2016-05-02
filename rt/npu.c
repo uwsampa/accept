@@ -66,14 +66,14 @@ int npu_unmap(void) {
 
 struct timespec interval = {
   .tv_sec  = 0,
-  .tv_nsec = 1 * nsec,
+  .tv_nsec = 25 * nsec,
 };
 
 inline void npu() {
   sev();
-  //nanosleep(&interval, 0);
-  wfe();
-  wfe();
+//  nanosleep(&interval, 0);
+  //wfe();
+  //wfe();
 }
 
 #define NPU_IOC_MAGIC 'N'

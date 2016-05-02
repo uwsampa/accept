@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <math.h>
 #include <errno.h>
+#include <signal.h>
 
 #include "fann.h"
 #include "npu.h"
@@ -44,7 +45,23 @@ void accept_roi_end() {
     fclose(f);
 }
 
+static int do_prof = 0;
+
+void engage_prof(int signo) {
+  if(signo == SIGUSR1) {
+    do_prof = 1;
+  }
+}
+
+static unsigned prof_count = 0;
+#define PROF_LIMIT 200000
+
 void lognpu(int numIn, int numOut, int32_t num_args, ...) {
+    if(!do_prof || prof_count >= PROF_LIMIT) {
+      return;
+    }
+    prof_count++;
+
     int i;
 
     // Process arguments
@@ -71,6 +88,7 @@ void lognpu(int numIn, int numOut, int32_t num_args, ...) {
     va_end(arguments);
 }
 
+static int * flag_addr = 0;
 void invokenpu(int numIn, int numOut, int32_t num_args, ...) {
     int i, j, i_idx, o_idx;
     unsigned char input[numIn];
@@ -94,7 +112,11 @@ void invokenpu(int numIn, int numOut, int32_t num_args, ...) {
         input_ptr = 0;
         output_dst_ptr = 0;
 
+        *flag_addr = 0xDEADBEEF;
+        barrier();
         npu();
+        barrier();
+        while(*flag_addr == 0xDEADBEEF) { barrier(); }
 
         for (i=0; i<numOut*BATCH_SIZE; i++) {
             *(output_dst_buffer[i]) = output_buffer[i]+128;
@@ -111,6 +133,20 @@ void log_fini() {
 }
 
 void log_init(int bbCount, int fpCount) {
+    sigset_t emptyset;
+
+    sigemptyset(&emptyset);
+    struct sigaction sa = {
+      .sa_handler = engage_prof,
+      .sa_mask = emptyset,
+      .sa_flags = 0
+    };
+   
+    if(sigaction(SIGUSR1, &sa, 0) < 0) {
+      perror("sigaction");
+      exit(1);
+    }
+
     npuLog = fopen("accept_npulog.txt", "w");
     atexit(log_fini);
 }
@@ -138,6 +174,8 @@ void npu_init(int bbCount, int fpCount) {
       }
       exit(1);
     }
+
+    flag_addr = (int*) (dst_start + num_outputs * BATCH_SIZE - 4);
 
     input_buffer  = (unsigned char*)src_start;
     output_buffer = (unsigned char*)dst_start;
