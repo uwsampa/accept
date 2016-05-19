@@ -174,7 +174,7 @@ clean:
 	$(RM) $(TARGET) $(TARGET).s $(BCFILES) $(LLFILES) $(LINKEDBC) \
 	accept-globals-info.txt accept_config.txt accept_config_desc.txt \
 	accept_log.txt accept_time.txt accept_bbstats.txt cdf_stats.txt \
-	accept_fpstats.txt tmp_*.txt \
+	accept_fpstats.txt accept_npulog.txt tmp_*.txt \
 	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
 	accept-approxRetValueFunctions-info.txt accept-npuArrayArgs-info.txt \
 	$(TUNER) \
