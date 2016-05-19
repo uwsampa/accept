@@ -98,7 +98,7 @@ CONFIGS := orig opt dummy
 
 BUILD_TARGETS := $(CONFIGS:%=build_%)
 RUN_TARGETS := $(CONFIGS:%=run_%)
-.PHONY: all setup clean profile $(BUILD_TARGETS) $(RUN_TARGETS)
+.PHONY: all qual setup clean profile $(BUILD_TARGETS) $(RUN_TARGETS)
 
 all: build_orig
 
@@ -153,6 +153,10 @@ $(TARGET).%.s: $(TARGET).%.bc
 # .s -> executable (assemble and link)
 $(TARGET).%: $(TARGET).%.s
 	$(LINKER) $(LDFLAGS) -o $@ $< $(LIBS)
+
+# Check quality
+qual:
+	$(VEPYTHON) eval.py
 
 # Derive Statistics
 stats: derive_stats clean
