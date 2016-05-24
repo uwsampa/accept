@@ -14,22 +14,45 @@
 #define DP_M ((int)52)
 #define BITS_PER_BYTE ((int)8)
 #define MAX_RAND ~((uint64_t)0ULL)
-  
-/*
- * generate pseudo-random 64-bit number
- */
-inline uint64_t getRandom64() {
-  static bool init = false;
-  static uint64_t x = 12345;
-  if (!init) {
-    srand(time(NULL));
-    x = rand();
-    init = true;
-  }
-  x ^= (x >> 21);
-  x ^= (x << 35);
-  x ^= (x >> 4);
-  return x;
+
+
+// Global random initialization variable
+static bool rand_init = false;
+
+
+// 64bit random integer generator
+// From: http://bit.ly/27Io5y8
+inline unsigned long long getRandom64() {
+    unsigned long long r = 0;
+    for (int i = 0; i < 5; ++i) {
+        r = (r << 15) | (rand() & RAND_MAX);
+    }
+    return r & 0xFFFFFFFFFFFFFFFFULL;
+}
+
+// 32bit random integer generator
+inline unsigned int getRandom32() {
+    unsigned int r = 0;
+    for (int i = 0; i < 3; ++i) {
+        r = (r << 15) | (rand() & RAND_MAX);
+    }
+    return r & 0xFFFFFFFFU;
+}
+
+// 16bit random integer generator
+inline unsigned short getRandom16() {
+    unsigned short r = 0;
+    for (int i = 0; i < 2; ++i) {
+        r = (r << 15) | (rand() & RAND_MAX);
+    }
+    return r & 0xFFFFU;
+}
+
+// 8bit random integer generator
+inline unsigned char getRandom8() {
+    unsigned char r = 0;
+    r = rand() & RAND_MAX;
+    return r & 0xFFU;
 }
 
 /*
@@ -40,18 +63,25 @@ inline double getRandomProb() {
 }
 
 /*
+ * return number of bits for LLVM types
+ */
+inline int getNumBits(const char* type) {
+  if (strcmp(type, "Double") == 0) return 64;
+  if (strcmp(type, "Float") == 0) return 32;
+  if (strcmp(type, "Half") == 0) return 16;
+  if (strcmp(type, "Int64") == 0) return 64;
+  if (strcmp(type, "Int32") == 0) return 32;
+  if (strcmp(type, "Int16") == 0) return 16;
+  if (strcmp(type, "Int8") == 0) return 8;
+  if (strcmp(type, "Int1") == 0) return 1;
+  return 0;
+}
+
+/*
  * return number of bytes for LLVM types
  */
-int getNumBytes(const char* type) {
-  if (strcmp(type, "Float") == 0) return sizeof(float);
-  if (strcmp(type, "Double") == 0) return sizeof(double);
-  if (strcmp(type, "Int32") == 0) return 4;
-  if (strcmp(type, "Int64") == 0) return 8;
-  if (strcmp(type, "Int8") == 0) return 1;
-  if (strcmp(type, "Int1") == 0) return 1;
-  if (strcmp(type, "Int16") == 0) return 2;
-  if (strcmp(type, "Half") == 0) return 2;
-  return 0;
+inline int getNumBytes(const char* type) {
+  return (getNumBits(type)+7)/8;
 }
 
 /*

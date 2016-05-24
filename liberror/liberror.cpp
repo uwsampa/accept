@@ -1,20 +1,28 @@
 #include <cstring>
 #include <iostream>
+#include <stdint.h>
 
 // Rounding mode
 // 0: No rounding
 // 1: Stochastic
 // 2: Rounding to nearest
-#define STOCHASTIC_ROUNDING 0
+#define ROUNDING 0
+
+
+// Voltage scaling mode
+// 0: No voltage scaling (use bit-width reduction)
+// 1: Voltage scaling - random value
+// 2: Voltage scaling - single random bit-flip
+// 3: Voltage scaling - MSB bit-flip
+// 4: Voltage scaling - previous value
+// 5: Voltage scaling - previous MSB
+#define VOLTAGE_SCALING 0
+
+// Error probability
+#define ERRROR_PROB 0.01
 
 // include approximation models
-#include "reducedprecfp.hpp"
-#include "lva.hpp"
-#include "flikker.hpp"
-#include "overscaledalu.hpp"
-#include "npu.hpp"
-#include "dram.hpp"
-#include "sram.hpp"
+#include "liberrorutil.h"
 
 #define rdtscll(val) do { \
     unsigned int __a,__d; \
@@ -52,6 +60,9 @@
 // Global carry bit
 uint64_t carry = 1;
 
+// Global previous MSB
+uint64_t prev_val = 0;
+
 /*
  * injectInst drives all of the error injection routines
  * the injection routine(s) called depend on the param input
@@ -62,23 +73,21 @@ uint64_t carry = 1;
  */
 __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, uint64_t ret, uint64_t op1,
     uint64_t op2, char* type) {
-  // static uint64_t instrumentation_time = 0U;
-  // uint64_t before_time;
-  // rdtscll(before_time);
-  // static uint64_t initial_time = before_time;
-  // int64_t elapsed_time = before_time - initial_time - instrumentation_time;
-  // if (elapsed_time < 0) {
-  //   std::cerr << "\nNegative elapsed time\n" << std::endl;
-  //   exit(0);
-  // }
-  // store original return value
 
+  // store original return value
   uint64_t return_value = ret;
+
+  // Initialize random value generator
+  if (!rand_init) {
+    srand(time(NULL));
+    rand_init = true;
+  }
+
+#if VOLTAGE_SCALING==0
 
   // decode parameter bits so we can pick model and pass model parameter
   int64_t model = ((param & MODEL_MASK) >> 16) & PARAM_MASK; // to be safe, re-mask the low 16-bits after shifting
   int64_t model_param = (param & PARAM_MASK);
-  // std::cout << "[model,param] = [" << model << "," << model_param << "]" << std::endl;
 
   // Break down the model_param into a right and left mask
   uint32_t hishift = (model_param >> 8) & 0xFF;
@@ -88,12 +97,12 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
   // Now generate the MSB mask
   uint64_t himask = 0;
 
-#if STOCHASTIC_ROUNDING==1
-  ret += (carry<<loshift);
-  carry = (carry==1) ? 0 : 1;
-#elif STOCHASTIC_ROUNDING==2
-  ret += (carry<<loshift)/2;
-#endif
+  #if ROUNDING==1
+    ret += (carry<<loshift);
+    carry = (carry==1) ? 0 : 1;
+  #elif ROUNDING==2
+    ret += (carry<<loshift)/2;
+  #endif //ROUNDING
 
   // Type dependent himask (only works with ints)
   if (!strcmp(type, "Int64")) {
@@ -188,13 +197,87 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
   } else {
     return_value = ret&lomask;
   }
-  // if (ret!=return_value)
-  //   std::cout << "[before, after]: [" << std::hex << ret << ", " << return_value << std::dec << "]" << std::endl;
 
-  // uint64_t after_time;
-  // rdtscll(after_time);
-  // instrumentation_time += after_time - before_time;
+#elif VOLTAGE_SCALING==1 // Voltage scaling - random value
 
+  // Inject error with ERROR_PROB probability
+  double draw = static_cast<double>(rand())/static_cast<double>(RAND_MAX);
+  if (draw <= ERRROR_PROB) {
+    // std::cout << "Injecting error (random value)!!!" << std::endl;
+    if (!strcmp(type, "Int64") | !strcmp(type, "Double")) {
+      uint64_t r = getRandom64();
+      return_value = r;
+    }
+    else if (!strcmp(type, "Int32") | !strcmp(type, "Float")) {
+      uint32_t r = getRandom32();
+      return_value = r;
+    }
+    else if (!strcmp(type, "Int16") | !strcmp(type, "Half")) {
+      uint16_t r = getRandom16();
+      return_value = r;
+    }
+    else if (!strcmp(type, "Int8")) {
+      uint8_t r = getRandom8();
+      return_value = r;
+    }
+    // std::cout << std::hex << "    Before " << ret << ", After " << return_value << std::endl;
+  }
+
+#elif VOLTAGE_SCALING==2 // Voltage scaling - single random bit-flip
+  // Inject error with ERROR_PROB probability
+  double draw = static_cast<double>(rand())/static_cast<double>(RAND_MAX);
+  if (draw <= ERRROR_PROB) {
+    // std::cout << "Injecting error (single random bit-flip)!!!" << std::endl;
+    int pos = rand() % getNumBits(type);
+    uint64_t mask = 1ULL << pos;
+    return_value = ret ^ mask;
+    // std::cout << std::hex << "    Before " << ret << ", After " << return_value << std::endl;
+  }
+
+#elif VOLTAGE_SCALING==3 // Voltage scaling - MSB bit flip
+
+  // Inject error with ERROR_PROB probability
+  double draw = static_cast<double>(rand())/static_cast<double>(RAND_MAX);
+  if (draw <= ERRROR_PROB) {
+    // std::cout << "Injecting error (MSB bit flip)!!!" << std::endl;
+    int pos = getNumBits(type)-1;
+    uint64_t mask = 1ULL << pos;
+    return_value = ret ^ mask;
+    // std::cout << std::hex << "    Before " << ret << ", After " << return_value << std::endl;
+  }
+
+#elif VOLTAGE_SCALING==4 // Voltage scaling - previous value
+
+  // Inject error with ERROR_PROB probability
+  double draw = static_cast<double>(rand())/static_cast<double>(RAND_MAX);
+  if (draw <= ERRROR_PROB) {
+    // std::cout << "Injecting error (last value replacement)!!!" << std::endl;
+    return_value = prev_val;
+    // if (ret != return_value) {
+    //   std::cout << std::hex << "    Before " << ret << ", After " << return_value << std::endl;
+    // }
+  }
+
+#elif VOLTAGE_SCALING==5 // Voltage scaling - previous MSB
+  int pos = getNumBits(type)-1;
+  uint64_t mask = 1ULL << pos;
+
+  // Inject error with ERROR_PROB probability
+  double draw = static_cast<double>(rand())/static_cast<double>(RAND_MAX);
+  if (draw <= ERRROR_PROB) {
+    // std::cout << "Injecting error (last MSB replacement)!!!" << std::endl;
+    if (prev_val & mask) {
+      return_value = ret | mask;
+    } else {
+      return_value = ret & (~mask);
+    }
+    // if (ret != return_value) {
+    //   std::cout << std::hex << "    Before " << ret << ", After " << return_value << std::endl;
+    // }
+  }
+#endif //VOLTAGE_SCALING
+
+  prev_val = return_value;
   return return_value;
 }
 
@@ -202,45 +285,45 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
  * injectRegion drives all of the coarse error injection routines
  * the injection routine(s) called depend on the param input
  *
- * 
+ *
  *
  *
  */
-void injectRegion(int64_t param, int64_t nargs, unsigned char* image, int im_size) {
+// void injectRegion(int64_t param, int64_t nargs, unsigned char* image, int im_size) {
 
-  static uint64_t instrumentation_time = 0U;
-  uint64_t before_time;
-  rdtscll(before_time);
-  static uint64_t initial_time = before_time;
-  int64_t elapsed_time = before_time - initial_time - instrumentation_time;
-  if (elapsed_time < 0) {
-    std::cerr << "\nNegative elapsed time\n" << std::endl;
-    exit(0);
-  }
+//   static uint64_t instrumentation_time = 0U;
+//   uint64_t before_time;
+//   rdtscll(before_time);
+//   static uint64_t initial_time = before_time;
+//   int64_t elapsed_time = before_time - initial_time - instrumentation_time;
+//   if (elapsed_time < 0) {
+//     std::cerr << "\nNegative elapsed time\n" << std::endl;
+//     exit(0);
+//   }
 
-  // decode parameter bits so we can pick model and pass model parameter
-  int64_t model = ((param & MODEL_MASK) >> 16) & PARAM_MASK; // to be safe, re-mask the low 16-bits after shifting
-  int64_t model_param = (param & PARAM_MASK);
+//   // decode parameter bits so we can pick model and pass model parameter
+//   int64_t model = ((param & MODEL_MASK) >> 16) & PARAM_MASK; // to be safe, re-mask the low 16-bits after shifting
+//   int64_t model_param = (param & PARAM_MASK);
 
-  switch(model) {
+//   switch(model) {
 
-    case 0: // 0 = do nothing, otherwise known as precise execution
-      break;
+//     case 0: // 0 = do nothing, otherwise known as precise execution
+//       break;
 
-    case 1: // Digital NPU (ISCA2014)
-      invokeDigitalNPU(model_param, image, im_size);
-      break;
+//     case 1: // Digital NPU (ISCA2014)
+//       invokeDigitalNPU(model_param, image, im_size);
+//       break;
 
-    case 2: // Analog NPU (ISCA2014)
-      invokeAnalogNPU(model_param, image, im_size);
-      break;
+//     case 2: // Analog NPU (ISCA2014)
+//       invokeAnalogNPU(model_param, image, im_size);
+//       break;
 
-    default: // default is precise, do nothing
-      break;
-  }
+//     default: // default is precise, do nothing
+//       break;
+//   }
 
-  uint64_t after_time;
-  rdtscll(after_time);
-  instrumentation_time += after_time - before_time;
+//   uint64_t after_time;
+//   rdtscll(after_time);
+//   instrumentation_time += after_time - before_time;
 
-}
+// }
