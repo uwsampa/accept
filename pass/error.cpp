@@ -14,6 +14,8 @@
 
 #include "accept.h"
 
+// #define ALU_ONLY
+
 using namespace llvm;
 
 //cl::opt<bool> optInjectError ("inject-error",
@@ -581,18 +583,22 @@ bool ErrorInjection::injectHooks(Instruction* inst, Instruction* nextInst,
     int param, Function* injectFn) {
   if (isa<BinaryOperator>(inst))
     return injectHooksBinOp(inst, nextInst, param, injectFn);
+
+#ifdef ALU_ONLY
+  return false;
+#endif //ALU_ONLY
+
   if (isa<CastInst>(inst))
     return injectHooksCast(inst, nextInst, param, injectFn);
-  else if (isa<StoreInst>(inst))
+  if (isa<StoreInst>(inst))
     return injectHooksStore(inst, nextInst, param, injectFn);
-  else if (isa<LoadInst>(inst))
+  if (isa<LoadInst>(inst))
     return injectHooksLoad(inst, nextInst, param, injectFn);
-  else if (isa<CallInst>(inst))
+  if (isa<CallInst>(inst))
     return injectHooksCall(inst, nextInst, param, injectFn);
-  else
-    assert(NULL && "Unsupported type!!!");
 
-  return false;
+  assert(NULL && "Unsupported type!!!");
+
 }
 
 bool ErrorInjection::injectRegionHooks(Instruction* inst, int param) {
