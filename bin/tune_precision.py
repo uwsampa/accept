@@ -649,6 +649,7 @@ def analyzeConfigStats(config_fn, fixed, extraChecks=True, plotFPScatterplot=Fal
     for approxInsn in config:
         iid = "bb" + str(approxInsn["bb"]) + "i" + str(approxInsn["line"])
         execs = dynamicBbStats[approxInsn['bb']]
+        location = locMap[iid] if iid in locMap else approxInsn["opcode"]
         if execs>1:
             if is_float_type(approxInsn['type']) and iid in dynamicFpStats:
                 minExp = dynamicFpStats[iid][0]
@@ -661,14 +662,14 @@ def analyzeConfigStats(config_fn, fixed, extraChecks=True, plotFPScatterplot=Fal
                 if fixed:
                     width += 1 #implicit mantissa bit
                 logging.info("\t{}:{}:{}:{}:wi={}:lo={}:exp=[{},{}]:expRange:{}:execs={}".format(
-                    locMap[iid],approxInsn["opcode"], approxInsn["type"], iid,
+                    location, approxInsn["opcode"], approxInsn["type"], iid,
                     width,
                     approxInsn["lomask"],
                     minExp, maxExp, rangeExp, execs
                 ))
             else:
                 logging.info("\t{}:{}:{}:{}:wi={}:hi={}:lo={}:execs={}".format(
-                    locMap[iid],approxInsn["opcode"], approxInsn["type"], iid,
+                    location, approxInsn["opcode"], approxInsn["type"], iid,
                     get_precision_from_type(approxInsn["type"])-approxInsn["lomask"]-approxInsn["himask"],
                     approxInsn["himask"], approxInsn["lomask"], execs
                 ))
@@ -1470,7 +1471,7 @@ def postProcess(fn, dn, snr, fixed):
     results = []
 
     # Check if source path was provided
-    if dn:
+    if dn and os.path.isdir(dn):
         if snr==0:
             configList = [[x, getConfFile(dn, x)] for x in range(10, 121, 10)+[200]]
         else:
@@ -1595,7 +1596,7 @@ def cli():
     )
     parser.add_argument(
         '-runs', dest='accept_config_dir', action='store', type=str, required=False,
-        default=None, help='directory containing experimental results'
+        default='outputs', help='directory containing experimental results'
     )
     parser.add_argument(
         '-t', dest='target_error', action='store', type=float, required=False,
