@@ -66,9 +66,9 @@ inline double getRandomProb() {
  * return number of bits for LLVM types
  */
 inline int getNumBits(const char* type) {
-  if (strcmp(type, "Double") == 0) return 64;
-  if (strcmp(type, "Float") == 0) return 32;
-  if (strcmp(type, "Half") == 0) return 16;
+  if (strcmp(type, "Double") == 0) return 52;
+  if (strcmp(type, "Float") == 0) return 23;
+  if (strcmp(type, "Half") == 0) return 10;
   if (strcmp(type, "Int64") == 0) return 64;
   if (strcmp(type, "Int32") == 0) return 32;
   if (strcmp(type, "Int16") == 0) return 16;
