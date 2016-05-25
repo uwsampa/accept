@@ -1,6 +1,7 @@
 #include <cstring>
 #include <iostream>
 #include <stdint.h>
+#include <sys/time.h>
 
 // Rounding mode
 // 0: No rounding
@@ -78,8 +79,10 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
   uint64_t return_value = ret;
 
   // Initialize random value generator
+  struct timeval time;
   if (!rand_init) {
-    srand(time(NULL));
+    gettimeofday(&time,NULL);
+    srand((time.tv_sec * 1000) + (time.tv_usec / 1000));
     rand_init = true;
   }
 
