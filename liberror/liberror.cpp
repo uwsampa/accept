@@ -1,5 +1,6 @@
 #include <cstring>
 #include <iostream>
+#include <cmath>
 #include <stdint.h>
 #include <sys/time.h>
 
@@ -74,6 +75,17 @@ uint64_t prev_val = 0;
  */
 __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, uint64_t ret, uint64_t op1,
     uint64_t op2, char* type) {
+
+  // Return the value if it is not finite
+  if (!strcmp(type, "Double")) {
+    if (! std::isfinite(*(double*)&ret) || *(double*)&ret==0) {
+      return ret;
+    }
+  } else if (!strcmp(type, "Float")) {
+    if (! std::isfinite(*(float*)&ret) || *(float*)&ret==0) {
+      return ret;
+    }
+  }
 
   // store original return value
   uint64_t return_value = ret;
@@ -206,7 +218,6 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
   // Inject error with ERROR_PROB probability
   double draw = static_cast<double>(rand())/static_cast<double>(RAND_MAX);
   if (draw <= ERRROR_PROB) {
-    // std::cout << "Injecting error (random value)!!!" << std::endl;
     if (!strcmp(type, "Int64") | !strcmp(type, "Double")) {
       uint64_t r = getRandom64();
       return_value = r;
@@ -223,18 +234,15 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
       uint8_t r = getRandom8();
       return_value = r;
     }
-    // std::cout << std::hex << "    Before " << ret << ", After " << return_value << std::endl;
   }
 
 #elif VOLTAGE_SCALING==2 // Voltage scaling - single random bit-flip
   // Inject error with ERROR_PROB probability
   double draw = static_cast<double>(rand())/static_cast<double>(RAND_MAX);
   if (draw <= ERRROR_PROB) {
-    // std::cout << "Injecting error (single random bit-flip)!!!" << std::endl;
     int pos = rand() % getNumBits(type);
     uint64_t mask = 1ULL << pos;
     return_value = ret ^ mask;
-    // std::cout << std::hex << "    Before " << ret << ", After " << return_value << std::endl;
   }
 
 #elif VOLTAGE_SCALING==3 // Voltage scaling - MSB bit flip
@@ -242,11 +250,9 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
   // Inject error with ERROR_PROB probability
   double draw = static_cast<double>(rand())/static_cast<double>(RAND_MAX);
   if (draw <= ERRROR_PROB) {
-    // std::cout << "Injecting error (MSB bit flip)!!!" << std::endl;
     int pos = getNumBits(type)-1;
     uint64_t mask = 1ULL << pos;
     return_value = ret ^ mask;
-    // std::cout << std::hex << "    Before " << ret << ", After " << return_value << std::endl;
   }
 
 #elif VOLTAGE_SCALING==4 // Voltage scaling - previous value
@@ -254,11 +260,7 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
   // Inject error with ERROR_PROB probability
   double draw = static_cast<double>(rand())/static_cast<double>(RAND_MAX);
   if (draw <= ERRROR_PROB) {
-    // std::cout << "Injecting error (last value replacement)!!!" << std::endl;
     return_value = prev_val;
-    // if (ret != return_value) {
-    //   std::cout << std::hex << "    Before " << ret << ", After " << return_value << std::endl;
-    // }
   }
 
 #elif VOLTAGE_SCALING==5 // Voltage scaling - previous MSB
@@ -268,15 +270,11 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
   // Inject error with ERROR_PROB probability
   double draw = static_cast<double>(rand())/static_cast<double>(RAND_MAX);
   if (draw <= ERRROR_PROB) {
-    // std::cout << "Injecting error (last MSB replacement)!!!" << std::endl;
     if (prev_val & mask) {
       return_value = ret | mask;
     } else {
       return_value = ret & (~mask);
     }
-    // if (ret != return_value) {
-    //   std::cout << std::hex << "    Before " << ret << ", After " << return_value << std::endl;
-    // }
   }
 #endif //VOLTAGE_SCALING
 
