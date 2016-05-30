@@ -25,6 +25,7 @@ VEDIR := $(ACCEPTDIR)/venv
 RTDIR := $(ACCEPTDIR)/rt
 LEDIR := $(ACCEPTDIR)/liberror
 TUNER := tune_precision.py
+INJECT := error_injection.py
 
 ERRLIBSOURCES := $(LEDIR)/dram.bc $(LEDIR)/flikker.bc $(LEDIR)/liberror.bc $(LEDIR)/lva.bc $(LEDIR)/npu.bc $(LEDIR)/overscaledalu.bc $(LEDIR)/reducedprecfp.bc $(LEDIR)/sram.bc
 
@@ -98,7 +99,7 @@ CONFIGS := orig opt dummy
 
 BUILD_TARGETS := $(CONFIGS:%=build_%)
 RUN_TARGETS := $(CONFIGS:%=run_%)
-.PHONY: all qual setup clean profile $(BUILD_TARGETS) $(RUN_TARGETS)
+.PHONY: all qual inject setup clean profile $(BUILD_TARGETS) $(RUN_TARGETS)
 
 all: build_orig
 
@@ -157,6 +158,14 @@ $(TARGET).%: $(TARGET).%.s
 # Check quality
 qual:
 	$(VEPYTHON) eval.py
+
+# Inject error and collect SNR
+inject: inject_error clean
+
+inject_error:
+	cp $(BINDIR)/$(INJECT) .
+	$(VEPYTHON) $(INJECT) $(INJECT_ARGS)
+	rm -rf $(INJECT)
 
 # Derive Statistics
 stats: derive_stats clean
