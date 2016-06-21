@@ -54,7 +54,7 @@ void logbb(int i) {
     BBstat[i]++;
 }
 
-void logfp(int type, char* iid, int fpid, int64_t value) {
+void logfloat(int type, char* iid, int fpid, int64_t value) {
 
     int32_t exponent = 0;
     int64_t mantissa = 0;

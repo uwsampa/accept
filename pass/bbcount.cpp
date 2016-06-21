@@ -130,7 +130,7 @@ bool BBCount::instrumentBasicBlocks(Function & F){
   Constant *bbLogFunc = module->getOrInsertFunction(
     bb_injectFn_name, voidty, int32ty, NULL
   );
-  const std::string fp_injectFn_name = "logfp";
+  const std::string fp_injectFn_name = "logfloat";
   Constant *fpLogFunc = module->getOrInsertFunction(
     fp_injectFn_name, voidty, int32ty, stringty,
     int32ty, int64ty, NULL
