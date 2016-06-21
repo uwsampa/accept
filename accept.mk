@@ -172,7 +172,7 @@ stats: derive_stats clean
 
 derive_stats:
 	cp $(BINDIR)/$(TUNER) .
-	$(VEPYTHON) $(TUNER) -stats
+	$(VEPYTHON) $(TUNER) -stats $(TUNER_ARGS)
 	rm -rf $(TUNER)
 
 # Numerical Precision Autotuner
