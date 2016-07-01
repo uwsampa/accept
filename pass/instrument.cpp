@@ -8,7 +8,7 @@
 
 #include "accept.h"
 
-#define INSTRUMENT_FP true
+#define INSTRUMENT_FP false
 
 using namespace llvm;
 
@@ -18,28 +18,62 @@ namespace {
   static unsigned fpTotal;
   static unsigned fpIndex;
 
-  struct BBCount : public FunctionPass {
+  struct InstrumentBB : public FunctionPass {
     static char ID;
     ACCEPTPass *transformPass;
     Module *module;
 
-    BBCount();
+    InstrumentBB();
     virtual const char *getPassName() const;
     virtual bool doInitialization(llvm::Module &M);
     virtual bool doFinalization(llvm::Module &M);
     virtual bool runOnFunction(llvm::Function &F);
     bool instrumentBasicBlocks(llvm::Function &F);
   };
+
+  // Returns the string type
+  std::string getTypeStr(Type* orig_type, Module* module) {
+    if (orig_type == Type::getHalfTy(module->getContext()))
+      return "Half";
+    else if (orig_type == Type::getFloatTy(module->getContext()))
+      return "Float";
+    else if (orig_type == Type::getDoubleTy(module->getContext()))
+      return "Double";
+    else if (orig_type == Type::getInt1Ty(module->getContext()))
+      return "Int1";
+    else if (orig_type == Type::getInt8Ty(module->getContext()))
+      return "Int8";
+    else if (orig_type == Type::getInt16Ty(module->getContext()))
+      return "Int16";
+    else if (orig_type == Type::getInt32Ty(module->getContext()))
+      return "Int32";
+    else if (orig_type == Type::getInt64Ty(module->getContext()))
+      return "Int64";
+    else
+      return "";
+  }
+
+  // Returns the integer type equivalent
+  Type* getIntType(Type* orig_type, Module* module) {
+    if (orig_type == Type::getHalfTy(module->getContext()))
+      return Type::getInt16Ty(module->getContext());
+    else if (orig_type == Type::getFloatTy(module->getContext()))
+      return Type::getInt32Ty(module->getContext());
+    else if (orig_type == Type::getDoubleTy(module->getContext()))
+      return Type::getInt64Ty(module->getContext());
+    else
+      return NULL;
+  }
 }
 
-BBCount::BBCount() : FunctionPass(ID) {
-  initializeBBCountPass(*PassRegistry::getPassRegistry());
+InstrumentBB::InstrumentBB() : FunctionPass(ID) {
+  initializeInstrumentBBPass(*PassRegistry::getPassRegistry());
 }
 
-const char *BBCount::getPassName() const {
+const char *InstrumentBB::getPassName() const {
   return "Basic Block instrumentation";
 }
-bool BBCount::doInitialization(Module &M) {
+bool InstrumentBB::doInitialization(Module &M) {
   module = &M;
 
   // ACCEPT shared transform pass
@@ -97,11 +131,11 @@ bool BBCount::doInitialization(Module &M) {
   return true; // modified IR
 }
 
-bool BBCount::doFinalization(Module &M) {
+bool InstrumentBB::doFinalization(Module &M) {
   return false;
 }
 
-bool BBCount::runOnFunction(Function &F) {
+bool InstrumentBB::runOnFunction(Function &F) {
   bool modified = false;
 
   // Skip optimizing functions that seem to be in standard libraries.
@@ -114,9 +148,11 @@ bool BBCount::runOnFunction(Function &F) {
   return modified;
 }
 
-bool BBCount::instrumentBasicBlocks(Function & F){
+bool InstrumentBB::instrumentBasicBlocks(Function & F){
 
+  // Context
   LLVMContext &Ctx = F.getContext();
+  // Handy types
   Type* voidty = Type::getVoidTy(Ctx);
   Type* int16ty = Type::getInt16Ty(Ctx);
   Type* int32ty = Type::getInt32Ty(Ctx);
@@ -135,16 +171,88 @@ bool BBCount::instrumentBasicBlocks(Function & F){
     fp_injectFn_name, voidty, int32ty, stringty,
     int32ty, int64ty, NULL
   );
+  // Function used to log loads
+  const std::string ld_injectFn_name = "logload";
+  Constant *ldLogFunc = module->getOrInsertFunction(
+    ld_injectFn_name, voidty, stringty, stringty,
+    int64ty, int64ty, int64ty, NULL
+  );
 
   bool modified = false;
 
-
+  // Iterate through all functions
   for (Function::iterator fi = F.begin(); fi != F.end(); ++fi) {
 
     // Only instrument if the function is white-listed
     if (transformPass->shouldInjectError(F)) {
 
       BasicBlock *bb = fi;
+
+      for (BasicBlock::iterator bi = bb->begin(); bi != bb->end(); ++bi) {
+        Instruction *inst = bi;
+        Instruction *nextInst = next(bi, 1);
+
+        // Load instruction
+        if (isa<LoadInst>(inst)) {
+          // assert(nextInst && "next inst is NULL");
+
+          // Builder
+          IRBuilder<> builder(module->getContext());
+          builder.SetInsertPoint(nextInst);
+
+          // Cast to load instruction
+          LoadInst* load_inst = dyn_cast<LoadInst>(inst);
+
+          // Obtain the instruction id
+          StringRef iid = cast<MDString>(inst->getMetadata("iid")->getOperand(0))->getString();
+          Value* instid_global_str = builder.CreateGlobalString(iid.str().c_str());
+          Value* param_instid = builder.CreateBitCast(instid_global_str, stringty);
+
+          // Obtain the type string
+          Type* insnType = inst->getType();
+          std::string type_str = getTypeStr(insnType, module);
+          // assert(type_str != "" && "type string not found!");
+
+          if (type_str!="") {
+
+            // Obtain the type string value
+            Value* type_str_val = builder.CreateGlobalString(type_str.c_str());
+            // Cast to a char array
+            Value* param_type = builder.CreateBitCast(type_str_val,
+                Type::getInt8PtrTy(module->getContext()));
+
+            // Obtain the load address
+            Value* param_addr = builder.CreatePtrToInt(load_inst->getPointerOperand(),
+                int64ty);
+
+            // Obtain the load alignment
+            Value* param_align = builder.CreateZExtOrBitCast(
+                ConstantInt::get(int64ty, load_inst->getAlignment(), false), int64ty);
+
+            // Obtain the load value
+            // Cast the value to a 64-bit integer
+            Value* int_value = inst;
+            // If the value is a float, cast to integer
+            Type* dst_type = getIntType(insnType, module);
+            if (dst_type) int_value = builder.CreateBitCast(inst, dst_type);
+            // Now zeroextend to 64-bits
+            Value* param_value = builder.CreateZExtOrBitCast(int_value, int64ty);
+
+            // Initialize the argument vector
+            Value* args[] = {
+                param_instid,
+                param_type,
+                param_addr,
+                param_align,
+                param_value
+              };
+            // Inject function
+            builder.CreateCall(ldLogFunc, args);
+            modified = true;
+
+          }
+        }
+      }
 
 #if INSTRUMENT_FP==true
       for (BasicBlock::iterator bi = bb->begin(); bi != bb->end(); ++bi) {
@@ -172,8 +280,9 @@ bool BBCount::instrumentBasicBlocks(Function & F){
               opType == doublety) {
 
             // Builder
-            IRBuilder<> builder(module->getContext());
-            builder.SetInsertPoint(nextInst);
+            // IRBuilder<> builder(module->getContext());
+            // builder.SetInsertPoint(nextInst);
+            IRBuilder<> builder(inst);
 
             // Identify the type
             int opTypeEnum;
@@ -249,8 +358,8 @@ bool BBCount::instrumentBasicBlocks(Function & F){
   return modified;
 }
 
-char BBCount::ID = 0;
-INITIALIZE_PASS_BEGIN(BBCount, "bb count", "ACCEPT basic block instrumentation pass", false, false)
+char InstrumentBB::ID = 0;
+INITIALIZE_PASS_BEGIN(InstrumentBB, "bb count", "ACCEPT basic block instrumentation pass", false, false)
 INITIALIZE_PASS_DEPENDENCY(ApproxInfo)
-INITIALIZE_PASS_END(BBCount, "bb count", "ACCEPT basic block instrumentation pass", false, false)
-FunctionPass *llvm::createBBCountPass() { return new BBCount(); }
+INITIALIZE_PASS_END(InstrumentBB, "bb count", "ACCEPT basic block instrumentation pass", false, false)
+FunctionPass *llvm::createInstrumentBBPass() { return new InstrumentBB(); }

@@ -13,7 +13,7 @@ add_llvm_loadable_module(enerc
   error.cpp
 
   # Profiling.
-  bbcount.cpp
+  instrument.cpp
 )
 set_target_properties( enerc PROPERTIES
     COMPILE_FLAGS "-fno-rtti -fvisibility-inlines-hidden"

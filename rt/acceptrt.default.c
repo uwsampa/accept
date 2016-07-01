@@ -54,6 +54,10 @@ void logbb(int i) {
     BBstat[i]++;
 }
 
+void logload(char* iid, char* ty, int64_t addr, int64_t align, int64_t val) {
+    printf("ld, %s, %s, 0x%016llx (%llx), 0x%016llx\n", iid, ty, addr, align, val);
+}
+
 void logfloat(int type, char* iid, int fpid, int64_t value) {
 
     int32_t exponent = 0;

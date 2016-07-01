@@ -45,7 +45,7 @@ namespace {
     PM.add(new ApproxInfo());
     PM.add(createAcceptTransformPass());
     PM.add(createErrorInjectionPass());
-    PM.add(createBBCountPass());
+    PM.add(createInstrumentBBPass());
   }
   static RegisterStandardPasses
       RegisterEarlyACCEPT(PassManagerBuilder::EP_EarlyAsPossible ,
