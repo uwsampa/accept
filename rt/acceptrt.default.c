@@ -58,6 +58,10 @@ void logload(char* iid, char* ty, int64_t addr, int64_t align, int64_t val) {
     printf("ld, %s, %s, 0x%016llx (%llx), 0x%016llx\n", iid, ty, addr, align, val);
 }
 
+void logbranch(char* iid, int32_t cond) {
+    printf("br, %s, %d\n", iid, cond);
+}
+
 void logfloat(int type, char* iid, int fpid, int64_t value) {
 
     int32_t exponent = 0;

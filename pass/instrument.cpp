@@ -177,6 +177,11 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
     ld_injectFn_name, voidty, stringty, stringty,
     int64ty, int64ty, int64ty, NULL
   );
+  // Function used to log conditional branches
+  const std::string br_injectFn_name = "logbranch";
+  Constant *brLogFunc = module->getOrInsertFunction(
+    br_injectFn_name, voidty, stringty, int32ty, NULL
+  );
 
   bool modified = false;
 
@@ -248,6 +253,37 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
               };
             // Inject function
             builder.CreateCall(ldLogFunc, args);
+            modified = true;
+
+          }
+        } else if (isa<BranchInst>(inst)) {
+
+          // Cast to branch instruction
+          BranchInst* br_inst = dyn_cast<BranchInst>(inst);
+
+          if (br_inst->isConditional()) {
+            // Builder
+            IRBuilder<> builder(module->getContext());
+            builder.SetInsertPoint(inst);
+             // Obtain the instruction id
+            StringRef iid = cast<MDString>(inst->getMetadata("iid")->getOperand(0))->getString();
+            // std::cout << iid.str() << std::endl;
+            // inst->print(errs());
+            Value* instid_global_str = builder.CreateGlobalString(iid.str().c_str());
+            Value* param_instid = builder.CreateBitCast(instid_global_str, stringty);
+
+            // Obtain the condition value
+            Value* cond = br_inst->getCondition();
+            Value* param_cond = builder.CreateZExtOrBitCast(cond, int32ty);
+
+            // Initialize the argument vector
+            Value* args[] = {
+              // param_instid,
+              param_instid,
+              param_cond
+            };
+            // Inject function
+            builder.CreateCall(brLogFunc, args);
             modified = true;
 
           }
