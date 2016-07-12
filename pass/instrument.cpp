@@ -1,6 +1,7 @@
 #include <sstream>
 #include <string>
 #include <iostream>
+#include <fstream>
 
 #include "llvm/IRBuilder.h"
 #include "llvm/Module.h"
@@ -9,7 +10,7 @@
 #include "accept.h"
 
 #define INSTRUMENT_FP false
-// #define STATICANALYSIS
+#define STATICANALYSIS
 // #define DYNTRACE
 
 using namespace llvm;
@@ -25,6 +26,7 @@ namespace {
     static char ID;
     ACCEPTPass *transformPass;
     Module *module;
+    std::ofstream sfs;
 
     InstrumentBB();
     virtual const char *getPassName() const;
@@ -120,7 +122,11 @@ namespace {
       reg->setName(Twine(rso.str()));
     }
 
+    // Special case: constant
     if (isa<Constant>(reg)) {
+      if (dyn_cast<Constant>(reg)->isNullValue()) {
+        return "null";
+      }
       // Dumpt the constant value to a string
       std::string cstVal;
       llvm::raw_string_ostream rso(cstVal);
@@ -170,6 +176,12 @@ bool InstrumentBB::doInitialization(Module &M) {
 
   // ACCEPT shared transform pass
   transformPass = (ACCEPTPass*)sharedAcceptTransformPass;
+
+  // Static instruction dump for DFG/CFG construction
+  sfs.open("accept_static.txt");
+  if (!sfs) {
+    errs() << "Can't open accept_static.txt\n";
+  }
 
   // We'll insert the initialization call in main
   Function *Main = M.getFunction("main");
@@ -225,6 +237,7 @@ bool InstrumentBB::doInitialization(Module &M) {
 }
 
 bool InstrumentBB::doFinalization(Module &M) {
+  sfs.close();
   return false;
 }
 
@@ -290,7 +303,7 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
 
 #ifdef STATICANALYSIS
   // Let's print the instruction list to reconstruct a DDDG
-  if (transformPass->relax && transformPass->shouldInjectError(F)) {
+  if (transformPass->relax && transformPass->shouldInjectError(F) && !transformPass->shouldSkipFunc(F)) {
     for (Function::iterator fi = F.begin(); fi != F.end(); ++fi) {
       BasicBlock *bb = fi;
       for (BasicBlock::iterator bi = bb->begin(); bi != bb->end(); ++bi) {
@@ -302,8 +315,33 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           iid = cast<MDString>(inst->getMetadata("iid")->getOperand(0))->getString().str();
         }
 
+        // Derive qualifier
+        std::string qual = (isApprox(inst)) ? "approx" : "precise";
+
         // Arithmetic instructions
-        if (isa<BinaryOperator>(inst) && isApprox(inst)) {
+        if (isa<CmpInst>(inst)) {
+
+          CmpInst* cmp_inst = dyn_cast<CmpInst>(inst);
+
+          Value* dst = cmp_inst;
+          Value* src0 = inst->getOperand(0);
+          Value* src1 = inst->getOperand(1);
+
+          std::string op_str = inst->getOpcodeName();
+          std::string ty_str = getTypeStr(cmp_inst->getType(), module);
+          std::string dst_str = getRegName(dst, Ctx);
+          std::string src0_str = getRegName(src0, Ctx);
+          std::string src1_str = getRegName(src1, Ctx);
+
+          sfs << op_str << ", ";
+          sfs << iid << ", ";
+          sfs << qual << ", ";
+          sfs << ty_str << ", ";
+          sfs << dst_str << ", ";
+          sfs << src0_str << ", ";
+          sfs << src1_str << "\n";
+
+        } else if (isa<BinaryOperator>(inst)) {
 
           Value* dst = inst;
           Value* src0 = inst->getOperand(0);
@@ -315,14 +353,15 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           std::string src0_str = getRegName(src0, Ctx);
           std::string src1_str = getRegName(src1, Ctx);
 
-          std::cout << op_str << ", ";
-          std::cout << iid << ", ";
-          std::cout << ty_str << ", ";
-          std::cout << dst_str << ", ";
-          std::cout << src0_str << ", ";
-          std::cout << src1_str << std::endl;
+          sfs << op_str << ", ";
+          sfs << iid << ", ";
+          sfs << qual << ", ";
+          sfs << ty_str << ", ";
+          sfs << dst_str << ", ";
+          sfs << src0_str << ", ";
+          sfs << src1_str << "\n";
 
-        } else if (isa<LoadInst>(inst) && isApprox(inst)) {
+        } else if (isa<LoadInst>(inst)) {
 
           LoadInst* load_inst = dyn_cast<LoadInst>(inst);
           Value* dst = load_inst;
@@ -333,13 +372,14 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           std::string dst_str = getRegName(dst, Ctx);
           std::string adr_str = getRegName(adr, Ctx);
 
-          std::cout << op_str << ", ";
-          std::cout << iid << ", ";
-          std::cout << ty_str << ", ";
-          std::cout << dst_str << ", [";
-          std::cout << adr_str << "]" << std::endl;
+          sfs << op_str << ", ";
+          sfs << iid << ", ";
+          sfs << qual << ", ";
+          sfs << ty_str << ", ";
+          sfs << dst_str << ", [";
+          sfs << adr_str << "]" << "\n";
 
-        } else if (isa<StoreInst>(inst) && isApprox(inst)) {
+        } else if (isa<StoreInst>(inst)) {
 
           StoreInst* store_inst = dyn_cast<StoreInst>(inst);
           Value* src = store_inst->getValueOperand();
@@ -350,17 +390,18 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           std::string src_str = getRegName(src, Ctx);
           std::string adr_str = getRegName(adr, Ctx);
 
-          std::cout << op_str << ", ";
-          std::cout << iid << ", ";
-          std::cout << ty_str << ", ";
-          std::cout << src_str << ", [";
-          std::cout << adr_str << "]" << std::endl;
+          sfs << op_str << ", ";
+          sfs << iid << ", ";
+          sfs << qual << ", ";
+          sfs << ty_str << ", ";
+          sfs << src_str << ", [";
+          sfs << adr_str << "]" << "\n";
 
-        } else if (isa<CastInst>(inst) && isApprox(inst)) {
+        } else if (isa<CastInst>(inst)) {
 
           CastInst* cast_inst = dyn_cast<CastInst>(inst);
-          Value *src = cast_inst;
-          Value *dst = cast_inst->getOperand(0);
+          Value *dst = cast_inst;
+          Value *src = cast_inst->getOperand(0);
 
           std::string op_str = inst->getOpcodeName();
           std::string src_ty_str = getTypeStr(cast_inst->getSrcTy(), module);
@@ -368,12 +409,13 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           std::string src_str = getRegName(src, Ctx);
           std::string dst_str = getRegName(dst, Ctx);
 
-          std::cout << op_str << ", ";
-          std::cout << iid << ", ";
-          std::cout << dst_ty_str << ", ";
-          std::cout << src_ty_str << ", ";
-          std::cout << dst_str << ", ";
-          std::cout << src_str << std::endl;
+          sfs << op_str << ", ";
+          sfs << iid << ", ";
+          sfs << qual << ", ";
+          sfs << dst_ty_str << ", ";
+          sfs << src_ty_str << ", ";
+          sfs << dst_str << ", ";
+          sfs << src_str << "\n";
 
         } else if (isa<PHINode>(inst)) {
 
@@ -385,20 +427,78 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           std::string dst_str = getRegName(dst, Ctx);
           unsigned num_vals = phy_node->getNumIncomingValues();
 
-          std::cout << op_str << ", ";
-          std::cout << iid << ", ";
-          std::cout << ty_str << ", ";
-          std::cout << dst_str << ", ";
-          std::cout << num_vals;
+          sfs << op_str << ", ";
+          sfs << iid << ", ";
+          sfs << qual << ", ";
+          sfs << ty_str << ", ";
+          sfs << dst_str << ", ";
+          sfs << num_vals;
 
           for (unsigned val_idx=0; val_idx<num_vals; val_idx++) {
             Value* src = phy_node->getIncomingValue(val_idx);
             std::string src_str = getRegName(src, Ctx);
-            std::cout << ", " << src_str;
+            sfs << ", " << src_str;
           }
-          std::cout << std::endl;
+          sfs << "\n";
+
+        } else if (isa<ReturnInst>(inst)) {
+          ReturnInst* ret_inst = dyn_cast<ReturnInst>(inst);
+          Value *src = ret_inst->getReturnValue();
+
+          std::string op_str = inst->getOpcodeName();
+          std::string ty_str = getTypeStr(ret_inst->getType(), module);
+          std::string src_str = getRegName(src, Ctx);
+
+          sfs << op_str << ", ";
+          sfs << iid << ", ";
+          sfs << qual << ", ";
+          sfs << ty_str << ", ";
+          sfs << src_str << "\n";
+
+        } else if (isa<CallInst>(inst)) {
+          CallInst* call_inst = dyn_cast<CallInst>(inst);
+          Function *callee = call_inst->getCalledFunction();
+
+
+          std::string op_str = inst->getOpcodeName();
+          std::string fn_str = callee->getName().str();
+          std::string ty_str = getTypeStr(call_inst->getType(), module);
+
+          if (transformPass->AI->isWhitelistedPure(fn_str)) {
+
+            sfs << op_str << ", ";
+            sfs << iid << ", ";
+            sfs << qual << ", ";
+            sfs << fn_str << ", ";
+            sfs << ty_str;
+
+            if (! callee->getReturnType()->isVoidTy()) {
+              Value *dst = call_inst;
+              std::string dst_str = getRegName(dst, Ctx);
+              sfs << ", " << dst_str;
+            }
+
+            unsigned nargs = call_inst->getNumArgOperands();
+            sfs << ", " << nargs;
+
+            for (int i = 0; i < nargs; ++i) {
+              Value *arg = call_inst->getArgOperand(i);
+
+              std::string arg_ty_str = getTypeStr(arg->getType(), module);
+
+              sfs << ", " << arg_ty_str;
+
+              if (! arg->getType()->isVoidTy()) {
+                std::string arg_str = getRegName(arg, Ctx);
+                sfs << ", " << arg_str;
+              }
+            }
+
+            sfs << "\n";
+          }
 
         } else if (isa<BranchInst>(inst)) {
+
           BranchInst* br_inst = dyn_cast<BranchInst>(inst);
 
           std::string op_str = inst->getOpcodeName();
@@ -413,8 +513,8 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
             StringRef dst_0 = cast<MDString>(first_0->getMetadata("iid")->getOperand(0))->getString();
             StringRef dst_1 = cast<MDString>(first_1->getMetadata("iid")->getOperand(0))->getString();
 
-            std::cout << op_str << ", " << iid << ", " << iid << "->" << dst_0.str() << std::endl;
-            std::cout << op_str << ", " << iid << ", " << iid << "->" << dst_1.str() << std::endl;
+            sfs << op_str << ", " << iid << ", " << iid << "->" << dst_0.str() << "\n";
+            sfs << op_str << ", " << iid << ", " << iid << "->" << dst_1.str() << "\n";
 
           } else if (br_inst->isUnconditional()) {
 
@@ -423,7 +523,7 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
             Instruction* first_0 = succ_0->getFirstNonPHI();
             StringRef dst_0 = cast<MDString>(first_0->getMetadata("iid")->getOperand(0))->getString();
 
-            std::cout << op_str << ", " << iid << ", " << iid << "->" << dst_0.str() << std::endl;
+            sfs << op_str << ", " << iid << ", " << iid << "->" << dst_0.str() << "\n";
 
           }
         }
