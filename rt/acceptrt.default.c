@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+// #include <zlib.h>
 
 #define HALF_MANTISSA_W     10
 #define HALF_EXPONENT_W     5
@@ -24,14 +25,23 @@
 #define DOUBLE_MAN_MASK     ( (1ULL << DOUBLE_MANTISSA_W) - 1 )
 #define DOUBLE_SIGN_MASK    (1ULL << 63)
 
+#define MAX_BRANCH_OUTCOMES 2
+
 
 typedef struct _minmax { int min, max; int sign; char* iid; } minmax;
+
+typedef struct _branch { int curr; int curr_count; int prev_count[MAX_BRANCH_OUTCOMES]; char* iid; } branch;
 
 static double time_begin;
 static unsigned numBB;
 static unsigned numFP;
+static unsigned numBR;
 static unsigned* BBstat;
 static minmax* FPstat;
+static branch* BRstat;
+
+// static gzFile dyntrace;
+static FILE* dyntrace;
 
 void accept_roi_begin() {
     struct timeval t;
@@ -55,15 +65,42 @@ void logbb(int i) {
 }
 
 void logload(char* iid, char* ty, int64_t addr, int64_t align, int64_t val) {
-    printf("ld, %s, %s, 0x%016llx (%llx), 0x%016llx\n", iid, ty, addr, align, val);
+    fprintf(dyntrace, "ld, %s, %s, 0x%016llx (%llx), 0x%016llx\n", iid, ty, addr, align, val);
 }
 
-void logcondbranch(char* iid, int32_t cond, char* succ0, char* succ1) {
-    printf("br, %s, %d, %s, %s\n", iid, cond, succ0, succ1);
+void logcondbranch(int32_t brid, char* iid, int32_t val) {
+    // Initialize branch ID
+    if (BRstat[brid].iid==NULL) {
+        BRstat[brid].iid = iid;
+    }
+
+    if (val >= MAX_BRANCH_OUTCOMES) {
+        printf ("ACCEPT RUNTIME ERROR: Exceeded branch outcome count!");
+        exit(-1);
+    }
+
+    int old_val = BRstat[brid].curr;
+    BRstat[brid].curr = val;
+
+    if (old_val==-1) {
+        BRstat[brid].curr_count = 1;
+    } else if (old_val==val) {
+        BRstat[brid].curr_count++;
+    } else {
+        // if (BRstat[brid].curr_count!=BRstat[brid].prev_count[old_val]) {
+        //     if (BRstat[brid].prev_count[old_val]!=-1) {
+        //         fprintf(dyntrace, "%s: changing stide %d, %d, %d!\n",
+        //             BRstat[brid].iid, old_val, BRstat[brid].prev_count[old_val], BRstat[brid].curr_count);
+        //     }
+        //     BRstat[brid].prev_count[old_val] = BRstat[brid].curr_count;
+        // }
+        fprintf(dyntrace, "%s, %d, %d\n", BRstat[brid].iid, old_val, BRstat[brid].curr_count);
+        BRstat[brid].curr_count = 1;
+    }
 }
 
 void loguncondbranch(char* iid, char* succ) {
-    printf("br, %s, %s\n", iid, succ);
+    fprintf(dyntrace, "br, %s, %s\n", iid, succ);
 }
 
 void logfloat(int type, char* iid, int fpid, int64_t value) {
@@ -107,7 +144,9 @@ void logfloat(int type, char* iid, int fpid, int64_t value) {
 }
 
 void logbb_fini() {
-    int i;
+    printf("Finalizing\n");
+
+    int i, j;
     FILE *f1 = fopen("accept_bbstats.txt", "w");
     FILE *f2 = fopen("accept_fpstats.txt", "w");
     fprintf(f1, "BB\texec\n");
@@ -121,15 +160,45 @@ void logbb_fini() {
     }
     fclose(f1);
     fclose(f2);
+
+    int val;
+    // Print all stats
+    for (i=0; i<numBR; i++) {
+        if (BRstat[i].iid) {
+            fprintf(dyntrace, "%s, %d, %d\n", BRstat[i].iid, BRstat[i].curr, BRstat[i].curr_count);
+            // val = BRstat[i].curr;
+            // if (BRstat[i].curr_count!=BRstat[i].prev_count[val]) {
+            //     if (BRstat[i].prev_count[val]!=-1) {
+            //         fprintf(dyntrace, "%s: changing stide %d, %d, %d!\n",
+            //             BRstat[i].iid, val, BRstat[i].prev_count[val], BRstat[i].curr_count);
+            //     }
+            //     BRstat[i].prev_count[val] = BRstat[i].curr_count;
+            // }
+            // // Print info
+            // fprintf(dyntrace, "%s", BRstat[i].iid);
+            // for (j=0; j<MAX_BRANCH_OUTCOMES; j++) {
+            //     if (BRstat[i].prev_count[j]==-1) {
+            //         fprintf(dyntrace, ", {%d:0}", j);
+            //     } else {
+            //         fprintf(dyntrace, ", {%d:%d}", j, BRstat[i].prev_count[j]);
+            //     }
+            // }
+            // fprintf(dyntrace, "\n");
+        }
+    }
+    fclose(dyntrace);
+    // gzclose(dyntrace);
 }
 
-void logbb_init(int bbCount, int fpCount) {
-    int i;
+void logbb_init(int bbCount, int fpCount, int brCount) {
+    int i, j;
     numBB = bbCount;
     numFP = fpCount;
-    printf("Got %d bbs and %d fps\n", bbCount, fpCount);
+    numBR = brCount;
+    printf("Program has %d bbs, %d fps and %d branches\n", bbCount, fpCount, brCount);
     BBstat = (unsigned int *) malloc (sizeof(unsigned int) * bbCount);
     FPstat = (minmax *) malloc (sizeof(minmax) * fpCount);
+    BRstat = (branch *) malloc (sizeof(branch) * brCount);
     for (i=0; i<numBB; i++){
         BBstat[i] = 0;
     }
@@ -139,5 +208,22 @@ void logbb_init(int bbCount, int fpCount) {
         FPstat[i].iid = NULL;
         FPstat[i].sign = 0;
     }
+    for (i=0; i<numBR; i++) {
+        for (j=0; j<MAX_BRANCH_OUTCOMES; j++) {
+            BRstat[i].prev_count[j] = -1;
+        }
+        BRstat[i].curr_count = 0;
+        BRstat[i].curr = -1; // Uninitialized
+        BRstat[i].iid = NULL; // Uninitialized
+    }
+
+    // Dynamic trace
+    dyntrace = fopen("accept_dyntrace.txt", "w");
+    // dyntrace = gzopen("dynamic_trace.gz", "w");
+    if (!dyntrace) {
+        printf("Failed to open accept_dyntrace.txt\n");
+        exit(-1);
+    }
+
     atexit(logbb_fini);
 }

@@ -11,22 +11,24 @@
 
 #define INSTRUMENT_FP false
 #define STATICANALYSIS
-// #define DYNTRACE
+#define DYNTRACE
 
 using namespace llvm;
 
 namespace {
   static unsigned bbIndex;
   static unsigned bbTotal;
-  static unsigned fpTotal;
   static unsigned fpIndex;
+  static unsigned fpTotal;
+  static unsigned brIndex;
+  static unsigned brTotal;
   static unsigned regIndex;
 
   struct InstrumentBB : public FunctionPass {
     static char ID;
     ACCEPTPass *transformPass;
     Module *module;
-    std::ofstream sfs;
+    std::ofstream staticdump;
 
     InstrumentBB();
     virtual const char *getPassName() const;
@@ -154,13 +156,16 @@ namespace {
   }
 
   // Get the instruction ID of the instruction
-  Value* getIID(Instruction* inst, Module *module) {
+  Value* getIID(Instruction* inst, int idx, Module *module) {
     IRBuilder<> builder(module->getContext());
     builder.SetInsertPoint(inst);
-    StringRef iid = cast<MDString>(inst->getMetadata("iid")->getOperand(0))->getString();
-    Value* instid_global_str = builder.CreateGlobalString(iid.str().c_str());
-    Value* instid = builder.CreateBitCast(instid_global_str, Type::getInt8PtrTy(module->getContext()));
-    return instid;
+    std::string iid_str = "";
+    if (inst->getMetadata("iid")) {
+      iid_str = cast<MDString>(inst->getMetadata("iid")->getOperand(idx))->getString().str();
+    }
+    Value* iid_global_str = builder.CreateGlobalString(iid_str.c_str());
+    Value* iid = builder.CreateBitCast(iid_global_str, Type::getInt8PtrTy(module->getContext()));
+    return iid;
   }
 }
 
@@ -178,9 +183,10 @@ bool InstrumentBB::doInitialization(Module &M) {
   transformPass = (ACCEPTPass*)sharedAcceptTransformPass;
 
   // Static instruction dump for DFG/CFG construction
-  sfs.open("accept_static.txt");
-  if (!sfs) {
-    errs() << "Can't open accept_static.txt\n";
+  staticdump.open("accept_static.txt");
+  if (!staticdump) {
+    errs() << "Failed to open accept_static.txt\n";
+    exit(-1);
   }
 
   // We'll insert the initialization call in main
@@ -190,7 +196,7 @@ bool InstrumentBB::doInitialization(Module &M) {
   // Initialization call, logbb_init() defined in run time
   LLVMContext &Ctx = Main->getContext();
   Constant *initFunc = Main->getParent()->getOrInsertFunction(
-    "logbb_init", Type::getVoidTy(Ctx), Type::getInt32Ty(Ctx), Type::getInt32Ty(Ctx), NULL
+    "logbb_init", Type::getVoidTy(Ctx), Type::getInt32Ty(Ctx), Type::getInt32Ty(Ctx), Type::getInt32Ty(Ctx), NULL
   );
   BasicBlock *bb = &Main->front();
   Instruction *op = &bb->front();
@@ -202,6 +208,8 @@ bool InstrumentBB::doInitialization(Module &M) {
   bbTotal = 0;
   fpIndex = 0;
   fpTotal = 0;
+  brIndex = 0;
+  brTotal = 0;
   regIndex = 0;
   // Determine the number of basic blocks in the module
   for (Module::iterator mi = M.begin(); mi != M.end(); ++mi) {
@@ -213,6 +221,7 @@ bool InstrumentBB::doInitialization(Module &M) {
       // Count the number fp
       for (BasicBlock::iterator bi = bb->begin(); bi != bb->end(); ++bi) {
         Instruction *inst = bi;
+        // Check if we are dealing with a fp instruction
         if (isa<BinaryOperator>(inst) ||
             isa<StoreInst>(inst) ||
             isa<LoadInst>(inst) ||
@@ -223,21 +232,27 @@ bool InstrumentBB::doInitialization(Module &M) {
               opType == Type::getDoubleTy(Ctx)) {
             fpTotal++;
           }
-        }
+        } else if (isa<BranchInst>(inst)) {
+            BranchInst* br_inst = dyn_cast<BranchInst>(inst);
+            if (br_inst->isConditional()) {
+              brTotal++;
+            }
+          }
       }
     }
   }
 
-  Value* bbTotalVal = builder.getInt32(bbTotal);;
-  Value* fpTotalVal = builder.getInt32(fpTotal);;
-  Value* args[] = {bbTotalVal, fpTotalVal};
+  Value* bbTotalVal = builder.getInt32(bbTotal);
+  Value* fpTotalVal = builder.getInt32(fpTotal);
+  Value* brTotalVal = builder.getInt32(brTotal);
+  Value* args[] = {bbTotalVal, fpTotalVal, brTotalVal};
   builder.CreateCall(initFunc, args);
 
   return true; // modified IR
 }
 
 bool InstrumentBB::doFinalization(Module &M) {
-  sfs.close();
+  staticdump.close();
   return false;
 }
 
@@ -286,7 +301,7 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
   // Function used to log conditional branches
   const std::string cbr_injectFn_name = "logcondbranch";
   Constant *cbrLogFunc = module->getOrInsertFunction(
-    cbr_injectFn_name, voidty, stringty, int32ty, stringty, stringty,  NULL
+    cbr_injectFn_name, voidty, int32ty, stringty, int32ty, NULL
   );
   // Function used to log unconditional branches
   const std::string ucbr_injectFn_name = "loguncondbranch";
@@ -309,13 +324,16 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
       for (BasicBlock::iterator bi = bb->begin(); bi != bb->end(); ++bi) {
         Instruction *inst = bi;
 
+        // Get the op string
+        std::string op_str = inst->getOpcodeName();
+
         // Get instruction ID if it exists
         std::string iid = "";
         if (inst->getMetadata("iid")) {
           iid = cast<MDString>(inst->getMetadata("iid")->getOperand(0))->getString().str();
         }
 
-        // Derive qualifier
+        // Get the qualifier
         std::string qual = (isApprox(inst)) ? "approx" : "precise";
 
         // Arithmetic instructions
@@ -327,19 +345,18 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           Value* src0 = inst->getOperand(0);
           Value* src1 = inst->getOperand(1);
 
-          std::string op_str = inst->getOpcodeName();
           std::string ty_str = getTypeStr(cmp_inst->getType(), module);
           std::string dst_str = getRegName(dst, Ctx);
           std::string src0_str = getRegName(src0, Ctx);
           std::string src1_str = getRegName(src1, Ctx);
 
-          sfs << op_str << ", ";
-          sfs << iid << ", ";
-          sfs << qual << ", ";
-          sfs << ty_str << ", ";
-          sfs << dst_str << ", ";
-          sfs << src0_str << ", ";
-          sfs << src1_str << "\n";
+          staticdump << op_str << ", ";
+          staticdump << iid << ", ";
+          staticdump << qual << ", ";
+          staticdump << ty_str << ", ";
+          staticdump << dst_str << ", ";
+          staticdump << src0_str << ", ";
+          staticdump << src1_str << "\n";
 
         } else if (isa<BinaryOperator>(inst)) {
 
@@ -347,19 +364,18 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           Value* src0 = inst->getOperand(0);
           Value* src1 = inst->getOperand(1);
 
-          std::string op_str = inst->getOpcodeName();
           std::string ty_str = getTypeStr(inst->getType(), module);
           std::string dst_str = getRegName(dst, Ctx);
           std::string src0_str = getRegName(src0, Ctx);
           std::string src1_str = getRegName(src1, Ctx);
 
-          sfs << op_str << ", ";
-          sfs << iid << ", ";
-          sfs << qual << ", ";
-          sfs << ty_str << ", ";
-          sfs << dst_str << ", ";
-          sfs << src0_str << ", ";
-          sfs << src1_str << "\n";
+          staticdump << op_str << ", ";
+          staticdump << iid << ", ";
+          staticdump << qual << ", ";
+          staticdump << ty_str << ", ";
+          staticdump << dst_str << ", ";
+          staticdump << src0_str << ", ";
+          staticdump << src1_str << "\n";
 
         } else if (isa<LoadInst>(inst)) {
 
@@ -367,17 +383,16 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           Value* dst = load_inst;
           Value* adr = load_inst->getPointerOperand();
 
-          std::string op_str = inst->getOpcodeName();
           std::string ty_str = getTypeStr(inst->getType(), module);
           std::string dst_str = getRegName(dst, Ctx);
           std::string adr_str = getRegName(adr, Ctx);
 
-          sfs << op_str << ", ";
-          sfs << iid << ", ";
-          sfs << qual << ", ";
-          sfs << ty_str << ", ";
-          sfs << dst_str << ", [";
-          sfs << adr_str << "]" << "\n";
+          staticdump << op_str << ", ";
+          staticdump << iid << ", ";
+          staticdump << qual << ", ";
+          staticdump << ty_str << ", ";
+          staticdump << dst_str << ", [";
+          staticdump << adr_str << "]" << "\n";
 
         } else if (isa<StoreInst>(inst)) {
 
@@ -385,17 +400,16 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           Value* src = store_inst->getValueOperand();
           Value* adr = store_inst->getPointerOperand();
 
-          std::string op_str = inst->getOpcodeName();
           std::string ty_str = getTypeStr(store_inst->getValueOperand()->getType(), module);
           std::string src_str = getRegName(src, Ctx);
           std::string adr_str = getRegName(adr, Ctx);
 
-          sfs << op_str << ", ";
-          sfs << iid << ", ";
-          sfs << qual << ", ";
-          sfs << ty_str << ", ";
-          sfs << src_str << ", [";
-          sfs << adr_str << "]" << "\n";
+          staticdump << op_str << ", ";
+          staticdump << iid << ", ";
+          staticdump << qual << ", ";
+          staticdump << ty_str << ", ";
+          staticdump << src_str << ", [";
+          staticdump << adr_str << "]" << "\n";
 
         } else if (isa<CastInst>(inst)) {
 
@@ -403,127 +417,128 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           Value *dst = cast_inst;
           Value *src = cast_inst->getOperand(0);
 
-          std::string op_str = inst->getOpcodeName();
           std::string src_ty_str = getTypeStr(cast_inst->getSrcTy(), module);
           std::string dst_ty_str = getTypeStr(cast_inst->getDestTy(), module);
           std::string src_str = getRegName(src, Ctx);
           std::string dst_str = getRegName(dst, Ctx);
 
-          sfs << op_str << ", ";
-          sfs << iid << ", ";
-          sfs << qual << ", ";
-          sfs << dst_ty_str << ", ";
-          sfs << src_ty_str << ", ";
-          sfs << dst_str << ", ";
-          sfs << src_str << "\n";
+          staticdump << op_str << ", ";
+          staticdump << iid << ", ";
+          staticdump << qual << ", ";
+          staticdump << dst_ty_str << ", ";
+          staticdump << src_ty_str << ", ";
+          staticdump << dst_str << ", ";
+          staticdump << src_str << "\n";
 
         } else if (isa<PHINode>(inst)) {
 
           PHINode* phy_node = dyn_cast<PHINode>(inst);
           Value* dst = phy_node;
 
-          std::string op_str = inst->getOpcodeName();
           std::string ty_str = getTypeStr(phy_node->getType(), module);
           std::string dst_str = getRegName(dst, Ctx);
           unsigned num_vals = phy_node->getNumIncomingValues();
 
-          sfs << op_str << ", ";
-          sfs << iid << ", ";
-          sfs << qual << ", ";
-          sfs << ty_str << ", ";
-          sfs << dst_str << ", ";
-          sfs << num_vals;
+          staticdump << op_str << ", ";
+          staticdump << iid << ", ";
+          staticdump << qual << ", ";
+          staticdump << ty_str << ", ";
+          staticdump << dst_str << ", ";
+          staticdump << num_vals;
 
           for (unsigned val_idx=0; val_idx<num_vals; val_idx++) {
+            // Retrieve incoming value
             Value* src = phy_node->getIncomingValue(val_idx);
             std::string src_str = getRegName(src, Ctx);
-            sfs << ", " << src_str;
+            // Retrieve incoming block ID
+            BasicBlock* srcBB = phy_node->getIncomingBlock(val_idx);
+            Instruction* srcBBi = srcBB->getFirstNonPHI();
+            StringRef srcBB_str = cast<MDString>(srcBBi->getMetadata("iid")->getOperand(1))->getString();
+            staticdump << ", " << src_str << ", " << srcBB_str.str();
           }
-          sfs << "\n";
+          staticdump << "\n";
 
         } else if (isa<ReturnInst>(inst)) {
           ReturnInst* ret_inst = dyn_cast<ReturnInst>(inst);
           Value *src = ret_inst->getReturnValue();
 
-          std::string op_str = inst->getOpcodeName();
           std::string ty_str = getTypeStr(ret_inst->getType(), module);
           std::string src_str = getRegName(src, Ctx);
 
-          sfs << op_str << ", ";
-          sfs << iid << ", ";
-          sfs << qual << ", ";
-          sfs << ty_str << ", ";
-          sfs << src_str << "\n";
+          staticdump << op_str << ", ";
+          staticdump << iid << ", ";
+          staticdump << qual << ", ";
+          staticdump << ty_str << ", ";
+          staticdump << src_str << "\n";
 
         } else if (isa<CallInst>(inst)) {
           CallInst* call_inst = dyn_cast<CallInst>(inst);
           Function *callee = call_inst->getCalledFunction();
 
 
-          std::string op_str = inst->getOpcodeName();
           std::string fn_str = callee->getName().str();
           std::string ty_str = getTypeStr(call_inst->getType(), module);
 
           if (transformPass->AI->isWhitelistedPure(fn_str)) {
 
-            sfs << op_str << ", ";
-            sfs << iid << ", ";
-            sfs << qual << ", ";
-            sfs << fn_str << ", ";
-            sfs << ty_str;
+            staticdump << op_str << ", ";
+            staticdump << iid << ", ";
+            staticdump << qual << ", ";
+            staticdump << fn_str << ", ";
+            staticdump << ty_str;
 
             if (! callee->getReturnType()->isVoidTy()) {
               Value *dst = call_inst;
               std::string dst_str = getRegName(dst, Ctx);
-              sfs << ", " << dst_str;
+              staticdump << ", " << dst_str;
             }
 
             unsigned nargs = call_inst->getNumArgOperands();
-            sfs << ", " << nargs;
+            staticdump << ", " << nargs;
 
             for (int i = 0; i < nargs; ++i) {
               Value *arg = call_inst->getArgOperand(i);
 
               std::string arg_ty_str = getTypeStr(arg->getType(), module);
 
-              sfs << ", " << arg_ty_str;
+              staticdump << ", " << arg_ty_str;
 
               if (! arg->getType()->isVoidTy()) {
                 std::string arg_str = getRegName(arg, Ctx);
-                sfs << ", " << arg_str;
+                staticdump << ", " << arg_str;
               }
             }
 
-            sfs << "\n";
+            staticdump << "\n";
           }
 
         } else if (isa<BranchInst>(inst)) {
 
           BranchInst* br_inst = dyn_cast<BranchInst>(inst);
 
-          std::string op_str = inst->getOpcodeName();
+          StringRef src = cast<MDString>(inst->getMetadata("iid")->getOperand(1))->getString();
 
           if (br_inst->isConditional()) {
 
             // Determine the successor based on the condition
-            BasicBlock* succ_0 = br_inst->getSuccessor(0);
-            BasicBlock* succ_1 = br_inst->getSuccessor(1);
+            BasicBlock* succ_0 = br_inst->getSuccessor(0); // True
+            BasicBlock* succ_1 = br_inst->getSuccessor(1); // False
             Instruction* first_0 = succ_0->getFirstNonPHI();
             Instruction* first_1 = succ_1->getFirstNonPHI();
-            StringRef dst_0 = cast<MDString>(first_0->getMetadata("iid")->getOperand(0))->getString();
-            StringRef dst_1 = cast<MDString>(first_1->getMetadata("iid")->getOperand(0))->getString();
+            StringRef dst_0 = cast<MDString>(first_0->getMetadata("iid")->getOperand(1))->getString();
+            StringRef dst_1 = cast<MDString>(first_1->getMetadata("iid")->getOperand(1))->getString();
 
-            sfs << op_str << ", " << iid << ", " << iid << "->" << dst_0.str() << "\n";
-            sfs << op_str << ", " << iid << ", " << iid << "->" << dst_1.str() << "\n";
+            staticdump << op_str << ", " << iid << ", " << src.str() << "->" << dst_1.str() << "\n";
+            staticdump << op_str << ", " << iid << ", " << src.str() << "->" << dst_0.str() << "\n";
 
           } else if (br_inst->isUnconditional()) {
 
             // Determine the successor based on the condition
             BasicBlock* succ_0 = br_inst->getSuccessor(0);
             Instruction* first_0 = succ_0->getFirstNonPHI();
-            StringRef dst_0 = cast<MDString>(first_0->getMetadata("iid")->getOperand(0))->getString();
+            StringRef dst_0 = cast<MDString>(first_0->getMetadata("iid")->getOperand(1))->getString();
 
-            sfs << op_str << ", " << iid << ", " << iid << "->" << dst_0.str() << "\n";
+            staticdump << op_str << ", " << iid << ", " << src.str() << "->" << dst_0.str() << "\n";
 
           }
         }
@@ -546,67 +561,68 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           Instruction *inst = bi;
           Instruction *nextInst = next(bi, 1);
 
-          // Load instruction
-          if (isa<LoadInst>(inst) && isApprox(inst)) {
-            // assert(nextInst && "next inst is NULL");
+          // // Load instruction
+          // if (isa<LoadInst>(inst) && isApprox(inst)) {
+          //   // assert(nextInst && "next inst is NULL");
 
-            // Builder
-            IRBuilder<> builder(module->getContext());
-            builder.SetInsertPoint(nextInst);
+          //   // Builder
+          //   IRBuilder<> builder(module->getContext());
+          //   builder.SetInsertPoint(nextInst);
 
-            // Cast to load instruction
-            LoadInst* load_inst = dyn_cast<LoadInst>(inst);
+          //   // Cast to load instruction
+          //   LoadInst* load_inst = dyn_cast<LoadInst>(inst);
 
-            inst->print(errs());
-            errs() << "\n";
+          //   inst->print(errs());
+          //   errs() << "\n";
 
-            // Obtain the instruction id
-            Value* param_instid = getIID(inst, module);
+          //   // Obtain the instruction id
+          //   Value* param_instid = getIID(inst, 0, module);
 
-            // Obtain the type string
-            Type* insnType = inst->getType();
-            std::string type_str = getTypeStr(insnType, module);
+          //   // Obtain the type string
+          //   Type* insnType = inst->getType();
+          //   std::string type_str = getTypeStr(insnType, module);
 
-            if (type_str!="") {
+          //   if (type_str!="") {
 
-              // Obtain the type string value
-              Value* type_str_val = builder.CreateGlobalString(type_str.c_str());
-              // Cast to a char array
-              Value* param_type = builder.CreateBitCast(type_str_val,
-                  Type::getInt8PtrTy(module->getContext()));
+          //     // Obtain the type string value
+          //     Value* type_str_val = builder.CreateGlobalString(type_str.c_str());
+          //     // Cast to a char array
+          //     Value* param_type = builder.CreateBitCast(type_str_val,
+          //         Type::getInt8PtrTy(module->getContext()));
 
-              // Obtain the load address
-              Value* param_addr = builder.CreatePtrToInt(load_inst->getPointerOperand(),
-                  int64ty);
+          //     // Obtain the load address
+          //     Value* param_addr = builder.CreatePtrToInt(load_inst->getPointerOperand(),
+          //         int64ty);
 
-              // Obtain the load alignment
-              Value* param_align = builder.CreateZExtOrBitCast(
-                  ConstantInt::get(int64ty, load_inst->getAlignment(), false), int64ty);
+          //     // Obtain the load alignment
+          //     Value* param_align = builder.CreateZExtOrBitCast(
+          //         ConstantInt::get(int64ty, load_inst->getAlignment(), false), int64ty);
 
-              // Obtain the load value
-              // Cast the value to a 64-bit integer
-              Value* int_value = inst;
-              // If the value is a float, cast to integer
-              Type* dst_type = getIntType(insnType, module);
-              if (dst_type) int_value = builder.CreateBitCast(inst, dst_type);
-              // Now zeroextend to 64-bits
-              Value* param_value = builder.CreateZExtOrBitCast(int_value, int64ty);
+          //     // Obtain the load value
+          //     // Cast the value to a 64-bit integer
+          //     Value* int_value = inst;
+          //     // If the value is a float, cast to integer
+          //     Type* dst_type = getIntType(insnType, module);
+          //     if (dst_type) int_value = builder.CreateBitCast(inst, dst_type);
+          //     // Now zeroextend to 64-bits
+          //     Value* param_value = builder.CreateZExtOrBitCast(int_value, int64ty);
 
-              // Initialize the argument vector
-              Value* args[] = {
-                  param_instid,
-                  param_type,
-                  param_addr,
-                  param_align,
-                  param_value
-                };
-              // Inject function
-              builder.CreateCall(ldLogFunc, args);
-              modified = true;
+          //     // Initialize the argument vector
+          //     Value* args[] = {
+          //         param_instid,
+          //         param_type,
+          //         param_addr,
+          //         param_align,
+          //         param_value
+          //       };
+          //     // Inject function
+          //     builder.CreateCall(ldLogFunc, args);
+          //     modified = true;
 
-            }
+          //   }
 
-          } else if (isa<BranchInst>(inst)) {
+          // } else 
+          if (isa<BranchInst>(inst)) {
 
             // Cast to branch instruction
             BranchInst* br_inst = dyn_cast<BranchInst>(inst);
@@ -618,61 +634,68 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
               builder.SetInsertPoint(inst);
 
                // Obtain the instruction id
-              Value* param_instid = getIID(inst, module);
+              Value* param_instid = getIID(inst, 1, module);
 
               // Obtain the condition value
               Value* cond = br_inst->getCondition();
               Value* param_cond = builder.CreateZExtOrBitCast(cond, int32ty);
 
+              // Obtain the branch ID
+              Value* param_brIdx = builder.getInt32(brIndex);
+
               // // Obtain the number of successors
               // unsigned successors = br_inst->getNumSuccessors();
               // Value* param_succ = ConstantInt::get(int32ty, successors, false);
 
-              // Determine the successor based on the condition
-              BasicBlock* succ_0 = br_inst->getSuccessor(0);
-              BasicBlock* succ_1 = br_inst->getSuccessor(1);
-              Instruction* first_0 = succ_0->getFirstNonPHI();
-              Instruction* first_1 = succ_1->getFirstNonPHI();
+              // // Determine the successor based on the condition
+              // BasicBlock* succ_0 = br_inst->getSuccessor(0);
+              // BasicBlock* succ_1 = br_inst->getSuccessor(1);
+              // Instruction* first_0 = succ_0->getFirstNonPHI();
+              // Instruction* first_1 = succ_1->getFirstNonPHI();
 
-              Value* param_succ_0 = getIID(first_0, module);
-              Value* param_succ_1 = getIID(first_1, module);
+              // Value* param_succ_0 = getIID(first_0, 1, module);
+              // Value* param_succ_1 = getIID(first_1, 1, module);
 
               // Initialize the argument vector
               Value* args[] = {
+                param_brIdx,
                 param_instid,
-                param_cond,
-                param_succ_0,
-                param_succ_1
+                param_cond
+                // param_succ_0,
+                // param_succ_1
               };
               // Inject function
               builder.CreateCall(cbrLogFunc, args);
               modified = true;
 
-            } else if (br_inst->isUnconditional()) {
-
-              // Builder
-              IRBuilder<> builder(module->getContext());
-              builder.SetInsertPoint(inst);
-
-               // Obtain the instruction id
-              Value* param_instid = getIID(inst, module);
-
-              // Determine the successor based on the condition
-              BasicBlock* succ_0 = br_inst->getSuccessor(0);
-              Instruction* first_0 = succ_0->getFirstNonPHI();
-
-              Value* param_succ_0 = getIID(first_0, module);
-
-              // Initialize the argument vector
-              Value* args[] = {
-                param_instid,
-                param_succ_0
-              };
-              // Inject function
-              builder.CreateCall(ucbrLogFunc, args);
-              modified = true;
+              brIndex++;
 
             }
+            // else if (br_inst->isUnconditional()) {
+
+            //   // Builder
+            //   IRBuilder<> builder(module->getContext());
+            //   builder.SetInsertPoint(inst);
+
+            //    // Obtain the instruction id
+            //   Value* param_instid = getIID(inst, 1, module);
+
+            //   // Determine the successor based on the condition
+            //   BasicBlock* succ_0 = br_inst->getSuccessor(0);
+            //   Instruction* first_0 = succ_0->getFirstNonPHI();
+
+            //   Value* param_succ_0 = getBBID(first_0, module);
+
+            //   // Initialize the argument vector
+            //   Value* args[] = {
+            //     param_instid,
+            //     param_succ_0
+            //   };
+            //   // Inject function
+            //   builder.CreateCall(ucbrLogFunc, args);
+            //   modified = true;
+
+            // }
           }
         }
       }

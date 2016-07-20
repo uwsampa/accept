@@ -195,17 +195,17 @@ bool ErrorInjection::instructionErrorInjection(Function& F) {
       all_insts.push_back(iid);
       // Write metadata (instruction id & label)
       LLVMContext& C = inst->getContext();
-      std::stringstream mss;
-      mss << "bb" << bbIndex << "i" << icounter;
+      std::stringstream iid_ss, bbid_ss;
+      iid_ss << "bb" << bbIndex << "i" << icounter;
+      bbid_ss << "bb" << bbIndex;
       Value* vals[] = {
-        MDString::get(C, mss.str()),
-        builder.getInt32(bbIndex),
-        builder.getInt32(icounter)
+        MDString::get(C, iid_ss.str()),
+        MDString::get(C, bbid_ss.str())
       };
       MDNode* N1 = MDNode::get(C, vals);
       inst->setMetadata("iid", N1);
       MDNode* N2 = MDNode::get(C, MDString::get(C, "instruction label"));
-      inst->setMetadata(mss.str(), N2);
+      inst->setMetadata(iid_ss.str(), N2);
       // Also add the source file line number for convenience
       MDNode* N3 = inst->getMetadata("dbg");
       if (N3) {
@@ -216,11 +216,11 @@ bool ErrorInjection::instructionErrorInjection(Function& F) {
         std::stringstream locstring;
         locstring << fn.str() << ":" << line << ":" << col;
         Value* vals[] = {
-          MDString::get(C, mss.str()),
+          MDString::get(C, iid_ss.str()),
           MDString::get(C, locstring.str())
         };
-        MDNode* N4 = MDNode::get(C, vals);
-        inst->setMetadata("iloc", N4);
+        MDNode* N3 = MDNode::get(C, vals);
+        inst->setMetadata("iloc", N3);
       }
       ++icounter;
     }
@@ -720,6 +720,7 @@ bool ErrorInjection::injectErrorInst(InstId iid, Instruction* nextInst,
         ACCEPT_LOG << "not injecting error\n";
         return false;
       }
+      return false;
     } else { // we're just logging
       if (approx) {
         ACCEPT_LOG << "can inject error\n";
