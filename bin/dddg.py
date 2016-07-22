@@ -71,12 +71,17 @@ def hasSuccessor(i_key, insns):
     else:
         return False
 
+def replaceAllUsesOfWith(before, after, insns):
+    for insn in insns.itervalues():
+        for idx, src in enumerate(insn["src"]):
+            if src==before:
+                insn["src"][idx] = after
+
 def getPredecessors(i_key, insns):
     predecessors = []
     for src in insns[i_key]["src"]:
         if src in insns:
             predecessors.append(src)
-
     return predecessors
 
 def getSuccessors(i_key, insns):
@@ -115,6 +120,24 @@ def getInsnfromReg(reg, insns):
             return i_key
     return ""
 
+def getSrcFromPhi(i_key, insns):
+    assert len(insns[i_key]["src"])==1
+    return insns[i_key]["src"][0]
+
+def cleanupPhiNodes(dddg):
+    # Delete list
+    delList = []
+    # Look for phi nodes
+    for dst in dddg:
+        insn = dddg[dst]
+        if insn["op"]=="phi":
+            src = getSrcFromPhi(dst, dddg)
+            replaceAllUsesOfWith(dst, src, dddg)
+            delList.append(dst)
+    # Remove all phi nodes
+    for d in delList:
+        del dddg[d]
+
 def insertDotEdge(fp, src, dst, label=""):
     fp.write("\t\"{}\"->\"{}\"\n".format(src, dst))
     if label!="":
@@ -140,8 +163,8 @@ def getLabel(insn):
 
 def labelDotNode(fp, i_key, insns):
     insn = insns[i_key]
+    print "{}, {}".format(i_key, insn)
     # Derive the node label
-    # label = insn["bbid"]+"\n"+getLabel(insn)
     label = getLabel(insn)
     # Derive the node color
     color = "forestgreen" if isApprox(insn) else "black"
@@ -430,20 +453,23 @@ def DFG(insns, fn):
         fp.write("}")
 
 def DDDG(insns, branchOutcomes, limit=10000):
-    DDDG = {}
 
+    # Get exit instructions
     exitInsns = getExitInstructions(insns)
 
     # Replay the program based on CFG outcomes
+    DDDG = {}       # DDDG
     currBB = "bb0"  # Programs always start at bb0
     nextBB = ""     # Next basic block to visit
     prevBB = ""     # Previous basic block visited
     cntr = 0        # Counter to limit the size of the DDDG
     done = False    # Indicates that we have reached an exit
     bbIdx = 0       # Basic block index used in the traversal
-    # Map of the last index for a given BB
-    bbIdxMap = {}
+    bbIdxMap = {}   # Map of the last index for a given BB
+
+    # Replay the program based on control flow trace
     while currBB!="" and cntr<=limit:
+
         # Multiple possible branch outcomes
         if len(branches[currBB]["tgt"])>1:
             if len(branchOutcomes[currBB])>0:
@@ -469,9 +495,7 @@ def DDDG(insns, branchOutcomes, limit=10000):
             insn["id"]+="_"+str(bbIdx)
             if insn["dst"]:
                 insn["dst"]+="_"+str(bbIdx)
-            # If the instruction is a phi node, we want to
-            # keep the actual source register based on dynamic
-            # execution
+            # If the instruction is a phi node, discard non-valid sources
             if insn["op"]=="phi":
                 # Set the srcBB and src register to match dynamic execution
                 for srcReg, srcBB in zip(insns[i_key]["src"], insns[i_key]["srcBB"]):
@@ -505,8 +529,10 @@ def DDDG(insns, branchOutcomes, limit=10000):
         if done:
             break
 
-    return DDDG
+    # Eliminate phi nodes
+    cleanupPhiNodes(dddg)
 
+    return DDDG
 
 if __name__ == '__main__':
     # Extract instructions
