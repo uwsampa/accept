@@ -59,70 +59,69 @@ def getBBPredecessors(node, branches):
                 predecessors.append(branches[bb]["id"])
     return predecessors
 
-def hasPredecessor(iid, insns):
-    if len(getPredecessors(iid, insns)):
+def hasPredecessor(i_key, insns):
+    if len(getPredecessors(i_key, insns)):
         return True
     else:
         return False
 
-def hasSuccessor(iid, insns):
-    if len(getSuccessors(iid, insns)):
+def hasSuccessor(i_key, insns):
+    if len(getSuccessors(i_key, insns)):
         return True
     else:
         return False
 
-def getPredecessors(iid, insns):
+def getPredecessors(i_key, insns):
     predecessors = []
-    for insn in insns.itervalues():
-        for src in insns[iid]["src"]:
-            if src==insn["dst"]:
-                predecessors.append(insn["id"])
+    for src in insns[i_key]["src"]:
+        if src in insns:
+            predecessors.append(src)
+
     return predecessors
 
-def getSuccessors(iid, insns):
+def getSuccessors(i_key, insns):
     successors = []
     for insn in insns.itervalues():
         for src in insn["src"]:
-            if src==insns[iid]["dst"]:
-                successors.append(insn["id"])
+            if src==i_key:
+                successors.append(insn["dst"])
     return successors
 
 def getEntryInstructions(insns):
     entryInsns = []
-    for iid in insns:
-        if not hasPredecessor(iid, insns):
-            entryInsns.append(iid)
+    for i_key in insns:
+        if not hasPredecessor(i_key, insns):
+            entryInsns.append(i_key)
     return entryInsns
 
 def getExitInstructions(insns):
     exitInsns = []
-    for iid in insns:
-        if not hasSuccessor(iid, insns):
-            exitInsns.append(iid)
+    for i_key in insns:
+        if not hasSuccessor(i_key, insns):
+            exitInsns.append(i_key)
     return exitInsns
 
 def getInsnFromBB(bbid, insns):
     # Excludes phi nodes!
     insnList = []
-    for iid in insns:
-        if insns[iid]["bbid"]==bbid:
-            # if phi and insns[iid]["op"]=="phi" or not phi and insns[iid]["op"]!="phi":
-            insnList.append(iid)
+    for i_key in insns:
+        if insns[i_key]["bbid"]==bbid:
+            insnList.append(i_key)
     return insnList
 
 def getInsnfromReg(reg, insns):
-    for iid in insns:
-        if insns[iid]["dst"]==reg:
-            return iid
+    for i_key in insns:
+        if insns[i_key]["dst"]==reg:
+            return i_key
     return ""
 
 def insertDotEdge(fp, src, dst, label=""):
-    fp.write("\t\"{}\"->\"{}\"".format(src, dst))
+    fp.write("\t\"{}\"->\"{}\"\n".format(src, dst))
     if label!="":
         fp.write("\t[ label=\"{}\" ]\n".format(label))
 
 def getLabel(insn):
-    label=""
+    label="("+insn["bbid"]+") "
     if insn["dst"]:
         label += insn["dst"] + " = "
     label += insn["op"] + " "
@@ -139,9 +138,11 @@ def getLabel(insn):
         label += insn["addr"]
     return label
 
-def labelDotNode(fp, insn):
+def labelDotNode(fp, i_key, insns):
+    insn = insns[i_key]
     # Derive the node label
-    label = insn["bbid"]+"\n"+getLabel(insn)
+    # label = insn["bbid"]+"\n"+getLabel(insn)
+    label = getLabel(insn)
     # Derive the node color
     color = "forestgreen" if isApprox(insn) else "black"
     # Derive the node shape
@@ -155,11 +156,28 @@ def labelDotNode(fp, insn):
     elif insn["op"]=="call":
         shape = "doubleoctagon"
     # Add the dot edge
-    fp.write("\t{} [ ".format(insn["id"]))
+    fp.write("\t\"{}\" [ ".format(i_key))
     fp.write("label=\"{}\" ".format(label))
     fp.write("color=\"{}\" ".format(color))
     fp.write("shape=\"{}\" ".format(shape))
     fp.write("style=\"rounded\"]\n")
+
+def trimStep(insns):
+    trimList = []
+    for i_key, insn in insns.iteritems():
+        if not hasApproxPredecessor(i_key, insns) and not hasApproxSuccessor(i_key, insns):
+            trimList.append(i_key)
+            trimmed = True
+        elif insn["op"] != "store" and insn["op"] != "ret":
+            if len(getSuccessors(i_key, insns))==0:
+                trimList.append(i_key)
+                trimmed = True
+    if len(trimList):
+        for i_key in trimList:
+            del insns[i_key]
+        return True
+    else:
+        return False
 
 def trim(insns):
     # Trim the graph
@@ -168,59 +186,41 @@ def trim(insns):
         epoch+=1
     print "Trimmed the graph in {} steps".format(epoch)
 
-def trimStep(insns):
-    trimList = []
-    for iid in insns:
-        insn = insns[iid]
-        if not hasApproxPredecessor(insn, insns) and not hasApproxSuccessor(insn, insns):
-            trimList.append(iid)
-            trimmed = True
-        elif insn["op"] != "store" and insn["op"] != "ret":
-            if len(getSuccessors(iid, insns))==0:
-                trimList.append(iid)
-                trimmed = True
-    if len(trimList):
-        for iid in trimList:
-            del insns[iid]
-        return True
-    else:
-        return False
-
-def hasApproxPredecessor(i, insns):
+def hasApproxPredecessor(i_key, insns):
     visited = []
-    predecessors = [i["id"]]
+    predecessors = [i_key]
 
     while len(predecessors):
         new_predecessors = []
-        for p_id in predecessors:
+        for p_key in predecessors:
             # Visit the node
-            visited.append(p_id)
+            visited.append(p_key)
             # Check if it is approx
-            if isApprox(insns[p_id]):
+            if isApprox(insns[p_key]):
                 return True
             # Prepare the new predecessors list
-            for pp_id in getPredecessors(p_id, insns):
-                if pp_id not in visited and pp_id not in new_predecessors:
-                    new_predecessors.append(pp_id)
+            for pp_key in getPredecessors(p_key, insns):
+                if pp_key not in visited and pp_key not in new_predecessors:
+                    new_predecessors.append(pp_key)
         predecessors = new_predecessors
     return False
 
-def hasApproxSuccessor(i, insns):
+def hasApproxSuccessor(i_key, insns):
     visited = []
-    successors = [i["id"]]
+    successors = [i_key]
 
     while len(successors):
         new_successors = []
-        for s_id in successors:
+        for s_key in successors:
             # Visit the node
-            visited.append(s_id)
+            visited.append(s_key)
             # Check if it is approx
-            if isApprox(insns[s_id]):
+            if isApprox(insns[s_key]):
                 return True
             # Prepare the new successors list
-            for ss_id in getSuccessors(s_id, insns):
-                if ss_id not in visited and ss_id not in new_successors:
-                    new_successors.append(ss_id)
+            for ss_key in getSuccessors(s_key, insns):
+                if ss_key not in visited and ss_key not in new_successors:
+                    new_successors.append(ss_key)
         successors = new_successors
     return False
 
@@ -288,18 +288,18 @@ def processBranches(fn):
                 op = tokens[0]
                 # Check for op type
                 if op == "br":
-                    iid = tokens[1].split("i")[0]
+                    iid = tokens[1]
                     src = tokens[2].split("->")[0]
                     dst = tokens[2].split("->")[1]
-                    if iid in branches:
-                        branches[iid]["tgt"].append(dst)
+                    if src in branches:
+                        branches[src]["tgt"].append(dst)
                     else:
                         params = {}
                         params["op"] = op
                         params["id"] = iid
                         params["src"] = src
                         params["tgt"] = [dst]
-                        branches[iid] = params
+                        branches[src] = params
 
     return branches
 
@@ -363,7 +363,7 @@ def processInsn(fn):
                 elif opcode == "store":
                     params["ty"] = tokens[3]
                     params["src"] = [tokens[4]]
-                    params["dst"] = None
+                    params["dst"] = tokens[5] # HACK
                     params["addr"] = tokens[5]
                 # If cast instruction
                 elif opcode in conversionInsn:
@@ -383,8 +383,8 @@ def processInsn(fn):
                     skip = True
 
 
-                if not skip:
-                    insns[params["id"]] = params
+                if not skip and params["dst"]:
+                    insns[params["dst"]] = params
     else:
         print "file not found!"
 
@@ -396,7 +396,7 @@ def processInsn(fn):
 def CFG(branches, fn):
     # Dumpt DOT description of CFG
     with open(fn, "w") as fp:
-        fp.write("digraph graphname {")
+        fp.write("digraph graphname {\n")
         for iid in branches:
             br = branches[iid]
             for idx, tgt in enumerate(br["tgt"]):
@@ -413,22 +413,19 @@ def CFG(branches, fn):
 def DFG(insns, fn):
     # Dump the DOT description of DFG
     with open(fn, "w") as fp:
-        fp.write("digraph graphname {")
+        fp.write("digraph graphname {\n")
         # Print all instructions
-        for iid in insns:
-            insn = insns[iid]
-            for succ in getSuccessors(iid, insns):
+        for i_key, insn in insns.iteritems():
+            for s_key in getSuccessors(i_key, insns):
                 # Insert edge
-                label = insn["dst"]
-                color = "forestgreen" if insn["qual"]=="approx" else None
-                insertDotEdge(fp, insn["id"], succ)
-                labelDotNode(fp, insn)
+                insertDotEdge(fp, i_key, s_key)
+                labelDotNode(fp, i_key, insns)
             # Corner case: store instructions don't have successors
             if insn["op"]=="store":
-                labelDotNode(fp, insn)
+                labelDotNode(fp, i_key, insns)
             # Other corner case: terminators
             elif insn["op"]=="ret":
-                labelDotNode(fp, insn)
+                labelDotNode(fp, i_key, insns)
 
         fp.write("}")
 
@@ -466,8 +463,8 @@ def DDDG(insns, branchOutcomes, limit=10000):
         print "{}->{}, prev={}".format(currBB, nextBB, prevBB)
 
         # Get all instructions from the current basic block
-        for iid in getInsnFromBB(currBB, insns):
-            insn = copy.deepcopy(insns[iid])
+        for i_key in getInsnFromBB(currBB, insns):
+            insn = copy.deepcopy(insns[i_key])
             # Modify the id and registers
             insn["id"]+="_"+str(bbIdx)
             if insn["dst"]:
@@ -477,7 +474,7 @@ def DDDG(insns, branchOutcomes, limit=10000):
             # execution
             if insn["op"]=="phi":
                 # Set the srcBB and src register to match dynamic execution
-                for srcReg, srcBB in zip(insns[iid]["src"], insns[iid]["srcBB"]):
+                for srcReg, srcBB in zip(insns[i_key]["src"], insns[i_key]["srcBB"]):
                     if srcBB==prevBB:
                         insn["srcBB"]=[prevBB]
                         # Check if we are dealing with a constant
@@ -492,12 +489,12 @@ def DDDG(insns, branchOutcomes, limit=10000):
                 for idx, srcReg in enumerate(insn["src"]):
                     insn["src"][idx]+="_"+str(bbIdx)
             print "\t {}".format(getLabel(insn))
-            DDDG[insn["id"]] = insn
+            DDDG[insn["dst"]] = insn
             cntr += 1
 
         # Check that we have reached a exit instruction
-        for iid in exitInsns:
-            if insns[iid]["bbid"] == currBB:
+        for i_key in exitInsns:
+            if insns[i_key]["bbid"] == currBB:
                 done = True
 
         bbIdxMap[currBB] = bbIdx
@@ -512,20 +509,20 @@ def DDDG(insns, branchOutcomes, limit=10000):
 
 
 if __name__ == '__main__':
+    # Extract instructions
     insns = processInsn('accept_static.txt')
-
+    # Extract branches
     branches = processBranches('accept_static.txt')
-
-    DFG(dfg, "dfg.dot", "insn")
-    subprocess.call(shlex.split('dot dfg.dot -Tpng -odddg.png'))
+    # Produce DFG and CFG graph based on static information
+    DFG(insns, "dfg.dot")
+    subprocess.call(shlex.split('dot dfg.dot -Tpng -odfg.png'))
     CFG(branches, "cfg.dot")
     subprocess.call(shlex.split('dot cfg.dot -Tpng -ocfg.png'))
-
 
     # Produce DDDG
     branchOutcomes = processBranchOutcomes('accept_dyntrace.txt', insns, branches)
     dddg = DDDG(insns, branchOutcomes)
-    DFG(dddg, "dddg.dot", "insn")
+    DFG(dddg, "dddg.dot")
     subprocess.call(shlex.split('dot dddg.dot -Tpng -odddg.png'))
 
 
