@@ -9,9 +9,9 @@
 
 #include "accept.h"
 
-#define INSTRUMENT_FP false
-#define STATICANALYSIS
-#define DYNTRACE
+#define INSTRUMENT_FP true
+// #define STATICANALYSIS
+// #define DYNTRACE
 
 using namespace llvm;
 
