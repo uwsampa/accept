@@ -27,10 +27,14 @@
 
 #define MAX_BRANCH_OUTCOMES 2
 
+#define LDTRACE_LIM 1000000
+#define BRTRACE_LIM 100000
+
 
 typedef struct _minmax { int min, max; int sign; char* iid; } minmax;
 
-typedef struct _branch { int curr; int curr_count; int prev_count[MAX_BRANCH_OUTCOMES]; char* iid; } branch;
+// typedef struct _branch { int curr; int curr_count; int prev_count[MAX_BRANCH_OUTCOMES]; char* iid; } branch;
+typedef struct _branch { int curr; int curr_count; int counterLim; char* iid; } branch;
 
 static double time_begin;
 static unsigned numBB;
@@ -40,8 +44,11 @@ static unsigned* BBstat;
 static minmax* FPstat;
 static branch* BRstat;
 
-// static gzFile dyntrace;
-static FILE* dyntrace;
+// static gzFile brtrace;
+static FILE* brtrace;
+static FILE* ldtrace;
+
+static counterLim;
 
 void accept_roi_begin() {
     struct timeval t;
@@ -65,7 +72,9 @@ void logbb(int i) {
 }
 
 void logload(char* iid, char* ty, int64_t addr, int64_t align, int64_t val) {
-    fprintf(dyntrace, "ld, %s, %s, 0x%016llx (%llx), 0x%016llx\n", iid, ty, addr, align, val);
+    counterLim++;
+    if (counterLim <= LDTRACE_LIM)
+        fprintf(ldtrace, "%s, 0x%016llx, 0x%016llx\n", iid, addr, val);
 }
 
 void logcondbranch(int32_t brid, char* iid, int32_t val) {
@@ -82,6 +91,8 @@ void logcondbranch(int32_t brid, char* iid, int32_t val) {
     int old_val = BRstat[brid].curr;
     BRstat[brid].curr = val;
 
+    BRstat[brid].counterLim++;
+
     if (old_val==-1) {
         BRstat[brid].curr_count = 1;
     } else if (old_val==val) {
@@ -89,18 +100,19 @@ void logcondbranch(int32_t brid, char* iid, int32_t val) {
     } else {
         // if (BRstat[brid].curr_count!=BRstat[brid].prev_count[old_val]) {
         //     if (BRstat[brid].prev_count[old_val]!=-1) {
-        //         fprintf(dyntrace, "%s: changing stide %d, %d, %d!\n",
+        //         fprintf(brtrace, "%s: changing stide %d, %d, %d!\n",
         //             BRstat[brid].iid, old_val, BRstat[brid].prev_count[old_val], BRstat[brid].curr_count);
         //     }
         //     BRstat[brid].prev_count[old_val] = BRstat[brid].curr_count;
         // }
-        fprintf(dyntrace, "%s, %d, %d\n", BRstat[brid].iid, old_val, BRstat[brid].curr_count);
+        if (BRstat[brid].counterLim <= BRTRACE_LIM)
+            fprintf(brtrace, "%s, %d, %d\n", BRstat[brid].iid, old_val, BRstat[brid].curr_count);
         BRstat[brid].curr_count = 1;
     }
 }
 
 void loguncondbranch(char* iid, char* succ) {
-    fprintf(dyntrace, "br, %s, %s\n", iid, succ);
+    fprintf(brtrace, "br, %s, %s\n", iid, succ);
 }
 
 void logfloat(int type, char* iid, int fpid, int64_t value) {
@@ -165,29 +177,30 @@ void logbb_fini() {
     // Print all stats
     for (i=0; i<numBR; i++) {
         if (BRstat[i].iid) {
-            fprintf(dyntrace, "%s, %d, %d\n", BRstat[i].iid, BRstat[i].curr, BRstat[i].curr_count);
+            fprintf(brtrace, "%s, %d, %d\n", BRstat[i].iid, BRstat[i].curr, BRstat[i].curr_count);
             // val = BRstat[i].curr;
             // if (BRstat[i].curr_count!=BRstat[i].prev_count[val]) {
             //     if (BRstat[i].prev_count[val]!=-1) {
-            //         fprintf(dyntrace, "%s: changing stide %d, %d, %d!\n",
+            //         fprintf(brtrace, "%s: changing stide %d, %d, %d!\n",
             //             BRstat[i].iid, val, BRstat[i].prev_count[val], BRstat[i].curr_count);
             //     }
             //     BRstat[i].prev_count[val] = BRstat[i].curr_count;
             // }
             // // Print info
-            // fprintf(dyntrace, "%s", BRstat[i].iid);
+            // fprintf(brtrace, "%s", BRstat[i].iid);
             // for (j=0; j<MAX_BRANCH_OUTCOMES; j++) {
             //     if (BRstat[i].prev_count[j]==-1) {
-            //         fprintf(dyntrace, ", {%d:0}", j);
+            //         fprintf(brtrace, ", {%d:0}", j);
             //     } else {
-            //         fprintf(dyntrace, ", {%d:%d}", j, BRstat[i].prev_count[j]);
+            //         fprintf(brtrace, ", {%d:%d}", j, BRstat[i].prev_count[j]);
             //     }
             // }
-            // fprintf(dyntrace, "\n");
+            // fprintf(brtrace, "\n");
         }
     }
-    fclose(dyntrace);
-    // gzclose(dyntrace);
+    fclose(brtrace);
+    fclose(ldtrace);
+    // gzclose(brtrace);
 }
 
 void logbb_init(int bbCount, int fpCount, int brCount) {
@@ -209,19 +222,24 @@ void logbb_init(int bbCount, int fpCount, int brCount) {
         FPstat[i].sign = 0;
     }
     for (i=0; i<numBR; i++) {
-        for (j=0; j<MAX_BRANCH_OUTCOMES; j++) {
-            BRstat[i].prev_count[j] = -1;
-        }
+        // for (j=0; j<MAX_BRANCH_OUTCOMES; j++) {
+        //     BRstat[i].prev_count[j] = -1;
+        // }
         BRstat[i].curr_count = 0;
         BRstat[i].curr = -1; // Uninitialized
         BRstat[i].iid = NULL; // Uninitialized
     }
 
     // Dynamic trace
-    dyntrace = fopen("accept_dyntrace.txt", "w");
-    // dyntrace = gzopen("dynamic_trace.gz", "w");
-    if (!dyntrace) {
-        printf("Failed to open accept_dyntrace.txt\n");
+    brtrace = fopen("accept_brtrace.txt", "w");
+    ldtrace = fopen("accept_ldtrace.txt", "w");
+    // brtrace = gzopen("dynamic_trace.gz", "w");
+    if (!brtrace) {
+        printf("Failed to open accept_brtrace.txt\n");
+        exit(-1);
+    }
+    if (!ldtrace) {
+        printf("Failed to open accept_brtrace.txt\n");
         exit(-1);
     }
 

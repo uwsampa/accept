@@ -583,68 +583,64 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           Instruction *inst = bi;
           Instruction *nextInst = next(bi, 1);
 
-          // // Load instruction
-          // if (isa<LoadInst>(inst) && isApprox(inst)) {
-          //   // assert(nextInst && "next inst is NULL");
+          // Load instruction
+          if (isa<LoadInst>(inst) && isApprox(inst)) {
+            // assert(nextInst && "next inst is NULL");
 
-          //   // Builder
-          //   IRBuilder<> builder(module->getContext());
-          //   builder.SetInsertPoint(nextInst);
+            // Builder
+            IRBuilder<> builder(module->getContext());
+            builder.SetInsertPoint(nextInst);
 
-          //   // Cast to load instruction
-          //   LoadInst* load_inst = dyn_cast<LoadInst>(inst);
+            // Cast to load instruction
+            LoadInst* load_inst = dyn_cast<LoadInst>(inst);
 
-          //   inst->print(errs());
-          //   errs() << "\n";
+            // Obtain the instruction id
+            Value* param_instid = getIID(inst, 0, module);
 
-          //   // Obtain the instruction id
-          //   Value* param_instid = getIID(inst, 0, module);
+            // Obtain the type string
+            Type* insnType = inst->getType();
+            std::string type_str = getTypeStr(insnType, module);
 
-          //   // Obtain the type string
-          //   Type* insnType = inst->getType();
-          //   std::string type_str = getTypeStr(insnType, module);
+            if (type_str!="") {
 
-          //   if (type_str!="") {
+              // Obtain the type string value
+              Value* type_str_val = builder.CreateGlobalString(type_str.c_str());
+              // Cast to a char array
+              Value* param_type = builder.CreateBitCast(type_str_val,
+                  Type::getInt8PtrTy(module->getContext()));
 
-          //     // Obtain the type string value
-          //     Value* type_str_val = builder.CreateGlobalString(type_str.c_str());
-          //     // Cast to a char array
-          //     Value* param_type = builder.CreateBitCast(type_str_val,
-          //         Type::getInt8PtrTy(module->getContext()));
+              // Obtain the load address
+              Value* param_addr = builder.CreatePtrToInt(load_inst->getPointerOperand(),
+                  int64ty);
 
-          //     // Obtain the load address
-          //     Value* param_addr = builder.CreatePtrToInt(load_inst->getPointerOperand(),
-          //         int64ty);
+              // Obtain the load alignment
+              Value* param_align = builder.CreateZExtOrBitCast(
+                  ConstantInt::get(int64ty, load_inst->getAlignment(), false), int64ty);
 
-          //     // Obtain the load alignment
-          //     Value* param_align = builder.CreateZExtOrBitCast(
-          //         ConstantInt::get(int64ty, load_inst->getAlignment(), false), int64ty);
+              // Obtain the load value
+              // Cast the value to a 64-bit integer
+              Value* int_value = inst;
+              // If the value is a float, cast to integer
+              Type* dst_type = getIntType(insnType, module);
+              if (dst_type) int_value = builder.CreateBitCast(inst, dst_type);
+              // Now zeroextend to 64-bits
+              Value* param_value = builder.CreateZExtOrBitCast(int_value, int64ty);
 
-          //     // Obtain the load value
-          //     // Cast the value to a 64-bit integer
-          //     Value* int_value = inst;
-          //     // If the value is a float, cast to integer
-          //     Type* dst_type = getIntType(insnType, module);
-          //     if (dst_type) int_value = builder.CreateBitCast(inst, dst_type);
-          //     // Now zeroextend to 64-bits
-          //     Value* param_value = builder.CreateZExtOrBitCast(int_value, int64ty);
+              // Initialize the argument vector
+              Value* args[] = {
+                  param_instid,
+                  param_type,
+                  param_addr,
+                  param_align,
+                  param_value
+                };
+              // Inject function
+              builder.CreateCall(ldLogFunc, args);
+              modified = true;
 
-          //     // Initialize the argument vector
-          //     Value* args[] = {
-          //         param_instid,
-          //         param_type,
-          //         param_addr,
-          //         param_align,
-          //         param_value
-          //       };
-          //     // Inject function
-          //     builder.CreateCall(ldLogFunc, args);
-          //     modified = true;
+            }
 
-          //   }
-
-          // } else 
-          if (isa<BranchInst>(inst)) {
+          } else if (isa<BranchInst>(inst)) {
 
             // Cast to branch instruction
             BranchInst* br_inst = dyn_cast<BranchInst>(inst);
