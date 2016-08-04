@@ -129,6 +129,7 @@ namespace {
       if (dyn_cast<Constant>(reg)->isNullValue()) {
         return "null";
       }
+
       // Dumpt the constant value to a string
       std::string cstVal;
       llvm::raw_string_ostream rso(cstVal);
@@ -324,6 +325,9 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
       for (BasicBlock::iterator bi = bb->begin(); bi != bb->end(); ++bi) {
         Instruction *inst = bi;
 
+        // Get function name
+        std::string fn_name = inst->getParent()->getParent()->getName().str();
+
         // Get the op string
         std::string op_str = inst->getOpcodeName();
 
@@ -332,6 +336,10 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
         if (inst->getMetadata("iid")) {
           iid = cast<MDString>(inst->getMetadata("iid")->getOperand(0))->getString().str();
         }
+
+        // Uncomment for debugging purposes
+        // inst->print(errs());
+        // errs() << "\n";
 
         // Get the qualifier
         std::string qual = (isApprox(inst)) ? "approx" : "precise";
@@ -350,6 +358,7 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           std::string src0_str = getRegName(src0, Ctx);
           std::string src1_str = getRegName(src1, Ctx);
 
+          staticdump << fn_name << ", ";
           staticdump << op_str << ", ";
           staticdump << iid << ", ";
           staticdump << qual << ", ";
@@ -369,6 +378,7 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           std::string src0_str = getRegName(src0, Ctx);
           std::string src1_str = getRegName(src1, Ctx);
 
+          staticdump << fn_name << ", ";
           staticdump << op_str << ", ";
           staticdump << iid << ", ";
           staticdump << qual << ", ";
@@ -387,6 +397,7 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           std::string dst_str = getRegName(dst, Ctx);
           std::string adr_str = getRegName(adr, Ctx);
 
+          staticdump << fn_name << ", ";
           staticdump << op_str << ", ";
           staticdump << iid << ", ";
           staticdump << qual << ", ";
@@ -404,6 +415,7 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           std::string src_str = getRegName(src, Ctx);
           std::string adr_str = getRegName(adr, Ctx);
 
+          staticdump << fn_name << ", ";
           staticdump << op_str << ", ";
           staticdump << iid << ", ";
           staticdump << qual << ", ";
@@ -422,6 +434,7 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           std::string src_str = getRegName(src, Ctx);
           std::string dst_str = getRegName(dst, Ctx);
 
+          staticdump << fn_name << ", ";
           staticdump << op_str << ", ";
           staticdump << iid << ", ";
           staticdump << qual << ", ";
@@ -439,6 +452,7 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           std::string dst_str = getRegName(dst, Ctx);
           unsigned num_vals = phy_node->getNumIncomingValues();
 
+          staticdump << fn_name << ", ";
           staticdump << op_str << ", ";
           staticdump << iid << ", ";
           staticdump << qual << ", ";
@@ -462,14 +476,19 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
           ReturnInst* ret_inst = dyn_cast<ReturnInst>(inst);
           Value *src = ret_inst->getReturnValue();
 
-          std::string ty_str = getTypeStr(ret_inst->getType(), module);
-          std::string src_str = getRegName(src, Ctx);
+          if (!ret_inst->getType()->isVoidTy()) {
 
-          staticdump << op_str << ", ";
-          staticdump << iid << ", ";
-          staticdump << qual << ", ";
-          staticdump << ty_str << ", ";
-          staticdump << src_str << "\n";
+            std::string ty_str = getTypeStr(ret_inst->getType(), module);
+            std::string src_str = getRegName(src, Ctx);
+
+            staticdump << fn_name << ", ";
+            staticdump << op_str << ", ";
+            staticdump << iid << ", ";
+            staticdump << qual << ", ";
+            staticdump << ty_str << ", ";
+            staticdump << src_str << "\n";
+
+          }
 
         } else if (isa<CallInst>(inst)) {
           CallInst* call_inst = dyn_cast<CallInst>(inst);
@@ -481,6 +500,7 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
 
           if (transformPass->AI->isWhitelistedPure(fn_str)) {
 
+            staticdump << fn_name << ", ";
             staticdump << op_str << ", ";
             staticdump << iid << ", ";
             staticdump << qual << ", ";
@@ -528,8 +548,8 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
             StringRef dst_0 = cast<MDString>(first_0->getMetadata("iid")->getOperand(1))->getString();
             StringRef dst_1 = cast<MDString>(first_1->getMetadata("iid")->getOperand(1))->getString();
 
-            staticdump << op_str << ", " << iid << ", " << src.str() << "->" << dst_1.str() << "\n";
-            staticdump << op_str << ", " << iid << ", " << src.str() << "->" << dst_0.str() << "\n";
+            staticdump << fn_name << ", " << op_str << ", " << iid << ", " << src.str() << "->" << dst_1.str() << "\n";
+            staticdump << fn_name << ", " << op_str << ", " << iid << ", " << src.str() << "->" << dst_0.str() << "\n";
 
           } else if (br_inst->isUnconditional()) {
 
@@ -538,7 +558,7 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
             Instruction* first_0 = succ_0->getFirstNonPHI();
             StringRef dst_0 = cast<MDString>(first_0->getMetadata("iid")->getOperand(1))->getString();
 
-            staticdump << op_str << ", " << iid << ", " << src.str() << "->" << dst_0.str() << "\n";
+            staticdump << fn_name << ", " << op_str << ", " << iid << ", " << src.str() << "->" << dst_0.str() << "\n";
 
           }
         }
