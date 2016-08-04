@@ -128,6 +128,8 @@ namespace {
     if (isa<Constant>(reg)) {
       if (dyn_cast<Constant>(reg)->isNullValue()) {
         return "null";
+      } else if (isa<UndefValue>(reg)) {
+        return "undef";
       }
 
       // Dumpt the constant value to a string
