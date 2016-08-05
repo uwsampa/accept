@@ -187,7 +187,8 @@ clean:
 	$(RM) $(TARGET) $(TARGET).s $(BCFILES) $(LLFILES) $(LINKEDBC) \
 	accept-globals-info.txt accept_config.txt accept_config_desc.txt \
 	accept_log.txt accept_time.txt accept_bbstats.txt cdf_stats.txt \
-	accept_fpstats.txt accept_npulog.txt tmp_*.txt \
+	accept_brtrace.txt accept_ldtrace.txt \
+	accept_fpstats.txt accept_npulog.txt tmp_* \
 	accept_static.txt accept_dyntrace.txt \
 	cfg.dot cfg.png dfg.dot dfg.png dddg.dot dddg.png \
 	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
