@@ -300,7 +300,7 @@ def processBranchOutcomes(fn, insn, branches):
     return branchOutcomes
 
 
-def processBranches(fn):
+def processBranches(fn, filter="conv2d"):
     branches = {}
     # Process static dump line by line
     if (os.path.isfile(fn)):
@@ -308,16 +308,18 @@ def processBranches(fn):
             for line in fp:
                 # Tokenize
                 tokens = line.strip().split(", ")
-                op = tokens[0]
+                fn = tokens[0]
+                op = tokens[1]
                 # Check for op type
-                if op == "br":
-                    iid = tokens[1]
-                    src = tokens[2].split("->")[0]
-                    dst = tokens[2].split("->")[1]
+                if op == "br" and fn=="conv2d":
+                    iid = tokens[2]
+                    src = tokens[3].split("->")[0]
+                    dst = tokens[3].split("->")[1]
                     if src in branches:
                         branches[src]["tgt"].append(dst)
                     else:
                         params = {}
+                        params["fn"] = fn
                         params["op"] = op
                         params["id"] = iid
                         params["src"] = src
@@ -326,7 +328,7 @@ def processBranches(fn):
 
     return branches
 
-def processInsn(fn):
+def processInsn(fn, filter="conv2d"):
     # List of unknown opcodes
     unknown = []
     # List of instructions
@@ -339,27 +341,30 @@ def processInsn(fn):
                 skip = False
                 # Tokenize
                 tokens = line.strip().split(", ")
-                # Check for op type
-                opcode = tokens[0]
+                # Get the function name
+                fn_name = tokens[0]
+                # Get the op type
+                opcode = tokens[1]
                 # Process token
                 params = {}
+                params["fn"] = fn_name
                 params["op"] = opcode
-                params["id"] = tokens[1]
+                params["id"] = tokens[2]
                 params["bbid"] = params["id"].split("i")[0]
-                params["qual"] = tokens[2]
+                params["qual"] = tokens[3]
                 # If return instruction
                 if opcode == "ret":
-                    params["ty"] = tokens[3]
+                    params["ty"] = tokens[4]
                     params["dst"] = None
-                    params["src"] = [tokens[4]]
+                    params["src"] = [tokens[5]]
                 # If call instruction
                 elif opcode in callInsn:
-                    params["fn"] = tokens[3]
-                    params["dstty"] = tokens[4]
+                    params["fn"] = tokens[4]
+                    params["dstty"] = tokens[5]
                     params["dst"] = None
                     params["srcty"] = []
                     params["src"] = []
-                    idx = 5
+                    idx = 6
                     if params["dstty"]!="void":
                         params["dst"] = tokens[idx]
                         idx+=1
@@ -369,42 +374,45 @@ def processInsn(fn):
                         params["src"].append(tokens[token_idx+1])
                 # If phi node
                 elif opcode in phiInsn:
-                    params["ty"] = tokens[3]
-                    params["dst"] = tokens[4]
+                    params["ty"] = tokens[4]
+                    params["dst"] = tokens[5]
                     params["src"] = []
                     params["srcBB"] = []
-                    for i in range(int(tokens[5])):
-                        params["src"].append(tokens[6+2*i+0])
-                        params["srcBB"].append(tokens[6+2*i+1])
+                    for i in range(int(tokens[6])):
+                        params["src"].append(tokens[7+2*i+0])
+                        params["srcBB"].append(tokens[7+2*i+1])
                 # If load instruction
                 elif opcode == "load":
-                    params["ty"] = tokens[3]
-                    params["dst"] = tokens[4]
+                    params["ty"] = tokens[4]
+                    params["dst"] = tokens[5]
                     params["src"] = []
-                    params["addr"] = tokens[5]
+                    params["addr"] = tokens[6]
+                    params["addrIdx"] = 0
                 # If store instruction
                 elif opcode == "store":
-                    params["ty"] = tokens[3]
-                    params["src"] = [tokens[4]]
-                    params["dst"] = tokens[5] # HACK
-                    params["addr"] = tokens[5]
+                    params["ty"] = tokens[4]
+                    params["src"] = [tokens[5]]
+                    params["dst"] = tokens[6] # HACK
+                    params["addr"] = tokens[6]
                 # If cast instruction
                 elif opcode in conversionInsn:
-                    params["dstty"] = tokens[3]
-                    params["srcty"] = tokens[4]
-                    params["dst"] = tokens[5]
-                    params["src"] = [tokens[6]]
+                    params["dstty"] = tokens[4]
+                    params["srcty"] = tokens[5]
+                    params["dst"] = tokens[6]
+                    params["src"] = [tokens[7]]
                 # If binary or comparison instruction
                 elif opcode in binaryInsn or opcode in cmpInsn:
-                    params["ty"] = tokens[3]
-                    params["dst"] = tokens[4]
-                    params["src"] = [tokens[5], tokens[6]]
+                    params["ty"] = tokens[4]
+                    params["dst"] = tokens[5]
+                    params["src"] = [tokens[6], tokens[7]]
                 else:
                     if opcode not in unknown:
                         unknown.append(opcode)
                         print "Don't know how to handle {} opcode!".format(opcode)
                     skip = True
 
+                if filter!=fn_name:
+                    skip = True
 
                 if not skip and params["dst"]:
                     insns[params["dst"]] = params
@@ -512,6 +520,10 @@ def DDDG(insns, branchOutcomes, limit=10000):
             else:
                 for idx, srcReg in enumerate(insn["src"]):
                     insn["src"][idx]+="_"+str(bbIdx)
+            # Special case: if the op is a load, index the access
+            if insn["op"]=="load":
+                insns[i_key]["addrIdx"] += 1
+                insn["addrIdx"] = insns[i_key]["addrIdx"]
             print "\t {}".format(getLabel(insn))
             DDDG[insn["dst"]] = insn
             cntr += 1
@@ -530,7 +542,7 @@ def DDDG(insns, branchOutcomes, limit=10000):
             break
 
     # Eliminate phi nodes
-    cleanupPhiNodes(dddg)
+    cleanupPhiNodes(DDDG)
 
     return DDDG
 
@@ -545,11 +557,11 @@ if __name__ == '__main__':
     CFG(branches, "cfg.dot")
     subprocess.call(shlex.split('dot cfg.dot -Tpng -ocfg.png'))
 
-    # Produce DDDG
-    branchOutcomes = processBranchOutcomes('accept_dyntrace.txt', insns, branches)
-    dddg = DDDG(insns, branchOutcomes)
-    DFG(dddg, "dddg.dot")
-    subprocess.call(shlex.split('dot dddg.dot -Tpng -odddg.png'))
+    # # Produce DDDG
+    # branchOutcomes = processBranchOutcomes('accept_dyntrace.txt', insns, branches)
+    # dddg = DDDG(insns, branchOutcomes)
+    # DFG(dddg, "dddg.dot")
+    # subprocess.call(shlex.split('dot dddg.dot -Tpng -odddg.png'))
 
 
 
