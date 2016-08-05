@@ -27,8 +27,10 @@ LOG_FILE = 'tune_precision.log'
 ERROR_LOG_FILE = 'error.log'
 BB_DYNSTATS_FILE = 'accept_bbstats.txt'
 FP_DYNSTATS_FILE = 'accept_fpstats.txt'
+STATIC_INFO_FILE = 'accept_static.txt'
 CDF_FILE = 'cdf_stats'
 CSV_FILE = 'run.csv'
+EXPONENT_FILE = '../../../../exponentStats.txt'
 
 # DIR NAMES
 OUTPUT_DIR = 'outputs'
@@ -402,13 +404,19 @@ def determineIRCat(l, dictionary, strict=True):
     if (sum(matchVector)==0 and strict):
         print "Error - no match!"
         print l
-        print matchVector
         exit()
     if (sum(matchVector)>1):
         print "Error - multiple matches!"
         print l
-        print matchVector
         exit()
+    return matchVector
+
+def determineIRCat2(op, dictionary):
+    matchVector = [0]*len(dictionary)
+    for idx, cat in enumerate(dictionary):
+        if op in cat["iList"]:
+            matchVector[idx] += 1
+            return matchVector
     return matchVector
 
 def read_static_stats(llFile):
@@ -416,8 +424,8 @@ def read_static_stats(llFile):
     a static profile of the instructions
     """
 
-    bbInfo = {}
-    locMap = {}
+    bbInfo = {} # bbInfo[bbId][insnCat] = count
+    locMap = {} # locMap[bbId] = location
 
     with open(llFile) as f:
         content = f.readlines()
@@ -481,6 +489,51 @@ def read_static_stats(llFile):
 
     return bbInfo, locMap
 
+def read_static_stats_2(staticFile, target_func=None):
+
+    bbInfo = {} # bbInfo[bbId][insnCat] = count
+
+    # Process static dump line by line
+    if (os.path.isfile(staticFile)):
+        with open(staticFile) as fp:
+            for line in fp:
+                # Tokenize
+                tokens = line.strip().split(", ")
+                # Get the function name
+                fn_name = tokens[0]
+                # Get the op type
+                opcode = tokens[1]
+                # Get the iid
+                iid = tokens[2]
+                bbid = int(iid.split("i")[0][2:])
+
+                # Restrict to instrution in the target function
+                # If specified
+                if target_func and fn_name==target_func or not target_func:
+
+                    # Add the instruction dictionary for BB
+                    if bbid not in bbInfo:
+                        bbInfo[bbid] = dict(bbIrCatDict)
+
+                    insnCatVector = determineIRCat2(opcode, llvmInsnList)
+                    insnCat = llvmInsnList[insnCatVector.index(1)]["cat"]
+                    if insnCat in bbInfo[bbid]:
+                        if insnCat=="call":
+                            # Special case, check for cMath functions we care about
+                            callee = tokens[4]
+                            stdcCatVector = determineIRCat2(callee, stdCList)
+                            if 1 not in stdcCatVector:
+                                bbInfo[bbid][insnCat] += 1
+                            else:
+                                stdcCat = stdCList[stdcCatVector.index(1)]["cat"]
+                                bbInfo[bbid][stdcCat] += 1
+                        else:
+                            bbInfo[bbid][insnCat] += 1
+
+                    bbInfo[bbid]["total"] += 1
+
+    return bbInfo
+
 
 #################################################
 # Bit mask setting to conf file param conversion
@@ -507,7 +560,7 @@ def get_masks_from_param(param):
 # Configuration file reading/processing
 #################################################
 
-def analyzeConfigStats(config_fn, fixed, extraChecks=True, plotFPScatterplot=False, aluWidthMin=8, aluWidthMax=64):
+def analyzeConfigStats(config_fn, target_func, fixed, extraChecks=True, reportEnergy = False, plotFPScatterplot=False, aluWidthMin=8, aluWidthMax=64):
     """ Analyzes the instruction mix of an approximate program
     """
 
@@ -516,16 +569,7 @@ def analyzeConfigStats(config_fn, fixed, extraChecks=True, plotFPScatterplot=Fal
 
     # Generate the LLVM IR file of the orig program
     curdir = os.getcwd()
-    llFn = curdir.split('/')[-1] + ".orig.ll"
-    logging.info('Generating IR file (.ll): {}'.format(llFn))
-    try:
-        shell(shlex.split('make '+llFn), cwd=curdir)
-    except:
-        logging.error('Something went wrong generating the orig ll.')
-        exit()
-
-    # Obtain static instruction mix from LLVM IR
-    staticStats, locMap = read_static_stats(llFn)
+    bench = curdir.split('/')[-1]
 
     # Generate config file if necessary, produce output
     try:
@@ -535,14 +579,22 @@ def analyzeConfigStats(config_fn, fixed, extraChecks=True, plotFPScatterplot=Fal
         else:
             config_fn = ACCEPT_CONFIG
             shell(shlex.split('make run_orig'), cwd=curdir)
-        shell(shlex.split('make run_opt'), cwd=curdir)
     except:
         logging.error('Something went wrong generating default config.')
         exit()
+    shell(shlex.split('make run_opt'), cwd=curdir)
+
     assert (os.path.isfile(config_fn)),"config file not found!"
     assert (os.path.isfile(BB_DYNSTATS_FILE)),"dynamic bb stats file not found!"
-    config = read_config(config_fn, fixed)
+    assert (os.path.isfile(STATIC_INFO_FILE)),"static dump file file not found!"
+
+    # Retrieve Configuration
+    config = read_config(config_fn, fixed, target_func)
+    # Retrieve Synamic Stats
     dynamicBbStats = read_dyn_bb_stats(BB_DYNSTATS_FILE)
+    # Obtain static instruction mix from static dump
+    staticStats = read_static_stats_2(STATIC_INFO_FILE, target_func)
+    locMap = {}
 
     # Measure error
     if os.path.isfile(APPROX_OUTPUT):
@@ -560,7 +612,8 @@ def analyzeConfigStats(config_fn, fixed, extraChecks=True, plotFPScatterplot=Fal
     for bbIdx in dynamicBbStats:
         execCount = dynamicBbStats[bbIdx]
         execCountMax = execCount if execCount > execCountMax else execCountMax
-        if execCount>1: # Only account for non-main BBs
+        # if execCount>1: # Only account for non-main BBs
+        if bbIdx in staticStats:
             for cat in staticStats[bbIdx]:
                 totalStats[cat] += staticStats[bbIdx][cat]*execCount
 
@@ -571,34 +624,22 @@ def analyzeConfigStats(config_fn, fixed, extraChecks=True, plotFPScatterplot=Fal
             if approxInsn['opcode'] in l['iList']:
                 approxStats[l['cat']] += dynamicBbStats[approxInsn['bb']]
 
-    # Print out dynamic instruction mix statistics
+    # Print out instruction mix stats
+    categories = ["control", "bit_arith", "int_arith", "fp_arith", "loadstore", "call", "cmath"]
     csvHeader = []
     csvRow = []
-    for cat in sorted(totalStats):
-        if cat!="total" and cat not in ignoreList:
-            ignorePerc = sum([totalStats[i] for i in ignoreList])
-            perc = totalStats[cat]/(totalStats["total"]-ignorePerc)
-            csvHeader.append(cat)
-            csvRow.append(str(perc))
-            # stats.append(["dynMix_"+cat, perc])
-            # Set the threshold at 0.1%
-            if perc > 0.001:
-                logging.info('Dynamic instruction mix breakdown: {} = {:.1%}'.format(cat, perc))
-    logging.debug('CSV Header: {}'.format(('\t').join(csvHeader)))
-    logging.debug('CSV Row: {}'.format(('\t').join(csvRow)))
-
-    # Print out the percentage of approximate instructions per category
-    csvHeader = []
-    csvRow = []
-    for cat in sorted(approxStats):
-        perc = 0.0
-        if approxStats[cat] > 0:
-            perc = approxStats[cat]/totalStats[cat]
-            # stats.append(["axMix_"+cat, perc])
-            logging.info('Approx to precise instruction percentage: {} = {:.1%}'.format(cat, perc))
-        if cat!="total" and cat not in ignoreList:
-            csvHeader.append(cat)
-            csvRow.append(str(perc))
+    total = 0
+    for cat in categories:
+        total += totalStats[cat]
+    for cat in categories:
+        approxCount = approxStats[cat]
+        preciseCount = totalStats[cat]-approxStats[cat]
+        approxPerc = approxCount/total
+        precisePerc = preciseCount/total
+        csvHeader.append(cat+"_a")
+        csvRow.append(str(approxPerc))
+        csvHeader.append(cat+"_p")
+        csvRow.append(str(precisePerc))
     logging.debug('CSV Header: {}'.format(('\t').join(csvHeader)))
     logging.debug('CSV Row: {}'.format(('\t').join(csvRow)))
 
@@ -683,6 +724,7 @@ def analyzeConfigStats(config_fn, fixed, extraChecks=True, plotFPScatterplot=Fal
     expMax = -1000
     expMin = 1000
     expRangeMax = 0
+    expStats = []
     # Print the approximation setting
     logging.info("Approximate instruction statistics:")
     for approxInsn in config:
@@ -698,6 +740,7 @@ def analyzeConfigStats(config_fn, fixed, extraChecks=True, plotFPScatterplot=Fal
                 expMax = maxExp if maxExp>expMax else expMax
                 expRangeMax = rangeExp if rangeExp>expRangeMax else expRangeMax
                 width = get_precision_from_type(approxInsn["type"])-approxInsn["lomask"]
+                expStats.append([bench, iid, approxInsn["opcode"], approxInsn["type"], str(minExp), str(maxExp), str(rangeExp)])
                 if fixed:
                     width += 1 #implicit mantissa bit
                 logging.info("\t{}:{}:{}:{}:wi={}:lo={}:exp=[{},{}]:expRange:{}:execs={}".format(
@@ -713,110 +756,115 @@ def analyzeConfigStats(config_fn, fixed, extraChecks=True, plotFPScatterplot=Fal
                     approxInsn["himask"], approxInsn["lomask"], execs
                 ))
     logging.info('Exponent min and max and range max: [{}, {}, {}]'.format(expMin, expMax, expRangeMax))
+    # Dump the exponent range stats
+    with open(EXPONENT_FILE, 'a') as fp:
+        for insn in expStats:
+            fp.write(", ".join(insn)+"\n")
 
 
-    # Compute bit savings and energy costs and memory bandwidth savings!
-    energy_ref = {}
-    energy_apr = {}
-    energy_ideal = 0
-    memory_ref = 0
-    memory_apr = {}
-    # Iterate through different ALU reference widths
-    alu_range = [int(math.pow(2, x)) for x in range(int(math.log(aluWidthMin, 2)), int(math.log(aluWidthMax, 2)+1))]
-    for aluWidth in alu_range:
-        slice_range = [int(math.pow(2, x)) for x in range(0, int(math.log(aluWidth, 2)+1))]
-        energy_ref[aluWidth] = 0
-        energy_apr[aluWidth] = {}
-        # Iterate through different slice widths
-        for sliceWidth in slice_range:
-            energy_apr[aluWidth][sliceWidth] = 0
-    # Iterate through different word granularities
-    word_range = [int(math.pow(2, x)) for x in range(0, int(math.log(aluWidthMax, 2)+1))]
-    for wordWidth in word_range:
-        memory_apr[wordWidth] = 0
+    if reportEnergy:
+        # Compute bit savings and energy costs and memory bandwidth savings!
+        energy_ref = {}
+        energy_apr = {}
+        energy_ideal = 0
+        memory_ref = 0
+        memory_apr = {}
+        # Iterate through different ALU reference widths
+        alu_range = [int(math.pow(2, x)) for x in range(int(math.log(aluWidthMin, 2)), int(math.log(aluWidthMax, 2)+1))]
+        for aluWidth in alu_range:
+            slice_range = [int(math.pow(2, x)) for x in range(0, int(math.log(aluWidth, 2)+1))]
+            energy_ref[aluWidth] = 0
+            energy_apr[aluWidth] = {}
+            # Iterate through different slice widths
+            for sliceWidth in slice_range:
+                energy_apr[aluWidth][sliceWidth] = 0
+        # Iterate through different word granularities
+        word_range = [int(math.pow(2, x)) for x in range(0, int(math.log(aluWidthMax, 2)+1))]
+        for wordWidth in word_range:
+            memory_apr[wordWidth] = 0
 
-    # memory_ref = 0 # Float
-    # memory_apx_0 = 0 # Float with lo offset (log)
-    # memory_apx_1 = 0 # Float with no offset
-    # memory_apx_2 = 0 # Fixed with lo offset (log)
-    # memory_apx_3 = 0 # Fixed with no offset (stored in instruction stream)
-    bit_savings = 0
-    total_execs = 0
-    for approxInsn in config:
+        # memory_ref = 0 # Float
+        # memory_apx_0 = 0 # Float with lo offset (log)
+        # memory_apx_1 = 0 # Float with no offset
+        # memory_apx_2 = 0 # Fixed with lo offset (log)
+        # memory_apx_3 = 0 # Fixed with no offset (stored in instruction stream)
+        bit_savings = 0
+        total_execs = 0
+        for approxInsn in config:
 
-        # Derive instruction id for referencing
-        iid = "bb" + str(approxInsn["bb"]) + "i" + str(approxInsn["line"])
+            # Derive instruction id for referencing
+            iid = "bb" + str(approxInsn["bb"]) + "i" + str(approxInsn["line"])
 
-        # Obtain the number of executions
-        execs = dynamicBbStats[approxInsn["bb"]]
+            # Obtain the number of executions
+            execs = dynamicBbStats[approxInsn["bb"]]
 
-        # Derive reference and approximate bit-precisions
-        ref_precision = get_precision_from_type(approxInsn["type"])
-        apr_precision = get_precision_from_type(approxInsn["type"])-approxInsn["lomask"]-approxInsn["himask"]
-        # Adjust if fixed to float conversion for the mantissa bit and sign bit
-        if fixed and is_float_type(approxInsn['type']):
-            ref_precision += 1
-            apr_precision += 1
-        # Set cost to 1 if 0
-        apr_precision = apr_precision if apr_precision else 1
+            # Derive reference and approximate bit-precisions
+            ref_precision = get_precision_from_type(approxInsn["type"])
+            apr_precision = get_precision_from_type(approxInsn["type"])-approxInsn["lomask"]-approxInsn["himask"]
+            # Adjust if fixed to float conversion for the mantissa bit and sign bit
+            if fixed and is_float_type(approxInsn['type']):
+                ref_precision += 1
+                apr_precision += 1
+            # Set cost to 1 if 0
+            apr_precision = apr_precision if apr_precision else 1
 
-        # Derive Bit Savings
-        bit_savings += (ref_precision-apr_precision)/ref_precision*execs
-        total_execs += execs
+            # Derive Bit Savings
+            bit_savings += (ref_precision-apr_precision)/ref_precision*execs
+            total_execs += execs
 
-        # Derive Energy Cost
-        if (approxInsn["opcode"] in energyMap):
-            # Derive reference and approximate energy costs
-            for aluWidth in energy_ref:
-                # HACK: append the ALU width to mul
-                op_cat = energyMap[approxInsn["opcode"]]
-                if op_cat=="mul":
-                    op_cat = "mul_"+str(aluWidth)
-                # Reference energy cost
-                energy_ref[aluWidth] += ALUEnergy[op_cat][aluWidth][ref_precision]*execs
-                # Approximate energy cost
-                for sliceWidth in energy_apr[aluWidth]:
-                    energy_apr[aluWidth][sliceWidth] += ALUEnergy[op_cat][sliceWidth][apr_precision]*execs
-            # Derive ideal energy costs
-            if op_cat=="add":
-                adder_width = int(math.pow(2, math.ceil(math.log(apr_precision, 2))))
-                energy_ideal += ALUEnergy["add"][adder_width][apr_precision]*execs
-            elif op_cat=="mul":
-                energy_ideal += ALUEnergy["mul_pg"]["par"][apr_precision]*execs
+            # Derive Energy Cost
+            if (approxInsn["opcode"] in energyMap):
+                # Derive reference and approximate energy costs
+                for aluWidth in energy_ref:
+                    # HACK: append the ALU width to mul
+                    op_cat = energyMap[approxInsn["opcode"]]
+                    if op_cat=="mul":
+                        op_cat = "mul_"+str(aluWidth)
+                    # Reference energy cost
+                    energy_ref[aluWidth] += ALUEnergy[op_cat][aluWidth][ref_precision]*execs
+                    # Approximate energy cost
+                    for sliceWidth in energy_apr[aluWidth]:
+                        energy_apr[aluWidth][sliceWidth] += ALUEnergy[op_cat][sliceWidth][apr_precision]*execs
+                # Derive ideal energy costs
+                if op_cat=="add":
+                    adder_width = int(math.pow(2, math.ceil(math.log(apr_precision, 2))))
+                    energy_ideal += ALUEnergy["add"][adder_width][apr_precision]*execs
+                elif op_cat=="mul":
+                    energy_ideal += ALUEnergy["mul_pg"]["par"][apr_precision]*execs
 
-        # Derive bandwidth utilization
-        if (approxInsn["opcode"] in loadstoreInsn):
-            memory_ref += get_bitwidth_from_type(approxInsn["type"])*execs
-            for wordWidth in memory_apr:
-                reduced_bitwidth = get_precision_from_type(approxInsn["type"])-approxInsn["lomask"]-approxInsn["himask"]
-                if is_float_type(approxInsn['type']) and fixed: # Compensate for Mantissa
-                    reduced_bitwidth += 1
-                memory_apr[wordWidth] += int(math.ceil(reduced_bitwidth/wordWidth)*wordWidth)*execs
+            # Derive bandwidth utilization
+            if (approxInsn["opcode"] in loadstoreInsn):
+                memory_ref += get_bitwidth_from_type(approxInsn["type"])*execs
+                for wordWidth in memory_apr:
+                    reduced_bitwidth = get_precision_from_type(approxInsn["type"])-approxInsn["lomask"]-approxInsn["himask"]
+                    if is_float_type(approxInsn['type']) and fixed: # Compensate for Mantissa
+                        reduced_bitwidth += 1
+                    memory_apr[wordWidth] += int(math.ceil(reduced_bitwidth/wordWidth)*wordWidth)*execs
 
-    # Report on bit savings
-    stats.append(["bit_savings", 100.0*bit_savings/total_execs])
-    logging.info('Aggregate bit-savings: {0:.2f}%'.format(100.0*bit_savings/total_execs))
+            # Report on bit savings
+            stats.append(["bit_savings", 100.0*bit_savings/total_execs])
+            logging.info('Aggregate bit-savings: {0:.2f}%'.format(100.0*bit_savings/total_execs))
 
-    # Report on energy savings
-    # For all reference ALU widths
-    for aluWidth in sorted(energy_ref):
-        # Derive reference energy cost
-        ref_cost = energy_ref[aluWidth]
-        stats.append(["ref_"+str(aluWidth), ref_cost])
-        # For all slice widths
-        for sliceWidth in sorted(energy_apr[aluWidth]):
-            # Derive approximate energy cost
-            apr_cost = energy_apr[aluWidth][sliceWidth]
-            stats.append(["energy_"+str(aluWidth)+"_"+str(sliceWidth), apr_cost])
-            logging.info('Energy for [ALU, slice] = [{}, {}] is [precise, approx, savings] = [{}J, {}J, {}x]'.format(aluWidth, sliceWidth, ref_cost, apr_cost, ref_cost/apr_cost))
-        stats.append(["energy_ideal", energy_ideal])
-        logging.info('Energy for ideal ALU vs. AUL_{} is [precise, approx, savings] = [{}J, {}J, {}x]'.format(aluWidth, ref_cost, energy_ideal, ref_cost/energy_ideal))
+            # Report on energy savings
+            # For all reference ALU widths
+            for aluWidth in sorted(energy_ref):
+                # Derive reference energy cost
+                ref_cost = energy_ref[aluWidth]
+                stats.append(["ref_"+str(aluWidth), ref_cost])
+                # For all slice widths
+                for sliceWidth in sorted(energy_apr[aluWidth]):
+                    # Derive approximate energy cost
+                    apr_cost = energy_apr[aluWidth][sliceWidth]
+                    stats.append(["energy_"+str(aluWidth)+"_"+str(sliceWidth), apr_cost])
+                    logging.info('Energy for [ALU, slice] = [{}, {}] is [precise, approx, savings] = [{}J, {}J, {}x]'.format(aluWidth, sliceWidth, ref_cost, apr_cost, ref_cost/apr_cost))
+                stats.append(["energy_ideal", energy_ideal])
+                logging.info('Energy for ideal ALU vs. ALU_{} is [precise, approx, savings] = [{}J, {}J, {}x]'.format(aluWidth, ref_cost, energy_ideal, ref_cost/energy_ideal))
 
-    # Report on bandwidth savings
-    stats.append(["memory_ref", memory_ref])
-    for wordWidth in sorted(memory_apr):
-        stats.append(["memory_"+str(wordWidth), memory_apr[wordWidth]])
-        logging.info('Memory (fixed) at slice {} is [precise, approx, savings] = [{}b, {}b, {}x]'.format(wordWidth, memory_ref, memory_apr[wordWidth], memory_ref/memory_apr[wordWidth]))
+        # Report on bandwidth savings
+        stats.append(["memory_ref", memory_ref])
+        for wordWidth in sorted(memory_apr):
+            stats.append(["memory_"+str(wordWidth), memory_apr[wordWidth]])
+            logging.info('Memory (fixed) at slice {} is [precise, approx, savings] = [{}b, {}b, {}x]'.format(wordWidth, memory_ref, memory_apr[wordWidth], memory_ref/memory_apr[wordWidth]))
 
     # Finally report the number of knobs
     logging.info('There are {} static safe to approximate instructions'.format(len(config)))
@@ -839,7 +887,7 @@ def parse_relax_config(f):
             param, ident = line.split(None, 1)
             yield ident, int(param)
 
-def read_config(fname, fixed, bb_stats_fn=None, fp_stats_fn=None):
+def read_config(fname, fixed, target_func=None, bb_stats_fn=None, fp_stats_fn=None):
     """Reads in a fine error injection descriptor.
     Returns a config object.
     """
@@ -863,31 +911,33 @@ def read_config(fname, fixed, bb_stats_fn=None, fp_stats_fn=None):
                 func, bb, line, opcode, typ = i_ident.split(':')
                 himask, lomask, maxexp = get_masks_from_param(param)
 
-                # Derive the min exponent
-                maxexp = 0
-                iid = "bb" + bb + "i" + line
-                if fixed and fp_stats_fn and iid in fp_info:
-                    maxexp = fp_info[iid][1]
+                if (target_func and target_func==func) or not target_func:
 
-                # Filter the instruction if it doesn't execute more than once
-                # (This excludes code that is in the main file)
-                if not bb_stats_fn or bb_info[int(bb)]>1:
-                    # Add the config entry for the instruction
-                    config.append({
-                        'insn': ident,
-                        'relax': param,
-                        'himask': himask,
-                        'lomask': lomask,
-                        'bb': int(bb),
-                        'line': int(line),
-                        'opcode': opcode,
-                        'type': typ,
-                        'maxexp': maxexp
-                        })
+                    # Derive the min exponent
+                    maxexp = 0
+                    iid = "bb" + bb + "i" + line
+                    if fixed and fp_stats_fn and iid in fp_info:
+                        maxexp = fp_info[iid][1]
+
+                    # Filter the instruction if it doesn't execute more than once
+                    # (This excludes code that is in the main file)
+                    if not bb_stats_fn or bb_info[int(bb)]>1:
+                        # Add the config entry for the instruction
+                        config.append({
+                            'insn': ident,
+                            'relax': param,
+                            'himask': himask,
+                            'lomask': lomask,
+                            'bb': int(bb),
+                            'line': int(line),
+                            'opcode': opcode,
+                            'type': typ,
+                            'maxexp': maxexp
+                            })
 
     return config
 
-def gen_default_config(instlimit, fixed, timeout):
+def gen_default_config(instlimit, fixed, target_func, timeout):
     """Reads in the coarse error injection descriptor,
     generates the default config by running make run_orig.
     Returns a config object.
@@ -904,7 +954,7 @@ def gen_default_config(instlimit, fixed, timeout):
         exit()
 
     # Load ACCEPT config file
-    config = read_config(ACCEPT_CONFIG, fixed, BB_DYNSTATS_FILE, FP_DYNSTATS_FILE)
+    config = read_config(ACCEPT_CONFIG, fixed, target_func, BB_DYNSTATS_FILE, FP_DYNSTATS_FILE)
 
     # Notify the user that the instruction limit is lower than the configuration length
     if len(config) > instlimit:
@@ -955,7 +1005,7 @@ def test_config(config, timeout, bbpath=None, fppath=None, dstpath=None):
     # Get the last level directory name (the one we're in)
     dirname = os.path.basename(os.path.normpath(curdir))
     # Create a temporary directory
-    tmpdir = tempfile.mkdtemp()+'/'+dirname
+    tmpdir = tempfile.mkdtemp(dir='/scratch')+'/'+dirname
     logging.debug('New directory created: {}'.format(tmpdir))
     # Transfer files over
     copy_directory(curdir, tmpdir)
@@ -973,10 +1023,12 @@ def test_config(config, timeout, bbpath=None, fppath=None, dstpath=None):
     except subprocess.TimeoutExpired:
         logging.warning('Timed out!')
         print_config(config)
+        shutil.rmtree(tmpdir)
         return float(TIMEOUT)
     except:
         logging.warning('Make error!')
         print_config(config)
+        shutil.rmtree(tmpdir)
         return float(CRASH)
 
     # Now that we're done with the compilation, evaluate results
@@ -996,6 +1048,7 @@ def test_config(config, timeout, bbpath=None, fppath=None, dstpath=None):
         # Something went wrong - no output!
         logging.warning('Missing output!')
         print_config(config)
+        shutil.rmtree(tmpdir)
         return float(NOOUTPUT)
 
     # Remove the temporary directory
@@ -1215,7 +1268,7 @@ def report_error_and_savings(base_config, timeout, error=0, bb_stats_fn=None, er
 # Parameterisation testing
 #################################################
 
-def tune_himask_insn(base_config, idx, init_snr, timeout, double_to_single=False, snr_diff_threshold=1.0):
+def tune_himask_insn(base_config, idx, init_snr, timeout, double_to_single=True, snr_diff_threshold=1.0):
     """Tunes the most significant bit masking of
     an instruction given its index without affecting
     application error.
@@ -1524,7 +1577,7 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, fixed, passlimi
 # Post Processing
 #################################################
 
-def postProcess(fn, dn, snr, fixed):
+def postProcess(fn, dn, snr, target_func, fixed):
 
     # Results
     results = []
@@ -1541,7 +1594,7 @@ def postProcess(fn, dn, snr, fixed):
     for c in configList:
         conf_snr = c[0]
         conf_fn = c[1]
-        res = analyzeConfigStats(conf_fn, fixed)
+        res = analyzeConfigStats(conf_fn, target_func, fixed)
         results.append([["target", conf_snr]] + res)
 
     # Dump CSV data
@@ -1549,8 +1602,8 @@ def postProcess(fn, dn, snr, fixed):
     for r in results:
         csvData.append([x[1] for x in r])
 
-    with open(CSV_FILE, 'w') as fp:
-       csv.writer(fp, delimiter='\t').writerows(csvData)
+    # with open(CSV_FILE, 'w') as fp:
+    #    csv.writer(fp, delimiter='\t').writerows(csvData)
 
 
 def getConfFile(path, snr):
@@ -1601,16 +1654,18 @@ def getConfFile(path, snr):
 # Main Function
 #################################################
 
-def tune_width(accept_config_fn, target_error, target_snr, fixed, passlimit, instlimit, skip, timeout, clusterworkers, run_on_grappa):
+def tune_width(accept_config_fn, target_error, target_snr, target_func, fixed, passlimit, instlimit, skip, timeout, clusterworkers, run_on_grappa):
     """Performs instruction masking tuning
     """
     # Generate default configuration
     if (accept_config_fn):
-        config = read_config(accept_config_fn, fixed)
+        config = read_config(accept_config_fn, fixed, target_func)
         print_config(config)
     else:
-        config = gen_default_config(instlimit, fixed, timeout)
+        config = gen_default_config(instlimit, fixed, target_func, timeout)
         print_config(config)
+
+    exit()
 
     # If in SNR mode, measure initial SNR
     if (target_snr>0):
@@ -1660,6 +1715,10 @@ def cli():
     parser.add_argument(
         '-t', dest='target_error', action='store', type=float, required=False,
         default=0.1, help='target relative application error'
+    )
+    parser.add_argument(
+        '-target', dest='target_func', action='store', type=str, required=False,
+        default=None, help='target function to approximate'
     )
     parser.add_argument(
         '-snr', dest='target_snr', action='store', type=float, required=False,
@@ -1727,6 +1786,7 @@ def cli():
             args.accept_config_fn,
             args.accept_config_dir,
             args.target_snr,
+            args.target_func,
             args.fixed
         )
 
@@ -1753,6 +1813,7 @@ def cli():
             args.accept_config_fn,
             args.target_error,
             args.target_snr,
+            args.target_func,
             args.fixed,
             args.passlimit,
             args.instlimit,
