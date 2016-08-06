@@ -1719,6 +1719,7 @@ def runExperiments(runs, instlimit, target_func, timeout, clusterworkers, run_on
         logging.info('All jobs submitted')
         client.wait()
         logging.info('All jobs finished')
+        cw.slurm.stop()
 
     # Process errors
     errors = error_runs.values()
