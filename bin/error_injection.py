@@ -19,6 +19,7 @@ from eval import EXT
 # FILE NAMES
 ACCEPT_CONFIG = 'accept_config.txt'
 LOG_FILE = 'tune_precision.log'
+ERROR_FILE = 'error_stats.txt'
 
 # OUTPUT FILES
 PRECISE_OUTPUT = 'orig'+EXT
@@ -199,12 +200,18 @@ def run_experiment(runs, clusterworkers, timeout=600, confFn=ACCEPT_CONFIG):
         cw.slurm.stop()
 
     # Process result
-    experiments = np.array([snr[key] for key in snr])
-    logging.debug("Raw experimental results {}".format(experiments))
-    logging.info("Mean:    {}".format(np.mean(experiments)))
-    logging.info("Std Dev: {}".format(np.std(experiments)))
-    logging.info("Min:     {}".format(np.min(experiments)))
-    logging.info("Max:     {}".format(np.max(experiments)))
+    errors = np.array([snr[key] for key in snr])
+    logging.debug("Raw experimental results {}".format(errors))
+    logging.info("Median:  {}".format(np.median(errors)))
+    logging.info("Std Dev: {}".format(np.std(errors)))
+    logging.info("Min:     {}".format(np.min(errors)))
+    logging.info("Max:     {}".format(np.max(errors)))
+
+    # Process errors
+    with open(ERROR_FILE, 'w') as fp:
+        fp.write('mean, stddev, min, max\n')
+        fp.write('{}, {}, {}, {}\n'.format(np.median(np.array(errors)), np.std(errors), min(errors), max(errors)))
+        fp.write('{}\n'.format(', '.join([str(x) for x in errors])))
 
 #################################################
 # Argument validation
