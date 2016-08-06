@@ -4,6 +4,12 @@
 #include <stdint.h>
 #include <sys/time.h>
 
+// include approximation models
+#include "liberrorutil.h"
+
+// Overscaled ALU model
+#include "overscaledalu.hpp"
+
 // Rounding mode
 // 0: No rounding
 // 1: Stochastic
@@ -17,14 +23,10 @@
 // 2: Voltage scaling - single random bit-flip
 // 3: Voltage scaling - MSB bit-flip
 // 4: Voltage scaling - previous value
-// 5: Voltage scaling - previous MSB
+// 5: Voltage scaling - statistical model
 #define VOLTAGE_SCALING 0
-
-// Error probability
+#define VOF = VOF_084;
 #define ERRROR_PROB 0.01
-
-// include approximation models
-#include "liberrorutil.h"
 
 #define rdtscll(val) do { \
     unsigned int __a,__d; \
@@ -276,55 +278,97 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
       return_value = ret & (~mask);
     }
   }
+
+#elif VOLTAGE_SCALING==5 // Voltage scaling - SPICE Model
+  double draw, prob;
+  uint64_t mask;
+  uint32_t bit_idx;
+  return_value = ret;
+
+  int bit_max;
+  if (!strcmp(type, "Int64") | !strcmp(type, "Double")) {
+    bit_max = 64;
+  } else if (!strcmp(type, "Int32") | !strcmp(type, "Float")) {
+    bit_max = 32;
+  } else if (!strcmp(type, "Int16") | !strcmp(type, "Half") {
+    bit_max = 16;
+  }Felse {
+    bit_max = 0;
+  }
+
+  // For each bit
+  for (bit_idx=0; bit_idx<bit_max; bit_idx++) {
+    // Floating point ops
+    if (!strcmp(type, "Double") | !strcmp(type, "Float") | !strcmp(type, "Half")) {
+      // Add/subtract
+      if (!strcmp(opcode, "fadd") | !strcmp(opcode, "fsub")) {
+        if (!strcmp(type, "Double")) {
+          prob = prob_fp_adder[VOF][bit_idx/2];
+        } else if (!strcmp(type, "Float")) {
+          prob = prob_fp_adder[VOF][bit_idx];
+        } else if (!strcmp(type, "Half")) {
+          prob = prob_fp_adder[VOF][bit_idx];
+        } else {
+          prob = 0;
+        }
+      }
+      // Mult/Divide
+      else if (!strcmp(opcode, "fmul") | !strcmp(opcode, "fdiv") | !strcmp(opcode, "frem")) {
+        if (!strcmp(type, "Double")) {
+          prob = prob_fp_mult[VOF][bit_idx/2];
+        } else if (!strcmp(type, "Float")) {
+          prob = prob_fp_mult[VOF][bit_idx];
+        } else if (!strcmp(type, "Half")) {
+          prob = prob_fp_mult[VOF][bit_idx];
+        } else {
+          prob = 0;
+        }
+      } else {
+        prob = 0;
+      }
+    }
+    // Integer ops
+    else {
+      // Add/subtract
+      if (!strcmp(opcode, "add") | !strcmp(opcode, "sub")) {
+        if (!strcmp(type, "Int64")) {
+          prob = prob_fixed_adder[VOF][bit_idx/2];
+        } else if (!strcmp(type, "Int32")) {
+          prob = prob_fixed_adder[VOF][bit_idx];
+        } else if (!strcmp(type, "Int16")) {
+          prob = prob_fixed_adder[VOF][bit_idx];
+        } else {
+          prob = 0;
+        }
+      }
+      else if (!strcmp(opcode, "mul") | !strcmp(opcode, "udiv") | !strcmp(opcode, "sdiv") | !strcmp(opcode, "urem") | !strcmp(opcode, "srem")) {
+        if (!strcmp(type, "Int64")) {
+          prob = prob_fixed_mult[VOF][bit_idx/2];
+        } else if (!strcmp(type, "Int32")) {
+          prob = prob_fixed_mult[VOF][bit_idx];
+        } else if (!strcmp(type, "Int16")) {
+          prob = prob_fixed_mult[VOF][bit_idx];
+        } else {
+          prob = 0;
+        }
+      } else {
+        prob = 0;
+      }
+    } // Other types - don't mess with that
+    else {
+      prob = 0;
+    }
+
+    // Do the coin toss
+    draw = static_cast<double>(rand())/static_cast<double>(RAND_MAX);
+    if (draw<prob) {
+      // Flip bit
+      mask = 1ULL << bit_idx;
+      return_value ^= mask;
+    }
+  }
 #endif //VOLTAGE_SCALING
 
   prev_val = return_value;
   return return_value;
 }
-
-/*
- * injectRegion drives all of the coarse error injection routines
- * the injection routine(s) called depend on the param input
- *
- *
- *
- *
- */
-// void injectRegion(int64_t param, int64_t nargs, unsigned char* image, int im_size) {
-
-//   static uint64_t instrumentation_time = 0U;
-//   uint64_t before_time;
-//   rdtscll(before_time);
-//   static uint64_t initial_time = before_time;
-//   int64_t elapsed_time = before_time - initial_time - instrumentation_time;
-//   if (elapsed_time < 0) {
-//     std::cerr << "\nNegative elapsed time\n" << std::endl;
-//     exit(0);
-//   }
-
-//   // decode parameter bits so we can pick model and pass model parameter
-//   int64_t model = ((param & MODEL_MASK) >> 16) & PARAM_MASK; // to be safe, re-mask the low 16-bits after shifting
-//   int64_t model_param = (param & PARAM_MASK);
-
-//   switch(model) {
-
-//     case 0: // 0 = do nothing, otherwise known as precise execution
-//       break;
-
-//     case 1: // Digital NPU (ISCA2014)
-//       invokeDigitalNPU(model_param, image, im_size);
-//       break;
-
-//     case 2: // Analog NPU (ISCA2014)
-//       invokeAnalogNPU(model_param, image, im_size);
-//       break;
-
-//     default: // default is precise, do nothing
-//       break;
-//   }
-
-//   uint64_t after_time;
-//   rdtscll(after_time);
-//   instrumentation_time += after_time - before_time;
-
-// }

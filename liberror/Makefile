@@ -2,7 +2,7 @@ BUILTDIR := $(ACCEPT_DIR)/build/built
 CXX := $(BUILTDIR)/bin/clang++
 LLVMLINK := $(BUILTDIR)/bin/llvm-link
 
-LIBERROR_BCS = dram.bc flikker.bc liberror.bc lva.bc npu.bc overscaledalu.bc reducedprecfp.bc sram.bc
+LIBERROR_BCS = liberror.bc
 
 # By default, build for the host platform.
 .PHONY: all clean
