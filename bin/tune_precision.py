@@ -1826,7 +1826,7 @@ def cli():
         default=False, help='produce instruction breakdown'
     )
     parser.add_argument(
-        '-run', dest='runs', action='store', type=int, required=False,
+        '-runs', dest='runs', action='store', type=int, required=False,
         default=0, help='run n times'
     )
     parser.add_argument(
