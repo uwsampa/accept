@@ -25,6 +25,7 @@ ACCEPT_CONFIG = 'accept_config.txt'
 ACCEPT_CONFIG_ROOT = 'accept_conf_'
 LOG_FILE = 'tune_precision.log'
 ERROR_LOG_FILE = 'error.log'
+ERROR_FILE = 'error_stats.txt'
 BB_DYNSTATS_FILE = 'accept_bbstats.txt'
 FP_DYNSTATS_FILE = 'accept_fpstats.txt'
 STATIC_INFO_FILE = 'accept_static.txt'
@@ -1005,7 +1006,9 @@ def test_config(config, timeout, bbpath=None, fppath=None, dstpath=None):
     # Get the last level directory name (the one we're in)
     dirname = os.path.basename(os.path.normpath(curdir))
     # Create a temporary directory
+    # FIXME: only works on cluster (avoids full /tmp issue)
     tmpdir = tempfile.mkdtemp(dir='/scratch')+'/'+dirname
+    # tmpdir = tempfile.mkdtemp()+'/'+dirname
     logging.debug('New directory created: {}'.format(tmpdir))
     # Transfer files over
     copy_directory(curdir, tmpdir)
@@ -1651,8 +1654,80 @@ def getConfFile(path, snr):
 
 
 #################################################
-# Main Function
+# Main Function(s)
 #################################################
+
+def runExperiments(runs, instlimit, target_func, timeout, clusterworkers, run_on_grappa):
+
+    logging.info ("###################################")
+    logging.info ("Running error injection experiments")
+    logging.info ("###################################")
+
+    # Extract the configuration file
+    config = gen_default_config(instlimit, False, target_func, timeout)
+    print_config(config)
+
+    # Map job IDs to instruction index
+    jobs = {}
+    jobs_lock = threading.Lock()
+
+    # Map instructions to errors
+    error_runs = collections.defaultdict(list)
+
+    # Modify the configuration file to enable approximations
+    for c in config:
+        c["lomask"] = 1
+    print_config(config)
+
+    def completion(jobid, output):
+        with jobs_lock:
+            run = jobs.pop(jobid)
+        logging.info ("Experiment {} done!".format(run))
+        error_runs[run] = output
+
+    # Launch clusterworkers if needed
+    if (clusterworkers):
+        # Select partition
+        partition = "grappa" if run_on_grappa else "sampa"
+        # Kill the master/workers in case previous run failed
+        logging.info ("Stopping master/workers that are still running")
+        cw.slurm.stop()
+        # Start the workers & master
+        logging.info ("Starting {} worker(s)".format(clusterworkers))
+        cw.slurm.start(
+            nworkers=clusterworkers,
+            master_options=['--partition='+partition, '-s'],
+            worker_options=['--partition='+partition, '-s']
+        )
+        client = cw.client.ClientThread(completion, cw.slurm.master_host())
+        client.start()
+
+    # Now run the benchmark!
+    logging.info('Running {} error injection experiments'.format(runs))
+    for run in range(runs):
+        if (clusterworkers):
+            jobid = cw.randid()
+            with jobs_lock:
+                jobs[jobid] = run
+            client.submit(jobid, test_config, config, timeout)
+        else:
+            error = test_config(config, timeout)
+            error_runs[run] = error
+
+    # Wait for workers to be done
+    if (clusterworkers):
+        logging.info('All jobs submitted for pass #{}'.format(tuning_pass))
+        client.wait()
+        logging.info('All jobs finished for pass #{}'.format(tuning_pass))
+
+    # Process errors
+    errors = error_runs.values()
+    logging.info('min: {}, mean: {}, max: {}'.format(min(errors), np.median(np.array(errors)), max(errors)))
+    with open(ERROR_FILE, 'w') as fp:
+        fp.write('min, mean, max\n')
+        fp.write('{}, {}, {}\n'.format(min(errors), np.median(np.array(errors)), max(errors)))
+        fp.write('{}\n'.format(', '.join([str(x) for x in errors])))
+
 
 def tune_width(accept_config_fn, target_error, target_snr, target_func, fixed, passlimit, instlimit, skip, timeout, clusterworkers, run_on_grappa):
     """Performs instruction masking tuning
@@ -1664,8 +1739,6 @@ def tune_width(accept_config_fn, target_error, target_snr, target_func, fixed, p
     else:
         config = gen_default_config(instlimit, fixed, target_func, timeout)
         print_config(config)
-
-    exit()
 
     # If in SNR mode, measure initial SNR
     if (target_snr>0):
@@ -1749,6 +1822,10 @@ def cli():
         default=False, help='produce instruction breakdown'
     )
     parser.add_argument(
+        '-run', dest='runs', action='store', type=int, required=False,
+        default=0, help='run n times'
+    )
+    parser.add_argument(
         '-c', dest='clusterworkers', action='store', type=int, required=False,
         default=0, help='max number of machines to allocate on the cluster'
     )
@@ -1795,6 +1872,17 @@ def cli():
         for handler in rootLogger.handlers[:]:
             handler.close()
             rootLogger.removeHandler(handler)
+
+    # Run n times (for voltage overscaling experiments for instance):
+    elif args.runs>0:
+        runExperiments(
+            args.runs,
+            args.instlimit,
+            args.target_func,
+            args.timeout,
+            args.clusterworkers,
+            args.grappa
+        )
 
     # Precision autotuning
     else:
