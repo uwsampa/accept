@@ -1716,9 +1716,9 @@ def runExperiments(runs, instlimit, target_func, timeout, clusterworkers, run_on
 
     # Wait for workers to be done
     if (clusterworkers):
-        logging.info('All jobs submitted for pass #{}'.format(tuning_pass))
+        logging.info('All jobs submitted')
         client.wait()
-        logging.info('All jobs finished for pass #{}'.format(tuning_pass))
+        logging.info('All jobs finished')
 
     # Process errors
     errors = error_runs.values()
