@@ -1722,6 +1722,10 @@ def runExperiments(runs, instlimit, target_func, timeout, clusterworkers, run_on
 
     # Process errors
     errors = error_runs.values()
+    # If we get a negative SNR or nan, set to 0
+    errors = [ 0 if math.isnan(snr) else snr for snr in errors]
+    errors = [ 0 if snr<0 else snr for snr in errors]
+
     logging.info('min: {}, mean: {}, max: {}'.format(min(errors), np.median(np.array(errors)), max(errors)))
     with open(ERROR_FILE, 'w') as fp:
         fp.write('min, mean, max\n')
