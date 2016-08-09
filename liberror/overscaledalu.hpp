@@ -3,31 +3,27 @@
 
 #include <stdint.h>
 
-#define NUM_VOF 21
-
-typedef enum {
-   VOF_100 = 0,
-   VOF_099 = 1,
-   VOF_098 = 2,
-   VOF_097 = 3,
-   VOF_096 = 4,
-   VOF_095 = 5,
-   VOF_094 = 6,
-   VOF_093 = 7,
-   VOF_092 = 8,
-   VOF_091 = 9,
-   VOF_090 = 10,
-   VOF_089 = 11,
-   VOF_088 = 12,
-   VOF_087 = 13,
-   VOF_086 = 14,
-   VOF_085 = 15,
-   VOF_084 = 16,
-   VOF_083 = 17,
-   VOF_082 = 18,
-   VOF_081 = 19,
-   VOF_080 = 20
-} VOF;
+#define VOF_100 0
+#define VOF_099 1
+#define VOF_098 2
+#define VOF_097 3
+#define VOF_096 4
+#define VOF_095 5
+#define VOF_094 6
+#define VOF_093 7
+#define VOF_092 8
+#define VOF_091 9
+#define VOF_090 10
+#define VOF_089 11
+#define VOF_088 12
+#define VOF_087 13
+#define VOF_086 14
+#define VOF_085 15
+#define VOF_084 16
+#define VOF_083 17
+#define VOF_082 18
+#define VOF_081 19
+#define VOF_080 20
 
 static double prob_fixed_adder[21][32] = {
     { 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000, 0.00000 },

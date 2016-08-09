@@ -23,9 +23,10 @@
 // 2: Voltage scaling - single random bit-flip
 // 3: Voltage scaling - MSB bit-flip
 // 4: Voltage scaling - previous value
-// 5: Voltage scaling - statistical model
+// 5: Voltage scaling - previous MSB
+// 6: Voltage scaling - statistical model
 #define VOLTAGE_SCALING 0
-#define VOF = VOF_084;
+#define VOF VOF_094
 #define ERRROR_PROB 0.01
 
 #define rdtscll(val) do { \
@@ -279,21 +280,19 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
     }
   }
 
-#elif VOLTAGE_SCALING==5 // Voltage scaling - SPICE Model
+#elif VOLTAGE_SCALING==6 // Voltage scaling - SPICE Model
   double draw, prob;
   uint64_t mask;
   uint32_t bit_idx;
   return_value = ret;
 
-  int bit_max;
+  int bit_max = 0;
   if (!strcmp(type, "Int64") | !strcmp(type, "Double")) {
     bit_max = 64;
   } else if (!strcmp(type, "Int32") | !strcmp(type, "Float")) {
     bit_max = 32;
-  } else if (!strcmp(type, "Int16") | !strcmp(type, "Half") {
+  } else if (!strcmp(type, "Int16") | !strcmp(type, "Half")) {
     bit_max = 16;
-  }Felse {
-    bit_max = 0;
   }
 
   // For each bit
@@ -328,7 +327,7 @@ __attribute__((always_inline))uint64_t injectInst(char* opcode, int64_t param, u
       }
     }
     // Integer ops
-    else {
+    else if (!strcmp(type, "Int64") | !strcmp(type, "Int32") | !strcmp(type, "Int16")) {
       // Add/subtract
       if (!strcmp(opcode, "add") | !strcmp(opcode, "sub")) {
         if (!strcmp(type, "Int64")) {
