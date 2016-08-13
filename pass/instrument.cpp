@@ -9,7 +9,7 @@
 
 #include "accept.h"
 
-#define INSTRUMENT_FP true
+#define INSTRUMENT_FP false
 // #define STATICANALYSIS
 // #define DYNTRACE
 
