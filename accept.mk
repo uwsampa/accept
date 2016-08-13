@@ -25,6 +25,7 @@ VEDIR := $(ACCEPTDIR)/venv
 RTDIR := $(ACCEPTDIR)/rt
 LEDIR := $(ACCEPTDIR)/liberror
 TUNER := tune_precision.py
+STAT_TEST := statistical_test.py
 INJECT := error_injection.py
 
 ERRLIBSOURCES := $(LEDIR)/dram.bc $(LEDIR)/flikker.bc $(LEDIR)/liberror.bc $(LEDIR)/lva.bc $(LEDIR)/npu.bc $(LEDIR)/overscaledalu.bc $(LEDIR)/reducedprecfp.bc $(LEDIR)/sram.bc
@@ -175,6 +176,13 @@ derive_stats:
 	$(VEPYTHON) $(TUNER) -stats $(TUNER_ARGS)
 	rm -rf $(TUNER)
 
+stat_test: clopper_pearson_test clean
+
+clopper_pearson_test:
+	cp $(BINDIR)/$(STAT_TEST) .
+	$(VEPYTHON) $(STAT_TEST) $(STAT_ARGS)
+	rm -rf $(STAT_TEST)
+
 # Numerical Precision Autotuner
 tune: tune_precision clean
 
@@ -194,5 +202,6 @@ clean:
 	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
 	accept-approxRetValueFunctions-info.txt accept-npuArrayArgs-info.txt \
 	$(TUNER) \
+	$(STAT_TEST) \
 	$(CLEANMETOO)
 	for SUBDIR in $(SUBDIRS); do make -C "$$SUBDIR" clean; done
