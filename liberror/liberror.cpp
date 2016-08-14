@@ -26,7 +26,7 @@
 // 5: Voltage scaling - previous MSB
 // 6: Voltage scaling - statistical model
 #define VOLTAGE_SCALING 0
-#define VOF VOF_094
+#define VOF VOF_095
 #define ERRROR_PROB 0.01
 
 #define rdtscll(val) do { \
