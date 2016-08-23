@@ -25,7 +25,8 @@ VEDIR := $(ACCEPTDIR)/venv
 RTDIR := $(ACCEPTDIR)/rt
 LEDIR := $(ACCEPTDIR)/liberror
 TUNER := tune_precision.py
-STAT_TEST := statistical_test.py
+AXE := axe.py
+STAT_TEST := qor_test.py
 INJECT := error_injection.py
 
 ERRLIBSOURCES := $(LEDIR)/dram.bc $(LEDIR)/flikker.bc $(LEDIR)/liberror.bc $(LEDIR)/lva.bc $(LEDIR)/npu.bc $(LEDIR)/overscaledalu.bc $(LEDIR)/reducedprecfp.bc $(LEDIR)/sram.bc
@@ -160,14 +161,6 @@ $(TARGET).%: $(TARGET).%.s
 qual:
 	$(VEPYTHON) eval.py
 
-# Inject error and collect SNR
-inject: inject_error clean
-
-inject_error:
-	cp $(BINDIR)/$(INJECT) .
-	$(VEPYTHON) $(INJECT) $(INJECT_ARGS)
-	rm -rf $(INJECT)
-
 # Derive Statistics
 stats: derive_stats clean
 
@@ -176,12 +169,19 @@ derive_stats:
 	$(VEPYTHON) $(TUNER) -stats $(TUNER_ARGS)
 	rm -rf $(TUNER)
 
-stat_test: clopper_pearson_test clean
+# Run QoR Test
+qor: qor_test clean
 
-clopper_pearson_test:
+qor_test:
 	cp $(BINDIR)/$(STAT_TEST) .
+	cp $(BINDIR)/$(TUNER) .
 	$(VEPYTHON) $(STAT_TEST) $(STAT_ARGS)
-	rm -rf $(STAT_TEST)
+	rm -rf $(STAT_TEST) $(TUNER)
+
+# Axe precision derivation tool
+axe:
+	cp $(BINDIR)/$(AXE) .
+	$(VEPYTHON) $(AXE) $(AXE_ARGS)
 
 # Numerical Precision Autotuner
 tune: tune_precision clean
@@ -201,7 +201,7 @@ clean:
 	cfg.dot cfg.png dfg.dot dfg.png dddg.dot dddg.png \
 	$(CONFIGS:%=$(TARGET).%.bc) $(CONFIGS:%=$(TARGET).%) \
 	accept-approxRetValueFunctions-info.txt accept-npuArrayArgs-info.txt \
-	$(TUNER) \
+	$(TUNER) $(AXE) \
 	$(STAT_TEST) \
 	$(CLEANMETOO)
 	for SUBDIR in $(SUBDIRS); do make -C "$$SUBDIR" clean; done
