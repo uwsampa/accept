@@ -9,8 +9,8 @@
 
 #include "accept.h"
 
-#define INSTRUMENT_FP false
-// #define STATICANALYSIS
+#define INSTRUMENT_FP true
+#define STATICANALYSIS
 // #define DYNTRACE
 
 using namespace llvm;
@@ -321,7 +321,7 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
 
 #ifdef STATICANALYSIS
   // Let's print the instruction list to reconstruct a DDDG
-  if (transformPass->relax && transformPass->shouldInjectError(F) && !transformPass->shouldSkipFunc(F)) {
+  if (!transformPass->shouldSkipFunc(F)) {
     for (Function::iterator fi = F.begin(); fi != F.end(); ++fi) {
       BasicBlock *bb = fi;
       for (BasicBlock::iterator bi = bb->begin(); bi != bb->end(); ++bi) {
