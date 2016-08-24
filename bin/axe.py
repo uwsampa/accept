@@ -5,6 +5,7 @@ import logging
 import numpy as np
 import os
 import shlex
+import struct
 import subprocess32 as subprocess
 
 from functools import partial
@@ -84,7 +85,7 @@ def labelDotNode(fp, insn):
     fp.write('style=\"rounded\"]\n')
 
 #################################################
-# Helper for constant handling
+# Helpers
 #################################################
 
 def isFloat(reg):
@@ -102,34 +103,12 @@ def isConstant(reg):
     else:
         return False
 
-#################################################
-# File handling
-#################################################
-
-def getMemTrace(dddg, fp=ACCEPT_LD_FILE, lim=1):
-
-    # If the file does not exist, generate it
-    if not os.path.isfile(fn):
-        try:
-            shell(MAKE_ORIG, timeout=600, cwd=os.getcwd())
-        except:
-            logging.error('Something went wrong executing {}'.format(MAKE_ORIG))
-            exit()
-    assert(os.path.isfile(fn))
-
-    # Load and store structures
-    loads = [[0]*len(dddg.entries)]
-    stores = [[0]*len(dddg.exits)]
-    ld_idx = 0
-    st_idx = 0
-
-    # Process line by line
-    with open(fn) as fp:
-        for line in fp:
-            tokens = line.strip().split(',')
-            iid = tokens[0]
-            addr = tokens[1]
-            val = tokens[2]
+def getValFromBits(raw, ty):
+    if ty=="Float":
+        raw = raw[8:16]
+        return struct.unpack('!f', raw.decode('hex'))[0]
+    else:
+        assert False, "Unsupported type {}".format(ty)
 
 #################################################
 # Supported functions
@@ -175,7 +154,6 @@ class Insn:
     i_id = None
     bb_id = None
     qual = None
-    ty = None
     dst = None
     src = None
     dst_ty = None
@@ -309,6 +287,8 @@ class DDDG:
     # Entry/exit points of target instructions
     entries = []
     exits = []
+    # Load and store value stream
+    memTrace = {'load':[], 'store':[]}
 
     def __init__(self, target=None, fn=ACCEPT_STATIC_FILE):
 
@@ -383,6 +363,8 @@ class DDDG:
                     insn.successors.append(self.instructions[s])
 
     def getIidFromReg(self, reg):
+        """ Returns instruction ID based on register ID """
+
         for i_id, insn in self.instructions.iteritems():
             if insn.dst == reg:
                 return i_id
@@ -425,6 +407,73 @@ class DDDG:
 
         return y
 
+    def loadMemTrace(self, fn=ACCEPT_LD_FILE, lim=100):
+        """ Reads in memory trace file """
+
+        # If the file does not exist, generate it
+        if not os.path.isfile(fn):
+            try:
+                shell(MAKE_ORIG, timeout=600, cwd=os.getcwd())
+            except:
+                logging.error('Something went wrong executing {}'.format(MAKE_ORIG))
+                exit()
+        assert(os.path.isfile(fn))
+
+        # Load and store structures
+        numEntries = len(self.entries)
+        numExits = len(self.entries)
+
+        # Process line by line
+        with open(fn) as fp:
+            for idx, line in enumerate(fp):
+                # Determine the load/store pair index
+                pairIdx = idx / (numEntries + numExits)
+                # Break early if we reached the quota
+                if pairIdx >= lim:
+                    break
+                # Initialize new load/store value pairs
+                if len(self.memTrace['load'])==pairIdx:
+                    self.memTrace['load'].append([0]*numEntries)
+                if len(self.memTrace['store'])==pairIdx:
+                    self.memTrace['store'].append([0]*numExits)
+                # Parse the line
+                tokens = line.strip().split(',' )
+                iid = tokens[0]
+                addr = tokens[1]
+                val = tokens[2][3:] # Remove '0x'
+                # Get the memory instruction
+                memInsn = self.instructions[iid]
+                # Handle value according to load/store op
+                if memInsn.op=="load":
+                    # Get the data type
+                    ty = memInsn.dst_ty
+                    # Determine load index
+                    load_idx = memInsn.load_idx
+                    # Push load value in queue
+                    self.memTrace['load'][pairIdx][load_idx] = getValFromBits(val, ty)
+                    logging.debug("#{} ty={}, loadIdx={}, iid={}, addr={}, val={}".format(pairIdx, ty, load_idx, iid, addr, val))
+                else:
+                    # Get the data type
+                    ty = memInsn.src_ty[0]
+                    # Determine store index
+                    store_idx = memInsn.store_idx
+                    # Push store value in queue
+                    self.memTrace['store'][pairIdx][store_idx] = getValFromBits(val, ty)
+                    logging.debug("#{} ty={}, storeIdx={}, iid={}, addr={}, val={}".format(pairIdx, ty, store_idx, iid, addr, val))
+
+    def test(self):
+        """ Evaluates kernel error on memory trace """
+
+        # Kernel outputs
+        outputs = [self.evaluate(x) for x in self.memTrace['load']]
+
+        # Evaluate SNR
+        goldenData = np.array(self.memTrace['store'])
+        relaxedData = np.array(outputs)
+        num = ((goldenData) ** 2).sum(axis=None)
+        den = ((goldenData - relaxedData) ** 2).sum(axis=None)
+        snr = 10 * np.log10( num/den )
+        return snr
 
 #################################################
 # Argument validation
@@ -464,10 +513,17 @@ def cli():
     else:
         rootLogger.setLevel(logging.INFO)
 
-    # # Process DDDG
+    # Process DDDG
     dddg = DDDG(args.target)
     dddg.generateDfg()
-    print dddg.evaluate([0.422224, 0.133948])
+
+    # Load memory trace
+    dddg.loadMemTrace()
+
+    # Produce SNR
+    snr = dddg.test()
+    logging.info("SNR = {}".format(snr))
+
 
 if __name__ == '__main__':
     cli()
