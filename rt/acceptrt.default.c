@@ -27,7 +27,7 @@
 
 #define MAX_BRANCH_OUTCOMES 2
 
-#define LDTRACE_LIM 1000000
+#define LDTRACE_LIM 10000000
 #define BRTRACE_LIM 100000
 
 
@@ -71,10 +71,10 @@ void logbb(int i) {
     BBstat[i]++;
 }
 
-void logload(char* iid, char* ty, int64_t addr, int64_t align, int64_t val) {
+void logmem(char* iid, int64_t addr, int64_t align, int64_t val) {
     counterLim++;
     if (counterLim <= LDTRACE_LIM)
-        fprintf(ldtrace, "%s, 0x%016llx, 0x%016llx\n", iid, addr, val);
+        fprintf(ldtrace, "%s, 0x%08x, 0x%016llx\n", iid, addr, val);
 }
 
 void logcondbranch(int32_t brid, char* iid, int32_t val) {
@@ -98,13 +98,6 @@ void logcondbranch(int32_t brid, char* iid, int32_t val) {
     } else if (old_val==val) {
         BRstat[brid].curr_count++;
     } else {
-        // if (BRstat[brid].curr_count!=BRstat[brid].prev_count[old_val]) {
-        //     if (BRstat[brid].prev_count[old_val]!=-1) {
-        //         fprintf(brtrace, "%s: changing stide %d, %d, %d!\n",
-        //             BRstat[brid].iid, old_val, BRstat[brid].prev_count[old_val], BRstat[brid].curr_count);
-        //     }
-        //     BRstat[brid].prev_count[old_val] = BRstat[brid].curr_count;
-        // }
         if (BRstat[brid].counterLim <= BRTRACE_LIM)
             fprintf(brtrace, "%s, %d, %d\n", BRstat[brid].iid, old_val, BRstat[brid].curr_count);
         BRstat[brid].curr_count = 1;
@@ -232,7 +225,7 @@ void logbb_init(int bbCount, int fpCount, int brCount) {
 
     // Dynamic trace
     brtrace = fopen("accept_brtrace.txt", "w");
-    ldtrace = fopen("accept_ldtrace.txt", "w");
+    ldtrace = fopen("accept_memtrace.txt", "w");
     // brtrace = gzopen("dynamic_trace.gz", "w");
     if (!brtrace) {
         printf("Failed to open accept_brtrace.txt\n");

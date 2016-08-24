@@ -11,7 +11,7 @@
 
 #define INSTRUMENT_FP true
 #define STATICANALYSIS
-// #define DYNTRACE
+#define DYNTRACE
 
 using namespace llvm;
 
@@ -296,9 +296,9 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
     int32ty, int64ty, NULL
   );
   // Function used to log loads
-  const std::string ld_injectFn_name = "logload";
-  Constant *ldLogFunc = module->getOrInsertFunction(
-    ld_injectFn_name, voidty, stringty, stringty,
+  const std::string ld_injectFn_name = "logmem";
+  Constant *memLogFunc = module->getOrInsertFunction(
+    ld_injectFn_name, voidty, stringty,
     int64ty, int64ty, int64ty, NULL
   );
   // Function used to log conditional branches
@@ -321,7 +321,7 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
 
 #ifdef STATICANALYSIS
   // Let's print the instruction list to reconstruct a DDDG
-  if (!transformPass->shouldSkipFunc(F)) {
+  if (!transformPass->relax && !transformPass->shouldSkipFunc(F)) {
     for (Function::iterator fi = F.begin(); fi != F.end(); ++fi) {
       BasicBlock *bb = fi;
       for (BasicBlock::iterator bi = bb->begin(); bi != bb->end(); ++bi) {
@@ -570,152 +570,135 @@ bool InstrumentBB::instrumentBasicBlocks(Function & F){
 #endif
 
 #ifdef DYNTRACE
-  if (transformPass->relax && transformPass->shouldInjectError(F)) {
+  if (!transformPass->relax) {
     // Iterate through all functions
     for (Function::iterator fi = F.begin(); fi != F.end(); ++fi) {
 
       // Only instrument if the function is white-listed
-      if (transformPass->shouldInjectError(F)) {
+      BasicBlock *bb = fi;
 
-        BasicBlock *bb = fi;
+      for (BasicBlock::iterator bi = bb->begin(); bi != bb->end(); ++bi) {
+        Instruction *inst = bi;
+        Instruction *nextInst = next(bi, 1);
 
-        for (BasicBlock::iterator bi = bb->begin(); bi != bb->end(); ++bi) {
-          Instruction *inst = bi;
-          Instruction *nextInst = next(bi, 1);
+        // Load instruction
+        if (isa<LoadInst>(inst) && isApprox(inst)) {
 
-          // Load instruction
-          if (isa<LoadInst>(inst) && isApprox(inst)) {
-            // assert(nextInst && "next inst is NULL");
+          // Builder
+          assert(nextInst && "next inst is NULL");
+          IRBuilder<> builder(module->getContext());
+          builder.SetInsertPoint(nextInst);
 
-            // Builder
-            IRBuilder<> builder(module->getContext());
-            builder.SetInsertPoint(nextInst);
+          // Cast to load instruction
+          LoadInst* load_inst = dyn_cast<LoadInst>(inst);
 
-            // Cast to load instruction
-            LoadInst* load_inst = dyn_cast<LoadInst>(inst);
+          // Obtain the instruction id
+          Value* param_instid = getIID(inst, 0, module);
 
-            // Obtain the instruction id
-            Value* param_instid = getIID(inst, 0, module);
+          // Obtain the load address
+          Value* param_addr = builder.CreatePtrToInt(load_inst->getPointerOperand(),
+              int64ty);
 
-            // Obtain the type string
-            Type* insnType = inst->getType();
-            std::string type_str = getTypeStr(insnType, module);
+          // Obtain the load alignment
+          Value* param_align = builder.CreateZExtOrBitCast(
+              ConstantInt::get(int64ty, load_inst->getAlignment(), false), int64ty);
 
-            if (type_str!="") {
+          // Obtain the load value
+          // Cast the value to a 64-bit integer
+          Value* int_value = inst;
+          // If the value is a float, cast to integer
+          Type* dst_type = getIntType(inst->getType(), module);
+          if (dst_type) int_value = builder.CreateBitCast(int_value, dst_type);
+          // Now zeroextend to 64-bits
+          Value* param_value = builder.CreateZExtOrBitCast(int_value, int64ty);
 
-              // Obtain the type string value
-              Value* type_str_val = builder.CreateGlobalString(type_str.c_str());
-              // Cast to a char array
-              Value* param_type = builder.CreateBitCast(type_str_val,
-                  Type::getInt8PtrTy(module->getContext()));
+          // Initialize the argument vector
+          Value* args[] = {
+              param_instid,
+              param_addr,
+              param_align,
+              param_value
+            };
+          // Inject function
+          builder.CreateCall(memLogFunc, args);
+          modified = true;
 
-              // Obtain the load address
-              Value* param_addr = builder.CreatePtrToInt(load_inst->getPointerOperand(),
-                  int64ty);
+        } else if (isa<StoreInst>(inst) && isApprox(inst)) {
 
-              // Obtain the load alignment
-              Value* param_align = builder.CreateZExtOrBitCast(
-                  ConstantInt::get(int64ty, load_inst->getAlignment(), false), int64ty);
+          // Builder
+          assert(nextInst && "next inst is NULL");
+          IRBuilder<> builder(module->getContext());
+          builder.SetInsertPoint(nextInst);
 
-              // Obtain the load value
-              // Cast the value to a 64-bit integer
-              Value* int_value = inst;
-              // If the value is a float, cast to integer
-              Type* dst_type = getIntType(insnType, module);
-              if (dst_type) int_value = builder.CreateBitCast(inst, dst_type);
-              // Now zeroextend to 64-bits
-              Value* param_value = builder.CreateZExtOrBitCast(int_value, int64ty);
+          // Cast to store instruction
+          StoreInst* store_inst = dyn_cast<StoreInst>(inst);
 
-              // Initialize the argument vector
-              Value* args[] = {
-                  param_instid,
-                  param_type,
-                  param_addr,
-                  param_align,
-                  param_value
-                };
-              // Inject function
-              builder.CreateCall(ldLogFunc, args);
-              modified = true;
+          // Obtain the instruction id
+          Value* param_instid = getIID(inst, 0, module);
 
-            }
+          // Obtain the store address
+          Value* param_addr = builder.CreatePtrToInt(store_inst->getPointerOperand(),
+              int64ty);
 
-          } else if (isa<BranchInst>(inst)) {
+          // Obtain the store alignment
+          Value* param_align = builder.CreateZExtOrBitCast(
+              ConstantInt::get(int64ty, store_inst->getAlignment(), false), int64ty);
 
-            // Cast to branch instruction
-            BranchInst* br_inst = dyn_cast<BranchInst>(inst);
+          // Obtain the store value
+          // Cast the value to a 64-bit integer
+          Value* int_value = store_inst->getValueOperand();
+          // If the value is a float, cast to integer
+          Type* dst_type = getIntType(store_inst->getValueOperand()->getType(), module);
+          if (dst_type) int_value = builder.CreateBitCast(int_value, dst_type);
+          // Now zeroextend to 64-bits
+          Value* param_value = builder.CreateZExtOrBitCast(int_value, int64ty);
 
-            if (br_inst->isConditional()) {
-
-              // Builder
-              IRBuilder<> builder(module->getContext());
-              builder.SetInsertPoint(inst);
-
-               // Obtain the instruction id
-              Value* param_instid = getIID(inst, 1, module);
-
-              // Obtain the condition value
-              Value* cond = br_inst->getCondition();
-              Value* param_cond = builder.CreateZExtOrBitCast(cond, int32ty);
-
-              // Obtain the branch ID
-              Value* param_brIdx = builder.getInt32(brIndex);
-
-              // // Obtain the number of successors
-              // unsigned successors = br_inst->getNumSuccessors();
-              // Value* param_succ = ConstantInt::get(int32ty, successors, false);
-
-              // // Determine the successor based on the condition
-              // BasicBlock* succ_0 = br_inst->getSuccessor(0);
-              // BasicBlock* succ_1 = br_inst->getSuccessor(1);
-              // Instruction* first_0 = succ_0->getFirstNonPHI();
-              // Instruction* first_1 = succ_1->getFirstNonPHI();
-
-              // Value* param_succ_0 = getIID(first_0, 1, module);
-              // Value* param_succ_1 = getIID(first_1, 1, module);
-
-              // Initialize the argument vector
-              Value* args[] = {
-                param_brIdx,
-                param_instid,
-                param_cond
-                // param_succ_0,
-                // param_succ_1
-              };
-              // Inject function
-              builder.CreateCall(cbrLogFunc, args);
-              modified = true;
-
-              brIndex++;
-
-            }
-            // else if (br_inst->isUnconditional()) {
-
-            //   // Builder
-            //   IRBuilder<> builder(module->getContext());
-            //   builder.SetInsertPoint(inst);
-
-            //    // Obtain the instruction id
-            //   Value* param_instid = getIID(inst, 1, module);
-
-            //   // Determine the successor based on the condition
-            //   BasicBlock* succ_0 = br_inst->getSuccessor(0);
-            //   Instruction* first_0 = succ_0->getFirstNonPHI();
-
-            //   Value* param_succ_0 = getBBID(first_0, module);
-
-            //   // Initialize the argument vector
-            //   Value* args[] = {
-            //     param_instid,
-            //     param_succ_0
-            //   };
-            //   // Inject function
-            //   builder.CreateCall(ucbrLogFunc, args);
-            //   modified = true;
-
-            // }
-          }
+          // Initialize the argument vector
+          Value* args[] = {
+              param_instid,
+              param_addr,
+              param_align,
+              param_value
+            };
+          // Inject function
+          builder.CreateCall(memLogFunc, args);
+          modified = true;
         }
+        // else if (isa<BranchInst>(inst)) {
+
+        //   // Cast to branch instruction
+        //   BranchInst* br_inst = dyn_cast<BranchInst>(inst);
+
+        //   if (br_inst->isConditional()) {
+
+        //     // Builder
+        //     IRBuilder<> builder(module->getContext());
+        //     builder.SetInsertPoint(inst);
+
+        //      // Obtain the instruction id
+        //     Value* param_instid = getIID(inst, 1, module);
+
+        //     // Obtain the condition value
+        //     Value* cond = br_inst->getCondition();
+        //     Value* param_cond = builder.CreateZExtOrBitCast(cond, int32ty);
+
+        //     // Obtain the branch ID
+        //     Value* param_brIdx = builder.getInt32(brIndex);
+
+        //     // Initialize the argument vector
+        //     Value* args[] = {
+        //       param_brIdx,
+        //       param_instid,
+        //       param_cond
+        //     };
+        //     // Inject function
+        //     builder.CreateCall(cbrLogFunc, args);
+        //     modified = true;
+
+        //     brIndex++;
+
+        //   }
+        // }
       }
     }
   }

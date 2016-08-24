@@ -30,6 +30,7 @@ stdMathFunc = ["abs","labs","llabs","div","ldiv","lldiv","imaxabs","imaxdiv","fa
 # Destination files
 LOG_FILE = 'axe.log'
 ACCEPT_STATIC_FILE = 'accept_static.txt'
+ACCEPT_LD_FILE = 'accept_memtrace.txt'
 DFG_FILE_ROOT = 'dfg'
 
 # Commands
@@ -102,6 +103,35 @@ def isConstant(reg):
         return False
 
 #################################################
+# File handling
+#################################################
+
+def getMemTrace(dddg, fp=ACCEPT_LD_FILE, lim=1):
+
+    # If the file does not exist, generate it
+    if not os.path.isfile(fn):
+        try:
+            shell(MAKE_ORIG, timeout=600, cwd=os.getcwd())
+        except:
+            logging.error('Something went wrong executing {}'.format(MAKE_ORIG))
+            exit()
+    assert(os.path.isfile(fn))
+
+    # Load and store structures
+    loads = [[0]*len(dddg.entries)]
+    stores = [[0]*len(dddg.exits)]
+    ld_idx = 0
+    st_idx = 0
+
+    # Process line by line
+    with open(fn) as fp:
+        for line in fp:
+            tokens = line.strip().split(',')
+            iid = tokens[0]
+            addr = tokens[1]
+            val = tokens[2]
+
+#################################################
 # Supported functions
 #################################################
 
@@ -111,7 +141,14 @@ funcMap = {
     'fmul': lambda x, y: x*y,
     'fdiv': lambda x, y: x/y,
     'store': lambda x: x,
-    'sqrtf': lambda x: np.sqrt(x)
+    'fpext': lambda x: x,
+    'fptrunc': lambda x: x,
+    # Math functions
+    'acos': lambda x: np.arccos(x),
+    'asin': lambda x: np.arcsin(x),
+    'cos': lambda x: np.cos(x),
+    'sin': lambda x: np.sin(x),
+    'sqrtf': lambda x: np.sqrt(x),
 }
 
 #################################################
@@ -147,8 +184,9 @@ class Insn:
     callee = None
     addr = None
 
-    # Load Index - used for evaluation of load instructions
+    # Load/store Index
     load_idx = None
+    store_idx = None
 
     def __str__(self):
         label='('+self.bb_id+') '
@@ -215,7 +253,7 @@ class Insn:
         elif self.op == 'store':
             self.src_ty = [tokens[4]]
             self.src = [tokens[5]]
-            self.dst = tokens[6] # Hack
+            # self.dst = tokens[6] # Hack
             self.addr = tokens[6]
         # If coversion instruction
         elif self.op in conversionInsn:
@@ -252,7 +290,7 @@ class Insn:
 
     def evaluate(self, *x):
         # Determine op function
-        op = self.op
+        op = self.callee if self.op=='call' else self.op
         # Pre-process arguments
         arg = [ p.evaluate(*x) for p in self.predecessors]
         # Load - retrieve input i
@@ -265,7 +303,7 @@ class Insn:
 
 class DDDG:
     """ DDDG class """
-    # Instruction map
+    # Instruction map: insn = instructions[iid]
     instructions = {}
     constants = {}
     # Entry/exit points of target instructions
@@ -274,8 +312,9 @@ class DDDG:
 
     def __init__(self, target=None, fn=ACCEPT_STATIC_FILE):
 
-        # Initialization (load index)
+        # Initialization (load, store index)
         load_idx = 0
+        store_idx = 0
 
         # If the file does not exist, generate it
         if not os.path.isfile(fn):
@@ -293,32 +332,36 @@ class DDDG:
                 tokens = line.strip().split(', ')
                 # Parse instruction
                 instruction = Insn(tokens)
-                if instruction.dst:
-                    if target and instruction.fn==target or not target:
-                        # Add the instruction to the instruction map
-                        i_id = instruction.dst
-                        self.instructions[i_id] = instruction
-                        # Add load instructions to entry point
-                        if instruction.op == 'load':
-                            self.entries.append(i_id)
-                            instruction.load_idx = load_idx
-                            load_idx += 1
-                        elif instruction.op == 'store':
-                            self.exits.append(i_id)
+                # Select only instructions in target function
+                if target and instruction.fn==target or not target:
+                    # Add the instruction to the instruction map
+                    i_id = instruction.i_id
+                    self.instructions[i_id] = instruction
+                    # Add load instructions to entry point
+                    if instruction.op == 'load':
+                        self.entries.append(i_id)
+                        instruction.load_idx = load_idx
+                        load_idx += 1
+                    elif instruction.op == 'store':
+                        self.exits.append(i_id)
+                        instruction.store_idx = store_idx
+                        store_idx += 1
+
 
         # Constant initialization
-        for dst, insn in self.instructions.iteritems():
+        for i_id, insn in self.instructions.iteritems():
             if insn.src:
                 for s in insn.src:
                     if isConstant(s) and not s in self.constants:
                         self.constants[s] = Cst(s)
 
         # Predecessor initialization
-        for dst, insn in self.instructions.iteritems():
+        for i_id, insn in self.instructions.iteritems():
             if insn.src:
                 for p in insn.src:
-                    if p in self.instructions:
-                        insn.predecessors.append(self.instructions[p])
+                    p_id = self.getIidFromReg(p)
+                    if p_id in self.instructions:
+                        insn.predecessors.append(self.instructions[p_id])
                     elif p in self.constants:
                         insn.predecessors.append(self.constants[p])
                     else:
@@ -327,16 +370,22 @@ class DDDG:
 
         # Successor initialization
         successors = {}
-        for dst, insn in self.instructions.iteritems():
+        for i_id, insn in self.instructions.iteritems():
             if insn.src and insn.dst:
                 for s in insn.src:
-                    if not s in successors:
-                        successors[s] = []
-                    successors[s].append(insn.dst)
-        for dst, insn in self.instructions.iteritems():
-            if dst in successors:
-                for s in successors[dst]:
+                    s_id = self.getIidFromReg(s)
+                    if not s_id in successors:
+                        successors[s_id] = []
+                    successors[s_id].append(i_id)
+        for i_id, insn in self.instructions.iteritems():
+            if i_id in successors:
+                for s in successors[i_id]:
                     insn.successors.append(self.instructions[s])
+
+    def getIidFromReg(self, reg):
+        for i_id, insn in self.instructions.iteritems():
+            if insn.dst == reg:
+                return i_id
 
     def generateDfg(self, fn=DFG_FILE_ROOT):
         """ Generates the DFG of the target kernel """
@@ -345,12 +394,12 @@ class DDDG:
         with open(fn+'.dot', 'w') as fp:
             fp.write('digraph graphname {\n')
             # Print all instructions
-            for dst, insn in self.instructions.iteritems():
+            for i_id, insn in self.instructions.iteritems():
                 labelDotNode(fp, insn)
                 if insn.src:
                     for src in insn.src:
                         # Insert edge
-                        insertDotEdge(fp, src, dst)
+                        insertDotEdge(fp, src, insn.dst)
                 # Corner case: load instruction don't have predecessors
                 if insn.op=='load':
                     labelDotNode(fp, insn)
@@ -418,7 +467,7 @@ def cli():
     # # Process DDDG
     dddg = DDDG(args.target)
     dddg.generateDfg()
-    print dddg.evaluate([1, 4])
+    print dddg.evaluate([0.422224, 0.133948])
 
 if __name__ == '__main__':
     cli()
