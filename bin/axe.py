@@ -106,7 +106,8 @@ def isConstant(reg):
 def getValFromBits(raw, ty):
     if ty=="Float":
         raw = raw[8:16]
-        return struct.unpack('!f', raw.decode('hex'))[0]
+        val = struct.unpack('!f', raw.decode('hex'))[0]
+        return np.float32(val)
     else:
         assert False, "Unsupported type {}".format(ty)
 
@@ -115,13 +116,13 @@ def getValFromBits(raw, ty):
 #################################################
 
 funcMap = {
-    'fadd': lambda x, y: x+y,
-    'fsub': lambda x, y: x-y,
-    'fmul': lambda x, y: x*y,
-    'fdiv': lambda x, y: x/y,
+    'fadd': lambda x, y: np.add(x,y),
+    'fsub': lambda x, y: np.subtract(x,y),
+    'fmul': lambda x, y: np.multiply(x,y),
+    'fdiv': lambda x, y: np.divide(x,y),
     'store': lambda x: x,
-    'fpext': lambda x: x,
-    'fptrunc': lambda x: x,
+    'fpext': lambda x: np.float64(x),
+    'fptrunc': lambda x: np.float32(x),
     # Math functions
     'acos': lambda x: np.arccos(x),
     'asin': lambda x: np.arcsin(x),
