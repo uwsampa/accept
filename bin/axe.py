@@ -37,6 +37,9 @@ DFG_FILE_ROOT = 'dfg'
 # Commands
 MAKE_ORIG = 'make run_orig'
 
+# Alignment used for packing/unpacking
+ALIGN='>'
+
 #################################################
 # General OS function helpers
 #################################################
@@ -104,12 +107,38 @@ def isConstant(reg):
         return False
 
 def getValFromBits(raw, ty):
-    if ty=="Float":
+    if ty=='Float':
         raw = raw[8:16]
-        val = struct.unpack('!f', raw.decode('hex'))[0]
+        val = struct.unpack(ALIGN+'f', raw.decode('hex'))[0]
         return np.float32(val)
+    elif ty=='Double':
+        val = struct.unpack(ALIGN+'d', raw.decode('hex'))[0]
+        return np.float64(val)
     else:
-        assert False, "Unsupported type {}".format(ty)
+        assert False, 'Unsupported type {}'.format(ty)
+
+def approxVal(val, ty, prec):
+    """ Approximates the value """
+
+    # Convert to hex
+    raw = 'unknown'
+    if ty=='Float':
+        raw = struct.unpack(ALIGN+'I', struct.pack(ALIGN+'f', val))[0]
+    elif ty=='Double':
+        raw =  struct.unpack(ALIGN+'Q', struct.pack(ALIGN+'d', val))[0]
+
+    # Approximate
+    raw >>= prec
+    raw <<= prec
+
+    # Convert to float/double
+    raw = str(hex(raw))[2:]
+    if ty=='Float':
+        val = struct.unpack(ALIGN+'f', raw.decode('hex'))[0]
+        return np.float32(val)
+    elif ty=='Double':
+        val = struct.unpack(ALIGN+'d', raw.decode('hex'))[0]
+        return np.float64(val)
 
 #################################################
 # Supported functions
@@ -194,6 +223,8 @@ class Insn:
         self.i_id = tokens[2]
         self.bb_id = tokens[2].split('i')[0]
         self.qual = tokens[3]
+        # Precision setting
+        self.prec = 0
         # If return instruction
         if self.op == 'ret':
             self.src_ty = [tokens[4]]
@@ -274,11 +305,17 @@ class Insn:
         arg = [ p.evaluate(*x) for p in self.predecessors]
         # Load - retrieve input i
         if op=='load':
-            return x[self.load_idx]
+            retVal = x[self.load_idx]
+        # Binary instruction
         elif op in binaryInsn:
-            return funcMap[op](arg[0], arg[1])
+            retVal = funcMap[op](arg[0], arg[1])
+        # Unary instruction
         else:
-            return funcMap[op](arg[0])
+            retVal = funcMap[op](arg[0])
+        # Approximate output value
+        ty = self.src_ty[0] if op=='store' else self.dst_ty
+        retVal = approxVal(retVal, ty, self.prec)
+        return retVal
 
 class DDDG:
     """ DDDG class """
@@ -408,7 +445,7 @@ class DDDG:
 
         return y
 
-    def loadMemTrace(self, fn=ACCEPT_LD_FILE, lim=100):
+    def loadMemTrace(self, fn=ACCEPT_LD_FILE, lim=1):
         """ Reads in memory trace file """
 
         # If the file does not exist, generate it
