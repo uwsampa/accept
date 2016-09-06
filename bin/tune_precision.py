@@ -1275,7 +1275,7 @@ def report_error_and_savings(base_config, timeout, error=0, bb_stats_fn=None, er
 # Parameterisation testing
 #################################################
 
-def tune_himask_insn(base_config, idx, init_snr, timeout, double_to_single=True, snr_diff_threshold=1.0):
+def tune_himask_insn(base_config, idx, init_snr, timeout, double_to_single=False, snr_diff_threshold=1.0):
     """Tunes the most significant bit masking of
     an instruction given its index without affecting
     application error.
