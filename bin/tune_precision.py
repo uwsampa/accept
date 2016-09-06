@@ -1729,8 +1729,8 @@ def runExperiments(runs, instlimit, target_func, timeout, clusterworkers, run_on
 
     logging.info('min: {}, mean: {}, max: {}'.format(min(errors), np.median(np.array(errors)), max(errors)))
     with open(ERROR_FILE, 'w') as fp:
-        fp.write('min, mean, max\n')
-        fp.write('{}, {}, {}\n'.format(min(errors), np.median(np.array(errors)), max(errors)))
+        fp.write('min, mean, max, std\n')
+        fp.write('{}, {}, {}, {}\n'.format(min(errors), np.median(np.array(errors)), max(errors), np.std(np.array(errors))))
         fp.write('{}\n'.format(', '.join([str(x) for x in errors])))
 
 
