@@ -44,6 +44,10 @@ tmpoutputsdir = os.getcwd()+'/../'+os.path.basename(os.path.normpath(os.getcwd()
 PRECISE_OUTPUT = 'orig'+EXT
 APPROX_OUTPUT = 'out'+EXT
 
+# Cluster arguments (partitions)
+M_PARTITION = 'eightcore'
+W_PARTITION = 'sampa'
+
 # PARAMETERS
 RESET_CYCLE = 1
 
@@ -1324,7 +1328,7 @@ def tune_himask_insn(base_config, idx, init_snr, timeout, double_to_single=True,
     # Return the mask value
     return best_mask
 
-def tune_himask(base_config, init_snr, instlimit, timeout, clusterworkers, run_on_grappa):
+def tune_himask(base_config, init_snr, instlimit, timeout, clusterworkers):
     """Tunes the most significant bit masking at an instruction
     granularity without affecting application error.
     """
@@ -1346,8 +1350,6 @@ def tune_himask(base_config, init_snr, instlimit, timeout, clusterworkers, run_o
         insn_masks[idx] = output
 
     if (clusterworkers):
-        # Select partition
-        partition = "grappa" if run_on_grappa else "sampa"
         # Kill the master/workers in case previous run failed
         logging.info ("Stopping master/workers that are still running")
         cw.slurm.stop()
@@ -1355,8 +1357,8 @@ def tune_himask(base_config, init_snr, instlimit, timeout, clusterworkers, run_o
         logging.info ("Starting {} worker(s)".format(clusterworkers))
         cw.slurm.start(
             nworkers=clusterworkers,
-            master_options=['--partition='+partition, '-s'],
-            worker_options=['--partition='+partition, '-s']
+            master_options=['--partition='+M_PARTITION, '-s'],
+            worker_options=['--partition='+W_PARTITION, '-s']
         )
         client = cw.client.ClientThread(completion, cw.slurm.master_host())
         client.start()
@@ -1389,7 +1391,7 @@ def tune_himask(base_config, init_snr, instlimit, timeout, clusterworkers, run_o
 
     report_error_and_savings(base_config, timeout)
 
-def tune_lomask(base_config, target_error, target_snr, init_snr, fixed, passlimit, instlimit, timeout, clusterworkers, run_on_grappa, save_output = False, sloppy=False, snr_diff_threshold=1.0):
+def tune_lomask(base_config, target_error, target_snr, init_snr, fixed, passlimit, instlimit, timeout, clusterworkers, save_output = False, sloppy=False, snr_diff_threshold=1.0):
     """Tunes the least significant bits masking to meet the
     specified error requirements, given a passlimit.
     The tuning algorithm performs multiple passes over every
@@ -1420,8 +1422,6 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, fixed, passlimi
         insn_errors[idx] = output
 
     if (clusterworkers):
-        # Select partition
-        partition = "grappa" if run_on_grappa else "sampa"
         # Kill the master/workers in case previous run failed
         logging.info ("Stopping master/workers that are still running")
         cw.slurm.stop()
@@ -1429,8 +1429,8 @@ def tune_lomask(base_config, target_error, target_snr, init_snr, fixed, passlimi
         logging.info ("Starting {} worker(s)".format(clusterworkers))
         cw.slurm.start(
             nworkers=clusterworkers,
-            master_options=['--partition='+partition, '-s'],
-            worker_options=['--partition='+partition, '-s']
+            master_options=['--partition='+M_PARTITION, '-s'],
+            worker_options=['--partition='+W_PARTITION, '-s']
         )
         client = cw.client.ClientThread(completion, cw.slurm.master_host())
         client.start()
@@ -1657,7 +1657,7 @@ def getConfFile(path, snr):
 # Main Function(s)
 #################################################
 
-def runExperiments(runs, instlimit, target_func, timeout, clusterworkers, run_on_grappa):
+def runExperiments(runs, instlimit, target_func, timeout, clusterworkers):
 
     logging.info ("###################################")
     logging.info ("Running error injection experiments")
@@ -1687,8 +1687,6 @@ def runExperiments(runs, instlimit, target_func, timeout, clusterworkers, run_on
 
     # Launch clusterworkers if needed
     if (clusterworkers):
-        # Select partition
-        partition = "grappa" if run_on_grappa else "sampa"
         # Kill the master/workers in case previous run failed
         logging.info ("Stopping master/workers that are still running")
         cw.slurm.stop()
@@ -1696,8 +1694,8 @@ def runExperiments(runs, instlimit, target_func, timeout, clusterworkers, run_on
         logging.info ("Starting {} worker(s)".format(clusterworkers))
         cw.slurm.start(
             nworkers=clusterworkers,
-            master_options=['--partition='+partition, '-s'],
-            worker_options=['--partition='+partition, '-s']
+            master_options=['--partition='+M_PARTITION, '-s'],
+            worker_options=['--partition='+W_PARTITION, '-s']
         )
         client = cw.client.ClientThread(completion, cw.slurm.master_host())
         client.start()
@@ -1734,7 +1732,7 @@ def runExperiments(runs, instlimit, target_func, timeout, clusterworkers, run_on
         fp.write('{}\n'.format(', '.join([str(x) for x in errors])))
 
 
-def tune_width(accept_config_fn, target_error, target_snr, target_func, fixed, passlimit, instlimit, skip, timeout, clusterworkers, run_on_grappa):
+def tune_width(accept_config_fn, target_error, target_snr, target_func, fixed, passlimit, instlimit, skip, timeout, clusterworkers):
     """Performs instruction masking tuning
     """
     # Generate default configuration
@@ -1757,7 +1755,7 @@ def tune_width(accept_config_fn, target_error, target_snr, target_func, fixed, p
 
     # Let's tune the high mask bits (0 performance degradation)
     if skip!='hi':
-        tune_himask(config, init_snr, instlimit, timeout, clusterworkers, run_on_grappa)
+        tune_himask(config, init_snr, instlimit, timeout, clusterworkers)
 
     # Now let's tune the low mask bits (performance degradation allowed)
     if skip!='lo':
@@ -1770,8 +1768,7 @@ def tune_width(accept_config_fn, target_error, target_snr, target_func, fixed, p
             passlimit,
             instlimit,
             timeout,
-            clusterworkers,
-            run_on_grappa)
+            clusterworkers)
 
 
 #################################################
@@ -1835,10 +1832,6 @@ def cli():
         default=0, help='max number of machines to allocate on the cluster'
     )
     parser.add_argument(
-        '-grappa', dest='grappa', action='store_true', required=False,
-        default=False, help='run on grappa partition'
-    )
-    parser.add_argument(
         '-d', dest='debug', action='store_true', required=False,
         default=False, help='print out debug messages'
     )
@@ -1885,8 +1878,7 @@ def cli():
             args.instlimit,
             args.target_func,
             args.timeout,
-            args.clusterworkers,
-            args.grappa
+            args.clusterworkers
         )
 
     # Precision autotuning
@@ -1912,8 +1904,7 @@ def cli():
             args.instlimit,
             args.skip,
             args.timeout,
-            args.clusterworkers,
-            args.grappa)
+            args.clusterworkers)
 
         # Close the log handlers
         handlers = rootLogger.handlers[:]
