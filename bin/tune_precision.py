@@ -587,19 +587,22 @@ def analyzeConfigStats(config_fn, target_func, fixed, extraChecks=True, reportEn
     except:
         logging.error('Something went wrong generating default config.')
         exit()
-    shell(shlex.split('make run_opt'), cwd=curdir)
 
-    assert (os.path.isfile(config_fn)),"config file not found!"
-    assert (os.path.isfile(BB_DYNSTATS_FILE)),"dynamic bb stats file not found!"
-    assert (os.path.isfile(STATIC_INFO_FILE)),"static dump file file not found!"
 
-    # Retrieve Configuration
-    config = read_config(config_fn, fixed, target_func)
-    # Retrieve Synamic Stats
-    dynamicBbStats = read_dyn_bb_stats(BB_DYNSTATS_FILE)
     # Obtain static instruction mix from static dump
+    assert (os.path.isfile(STATIC_INFO_FILE)),"static dump file file not found!"
     staticStats = read_static_stats_2(STATIC_INFO_FILE, target_func)
     locMap = {}
+
+    # Generate BB stats and config file
+    shell(shlex.split('make run_opt'), cwd=curdir)
+
+    # Retrieve Configuration
+    assert (os.path.isfile(config_fn)),"config file not found!"
+    config = read_config(config_fn, fixed, target_func)
+    # Retrieve Synamic Stats
+    assert (os.path.isfile(BB_DYNSTATS_FILE)),"dynamic bb stats file not found!"
+    dynamicBbStats = read_dyn_bb_stats(BB_DYNSTATS_FILE)
 
     # Measure error
     if os.path.isfile(APPROX_OUTPUT):
@@ -636,6 +639,9 @@ def analyzeConfigStats(config_fn, target_func, fixed, extraChecks=True, reportEn
     total = 0
     for cat in categories:
         total += totalStats[cat]
+    if total == 0:
+        logging.error("No instructions to analyze! Make sure target function provided is in program.")
+        exit()
     for cat in categories:
         approxCount = approxStats[cat]
         preciseCount = totalStats[cat]-approxStats[cat]
@@ -1736,8 +1742,11 @@ def tune_width(accept_config_fn, target_error, target_snr, target_func, fixed, p
         print_config(config)
 
     # If in SNR mode, measure initial SNR
-    if (target_snr>0):
+    if (target_snr>1):
         init_snr = test_config(config, timeout)
+        if init_snr==CRASH or init_snr==TIMEOUT or init_snr==NOOUTPUT:
+            logging.error("Initial execution is faulty. Please try running \"make run_orig\" to identify the issue.")
+            exit()
         logging.info ("Initial SNR = {}\n".format(init_snr))
     else:
         init_snr = 0
