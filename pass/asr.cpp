@@ -78,15 +78,33 @@ bool ApproxStrengthReduction::runOnFunction(Function &F) {
 
           // Is it not already a power of two?
           if (!value.isPowerOf2()) {
-            // Get the nearest power of two.
-            uint64_t rounded = 1U << value.logBase2();
+            // Log the optimization site.
+            LogDescription *desc = AI->logAdd("Multiply", bop);
 
-            // Modify the instruction.
-            bop->dump();
-            ConstantInt *newcint = ConstantInt::get(cint->getType(), rounded);
-            bop->setOperand(1, newcint);
-            bop->dump();
-            errs() << "hi\n";
+            // Generate a name for this optimization site.
+            std::stringstream ss;
+            ss << "multiply by " << value.getSExtValue() << " at " <<
+              srcPosDesc(*module, bop->getDebugLoc());
+            std::string name = ss.str();
+
+            // Check whether we should optimize.
+            if (transformPass->relax) {
+              int param = transformPass->relaxConfig[name];
+              if (param) {
+                // Get the nearest power of two.
+                uint64_t rounded = 1U << value.logBase2();
+
+                // Modify the instruction.
+                ConstantInt *newcint = ConstantInt::get(cint->getType(),
+                                                        rounded);
+                bop->setOperand(1, newcint);
+                ACCEPT_LOG << "replacing operand with " <<
+                  newcint->getSExtValue() << "\n";
+              } else {
+                ACCEPT_LOG << "not optimizing\n";
+                continue;
+              }
+            }
           }
         }
       }
