@@ -89,8 +89,7 @@ bool ApproxStrengthReduction::runOnFunction(Function &F) {
 
             // Check whether we should optimize.
             if (transformPass->relax) {
-              int param = transformPass->relaxConfig[name];
-              if (param) {
+              if (transformPass->relaxConfig[name]) {
                 // Get the nearest power of two.
                 uint64_t rounded = 1U << value.logBase2();
 
@@ -104,6 +103,9 @@ bool ApproxStrengthReduction::runOnFunction(Function &F) {
                 ACCEPT_LOG << "not optimizing\n";
                 continue;
               }
+            } else {
+              ACCEPT_LOG << "can strength-reduce\n";
+              transformPass->relaxConfig[name] = 0;
             }
           }
         }
