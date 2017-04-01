@@ -47,6 +47,7 @@ namespace {
     PM.add(createLoopPerfPass());
     if (acceptEnableNPU)
       PM.add(createLoopNPUPass());
+    PM.add(createASRPass());
   }
   static RegisterStandardPasses
       RegisterACCEPT(PassManagerBuilder::EP_EarlyAsPossible,

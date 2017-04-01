@@ -29,6 +29,7 @@ namespace llvm {
   FunctionPass *createAcceptTransformPass();
   extern FunctionPass *sharedAcceptTransformPass;
   LoopPass *createLoopPerfPass();
+  FunctionPass *createASRPass();
   void initializeLoopNPUPass(PassRegistry &Registry);
   LoopPass *createLoopNPUPass();
   FunctionPass *createErrorInjectionPass();
