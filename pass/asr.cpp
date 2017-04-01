@@ -59,7 +59,39 @@ bool ApproxStrengthReduction::runOnFunction(Function &F) {
   if (transformPass->shouldSkipFunc(F))
     return false;
 
-  errs() << "hi\n";
+  // Loop over the code of the function, traversing from functions through
+  // basic blocks to instructions.
+  for (Function::iterator fi = F.begin(); fi != F.end(); ++fi) {
+    BasicBlock *bb = fi;
+    for (BasicBlock::iterator bi = bb->begin(); bi != bb->end(); ++bi) {
+      Instruction *inst = bi;
+
+      // Is this instruction a multiply?
+      if (inst->getOpcode() == Instruction::Mul) {
+        BinaryOperator *bop = cast<BinaryOperator>(inst);
+        Value *lhs = bop->getOperand(0);
+        Value *rhs = bop->getOperand(1);
+
+        // Is the RHS a constant number?
+        if (ConstantInt *cint = dyn_cast_or_null<ConstantInt>(rhs)) {
+          const APInt &value = cint->getValue();
+
+          // Is it not already a power of two?
+          if (!value.isPowerOf2()) {
+            // Get the nearest power of two.
+            uint64_t rounded = 1U << value.logBase2();
+
+            // Modify the instruction.
+            bop->dump();
+            ConstantInt *newcint = ConstantInt::get(cint->getType(), rounded);
+            bop->setOperand(1, newcint);
+            bop->dump();
+            errs() << "hi\n";
+          }
+        }
+      }
+    }
+  }
 
   return true;
 }
