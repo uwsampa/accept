@@ -35,6 +35,7 @@ ifeq ($(shell uname -s),Darwin)
 		CXXFLAGS += -I$(XCODEINCLUDES)
 	endif
 	LIBEXT := dylib
+	CFLAGS += -Wno-availability
 else
 	# Work around Clang include path search bug on Debian/Ubuntu.
 	# https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=697127
