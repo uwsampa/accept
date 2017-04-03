@@ -90,7 +90,7 @@ clean:
 
 .INTERMEDIATE: llvm-$(LLVM_VERSION).src.tar.gz
 llvm-$(LLVM_VERSION).src.tar.gz:
-	curl -O http://llvm.org/releases/$(LLVM_VERSION)/$@
+	curl -O http://releases.llvm.org/$(LLVM_VERSION)/$@
 
 llvm/CMakeLists.txt: llvm-$(LLVM_VERSION).src.tar.gz
 	tar -xf $<
