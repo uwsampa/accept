@@ -1,4 +1,4 @@
-CC := clang
+CC := ../build/built/bin/clang
 
 ARCHES := default zynq msp430
 
