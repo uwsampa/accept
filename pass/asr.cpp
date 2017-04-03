@@ -34,7 +34,6 @@ void ApproxStrengthReduction::getAnalysisUsage(AnalysisUsage &AU) const {
 }
 
 ApproxStrengthReduction::ApproxStrengthReduction() : FunctionPass(ID) {
-  // initializeApproxStrengthReductionPass(*PassRegistry::getPassRegistry());
   module = 0;
 }
 
