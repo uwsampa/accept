@@ -10,6 +10,7 @@ VIRTUALENV := virtualenv
 VENV := venv
 
 CXXLIBPATH := $(wildcard /usr/include/*-linux-gnu/c++/4.*)
+ARCH_CXXLIB:= $(shell basename /usr/include/*-linux-gnu/)
 TOOLCHAIN_VERSION := $(shell basename $(CXXLIBPATH))
 
 # CMake options for building LLVM and the ACCEPT pass.
@@ -78,9 +79,9 @@ llvm: llvm/CMakeLists.txt llvm/tools/clang check_cmake check_ninja
 		cd gcc_toolchain; \
 		ln -s /usr/include include; \
 		ln -s /usr/bin bin; \
-		mkdir -p lib/gcc/x86_64-linux-gnu/; \
-		cd lib/gcc/x86_64-linux-gnu/; \
-		ln -s /usr/lib/gcc/x86_64-linux-gnu/$(TOOLCHAIN_VERSION) $(TOOLCHAIN_VERSION); \
+		mkdir -p lib/gcc/$(ARCH_CXXLIB); \
+		cd lib/gcc/$(ARCH_CXXLIB)/; \
+		ln -s /usr/lib/gcc/$(ARCH_CXXLIB)/$(TOOLCHAIN_VERSION) $(TOOLCHAIN_VERSION); \
 	fi
 	# Actually building llvm
 	mkdir -p $(BUILD)/llvm
