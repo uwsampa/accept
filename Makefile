@@ -9,8 +9,11 @@ VIRTUALENV := virtualenv
 # Location of the Python virtual environment.
 VENV := venv
 
+CXXLIBPATH := $(wildcard /usr/include/*-linux-gnu/c++/4.*)
+TOOLCHAIN_VERSION := $(shell basename $(CXXLIBPATH))
+
 # CMake options for building LLVM and the ACCEPT pass.
-CMAKE_FLAGS := -G Ninja -DCMAKE_INSTALL_PREFIX:PATH=$(shell pwd)/$(BUILT)
+CMAKE_FLAGS := -G Ninja -DCMAKE_INSTALL_PREFIX:PATH=$(shell pwd)/$(BUILT) 
 ifeq ($(RELEASE),1)
 CMAKE_FLAGS += -DCMAKE_BUILD_TYPE:STRING=Release
 else
@@ -68,6 +71,18 @@ accept: check_cmake check_ninja
 	cd $(BUILD)/enerc ; $(NINJA) install
 
 llvm: llvm/CMakeLists.txt llvm/tools/clang check_cmake check_ninja
+	# To prevent clang from using gcc newer toolchain (and fail compiling),
+	# create our own toolchain
+	if [ "$(CXXLIBPATH)" != "" ]; then \
+		mkdir gcc_toolchain; \
+		cd gcc_toolchain; \
+		ln -s /usr/include include; \
+		ln -s /usr/bin bin; \
+		mkdir -p lib/gcc/x86_64-linux-gnu/; \
+		cd lib/gcc/x86_64-linux-gnu/; \
+		ln -s /usr/lib/gcc/x86_64-linux-gnu/$(TOOLCHAIN_VERSION) $(TOOLCHAIN_VERSION); \
+	fi
+	# Actually building llvm
 	mkdir -p $(BUILD)/llvm
 	cd $(BUILD)/llvm ; $(CMAKE) $(CMAKE_FLAGS) ../../llvm
 	cd $(BUILD)/llvm ; $(NINJA) install
@@ -90,7 +105,7 @@ clean:
 
 .INTERMEDIATE: llvm-$(LLVM_VERSION).src.tar.gz
 llvm-$(LLVM_VERSION).src.tar.gz:
-	curl -O http://releases.llvm.org/$(LLVM_VERSION)/$@
+	curl -LO http://releases.llvm.org/$(LLVM_VERSION)/$@
 
 llvm/CMakeLists.txt: llvm-$(LLVM_VERSION).src.tar.gz
 	tar -xf $<

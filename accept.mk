@@ -43,6 +43,7 @@ else
 	CXXLIBPATH := $(wildcard /usr/include/*-linux-gnu/c++/4.*)
 	ifneq ($(CXXLIBPATH),)
 		CXXFLAGS += $(CXXLIBPATH:%=-I%)
+		CXXFLAGS += --sysroot $(ACCEPTDIR)/gcc_toolchain
 	endif
 	LIBEXT := so
 endif
